@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: octagon_analysis
+Version: 0.1
+Summary: functions to handle octagon data parsing and preprocessing
+Author: Tom Hagley
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Dist: numpy
+Requires-Dist: pandas
