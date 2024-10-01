@@ -6,4 +6,5 @@ octagon_analysis.egg-info/requires.txt
 octagon_analysis.egg-info/top_level.txt
 parse_data/__init__.py
 parse_data/handle_specific_datasets.py
-parse_data/load_and_clean.py
+parse_data/loading.py
+parse_data/preprocess.py

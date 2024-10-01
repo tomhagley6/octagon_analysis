@@ -30,35 +30,35 @@ json_normalise = True
 ## paths
 # data_folder = '/home/tom/Documents/SWC/data' # desktop Duan Lab
 # json_filename = '240913_Yansu_Jerry/2024-09-13_11-23-37_YansuFirstSolo.json' 
-data_folder = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # desktop home
-json_filename = r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json'
-filepath = data_folder + os.sep + json_filename
+# data_folder = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # desktop home
+# json_filename = r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json'
+# filepath = data_folder + os.sep + json_filename
 
 
-# In[50]:
+# # In[50]:
 
 
-# Note json_normalize requires the json file, whereas read_json requires the filepath
-if json_normalise == True:
-    with open(filepath) as f:
-        file = json.load(f)
-        df = pd.json_normalize(file)
-else:
-    with open(filepath) as f:
-        df = pd.read_json(f)
-        print(type(df))
+# # Note json_normalize requires the json file, whereas read_json requires the filepath
+# if json_normalise == True:
+#     with open(filepath) as f:
+#         file = json.load(f)
+#         df = pd.json_normalize(file)
+# else:
+#     with open(filepath) as f:
+#         df = pd.read_json(f)
+#         print(type(df))
 
 
 # In[51]:
 
 
-##  Convert time columns into datetime format
-df['timeLocal'] = pd.to_datetime(df['timeLocal'], format='%H:%M:%S:%f')
+# ##  Convert time columns into datetime format
+# df['timeLocal'] = pd.to_datetime(df['timeLocal'], format='%H:%M:%S:%f')
 
-# Use to_timedelta instead as a vectorised function (lambdas are python loops)
-# df['timeApplication'] = df['timeApplication'].apply(lambda x: timedelta(seconds=int(x) + (x - int(x))))
-df['timeApplication'] = pd.to_numeric(df['timeApplication']) 
-df['timeApplication'] = pd.to_timedelta(df['timeApplication'], unit='s')
+# # Use to_timedelta instead as a vectorised function (lambdas are python loops)
+# # df['timeApplication'] = df['timeApplication'].apply(lambda x: timedelta(seconds=int(x) + (x - int(x))))
+# df['timeApplication'] = pd.to_numeric(df['timeApplication']) 
+# df['timeApplication'] = pd.to_timedelta(df['timeApplication'], unit='s')
 
 
 # In[52]:
@@ -96,11 +96,11 @@ def playerinfo_playerposition_conversion(df, solo=True):
 # In[58]:
 
 
-df2 = playerinfo_playerposition_conversion(df, solo=True)
+# df2 = playerinfo_playerposition_conversion(df, solo=True)
 
 
 # In[59]:
 
 
-df2.tail()
+# df2.tail()
 

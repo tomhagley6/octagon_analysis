@@ -1,6 +1,16 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[29]:
+
+
 import math
 import numpy as np
 from matplotlib import pyplot as plt
+
+
+# In[30]:
+
 
 # default arguments
 num_walls = 8
@@ -9,13 +19,33 @@ radius = diameter/2
 angle_sep = 2*math.pi/num_walls  # angle between walls
 vertex_offset = angle_sep/2      # angular distance between centre-wall and vertex 
 
+# alcoves
+alcove_length_scaled = 3.0       # depth of alcove in Blender/Unity units after scaling 
+                                 # of Octagon in Unity
+alcove_length_axis_projection = (alcove_length_scaled*math.sin(math.pi/4))/math.sin(math.pi/2) # Sin rule to find x and y coordinate
+                                                                                               # offset from values in vertex_x/y
+                                                                                               # This is the projection of the diagonal
+                                                                                               # alcove walls onto the x and y axis
+
+
+# In[31]:
+
+
 ## Functions ##
+
+
+# In[32]:
+
 
 # coordinate generation # 
 
+
+# In[33]:
+
+
 # this will return lists of x and y coordinates, for vertices if vertex=True, and for
 # wall centres if vertex=False
-def calculate_coordinates(vertex=True, angle_sep=angle_sep, vertex_offset=vertex_offset):
+def calculate_coordinates(vertex=True, angle_sep=angle_sep, vertex_offset=vertex_offset, num_walls=num_walls, radius=radius):
     coords_x = []
     coords_y = []
     # offset the angle to find vertex coordinates
@@ -37,6 +67,10 @@ def calculate_coordinates(vertex=True, angle_sep=angle_sep, vertex_offset=vertex
     coords_y.append(coords_y[0]) # repeat starting point for plotting
 
     return [coords_x, coords_y]
+
+
+# In[34]:
+
 
 # find 1/3 and 2/3 coordinates along each wall
 def calculate_wall_thirds_coordinates(vertex_x, vertex_y):
@@ -65,8 +99,13 @@ def calculate_wall_thirds_coordinates(vertex_x, vertex_y):
 
     return [wall_thirds_x, wall_thirds_y]
 
+
+# In[35]:
+
+
 # generate alcove end-points
-def generate_alcove_endpoints(vertex_x_thirds, vertex_y_thirds, alcove_length_axis_projection):
+def generate_alcove_endpoints(vertex_x_thirds, vertex_y_thirds, alcove_length_scaled=alcove_length_scaled,
+                              alcove_length_axis_projection=alcove_length_axis_projection):
     
     # create lists for alcove x and y coordinates, for diagonal and horizontal walls
     alcove_x_coords_diag = []
@@ -125,6 +164,10 @@ def generate_alcove_endpoints(vertex_x_thirds, vertex_y_thirds, alcove_length_ax
 
     return [alcove_x_coords, alcove_y_coords]
 
+
+# In[36]:
+
+
 # concatenate all of the coordinate lists together in order
 
 def concatenate_all_coord_lists(vertex_x, vertex_x_thirds, alcove_x_coords,
@@ -174,40 +217,55 @@ def concatenate_all_coord_lists(vertex_x, vertex_x_thirds, alcove_x_coords,
     return [final_x_coords, final_y_coords]
 
 
+# In[37]:
+
+
 # plotting # 
 
-def plot_octagon(x_coords, y_coords):
-    plt.plot(x_coords, y_coords)
-    plt.gca().set_aspect(1.)
 
+# In[22]:
+
+
+# plot the full alcove octagon outline shape
+def plot_octagon_from_coords(x_coords, y_coords, ax=None):
+
+    if ax is None:
+        fig, ax = plt.subplots()
+        ax.plot(x_coords, y_coords)
+        ax.set_aspect(1.)
+
+    return ax 
+
+
+# In[20]:
+
+
+# plot all coordinates, including the wall thirds points
 def plot_all_octagon_coordinates(vertex_x, wall_thirds_x, alcoves_x,
-                                 vertex_y, wall_thirds_y, alcoves_y):
-    plt.plot(vertex_x, vertex_y)
-    plt.plot(wall_thirds_x, wall_thirds_y)
-    plt.scatter(alcoves_x, alcoves_y)
-    plt.gca().set_aspect(1.)
+                                 vertex_y, wall_thirds_y, alcoves_y,
+                                ax=None):
+
+    if ax is None:
+        fig, ax = plt.subplots()
+        ax.plot(vertex_x, vertex_y)
+        ax.plot(wall_thirds_x, wall_thirds_y)
+        ax.scatter(alcoves_x, alcoves_y)
+        ax.gca().set_aspect(1.)
+
+        return ax
+
+
+# In[40]:
+
 
 ## Execution ## 
 
-if __name__ == "__main__":
 
-    # variables
+# In[18]:
 
-    # basic
-    num_walls = 8
-    diameter = 36.21
-    radius = diameter/2
-    angle_sep = 2*math.pi/num_walls  # angle between walls
-    vertex_offset = angle_sep/2      # angular distance between centre-wall and vertex 
 
-    # alcoves
-    alcove_length_scaled = 3.0       # depth of alcove in Blender/Unity units after scaling 
-                                    # of Octagon in Unity
-    alcove_length_axis_projection = (alcove_length_scaled*math.sin(math.pi/4))/math.sin(math.pi/2) # Sin rule to find x and y coordinate
-                                                                                                # offset from values in vertex_x/y
-                                                                                                # This is the projection of the diagonal
-                                                                                                # alcove walls onto the x and y axis
-
+# umbrella function
+def plot_octagon():
     # get vertex coordinates
     vertex_x, vertex_y = calculate_coordinates(vertex=True)
 
@@ -222,9 +280,52 @@ if __name__ == "__main__":
                                                     vertex_y, wall_thirds_y, alcove_y)
 
     # plot octagon 
-    plot_octagon(x_coords, y_coords)
+    ax = plot_octagon_from_coords(x_coords, y_coords)
+
+    # return axes for further plotting
+    return ax 
+
+
+# In[17]:
+
+
+if __name__ == "__main__":
+
+    # variables
+    # basic
+    num_walls = 8
+    diameter = 36.21
+    radius = diameter/2
+    angle_sep = 2*math.pi/num_walls  # angle between walls
+    vertex_offset = angle_sep/2      # angular distance between centre-wall and vertex 
+
+    # alcoves
+    alcove_length_scaled = 3.0       # depth of alcove in Blender/Unity units after scaling 
+                                    # of Octagon in Unity
+    alcove_length_axis_projection = (alcove_length_scaled*math.sin(math.pi/4))/math.sin(math.pi/2) # Sin rule to find x and y coordinate
+                                                                                                # offset from values in vertex_x/y
+                                                                                                # This is the projection of the diagonal
+                                                                                                # alcove walls onto the x and y axis
+    # get vertex coordinates
+    vertex_x, vertex_y = calculate_coordinates(vertex=True)
+
+    # get coordinates for the points 1/3 and 2/3 along each wall
+    wall_thirds_x, wall_thirds_y = calculate_wall_thirds_coordinates(vertex_x, vertex_y)
+
+    # get coordinates for the alcove endpoints
+    alcove_x, alcove_y = generate_alcove_endpoints(wall_thirds_x, wall_thirds_y, alcove_length_axis_projection)
+
+    # concatenate all coordinate lists together
+    x_coords, y_coords = concatenate_all_coord_lists(vertex_x, wall_thirds_x, alcove_x,
+                                                    vertex_y, wall_thirds_y, alcove_y)
+
+    # plot octagon 
+    ax = plot_octagon_from_coords(x_coords, y_coords)
     plt.show()
-    print("Octagon plotted!")
 
 
+# In[43]:
+
+
+plot_octagon()
 
