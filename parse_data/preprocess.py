@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# In[2]:
+
+
+import pandas as pd
+import numpy as np
+import globals
+
+
 # In[30]:
 
 
@@ -37,10 +45,16 @@ def fill_trial_zero(df):
 
 
 # Fill player scores 
-def fill_player_scores_solo(df):
+def fill_player_scores(df, social=False):
     df2 = df.copy()
+    
     df2.loc[0, 'data.playerScores.0'] = 0 
     df2['data.playerScores.0'] = df2['data.playerScores.0'].ffill()
+
+    if social:
+        df2.loc[0, 'data.playerScores.1'] = 0 
+        df2['data.playerScores.1'] = df2['data.playerScores.1'].ffill()
+
 
     return df2
 
@@ -111,6 +125,37 @@ def fill_trial_walls(df):
     
 
 
+# In[ ]:
+
+
+# Create a column to reflect the current trial epoch for each row
+def create_trial_epoch_column(df, col_name='trial_epoch'):
+    df2 = df.copy()
+    
+    # create column
+    df2[col_name] = np.nan
+    # cast from float64 to object dtype to allow including strings without complaining
+    df2[col_name] = df2[col_name].astype('object')
+
+    # define the eventDescription triggers that lead to epoch transitions, the indices where these occur,
+    # and the labels of the epoch periods
+    epoch_transition_triggers = ['trial start', 'slice onset', globals.SELECTED_TRIGGER_ACTIVATION, 'trial end']
+    epoch_transition_idxs = [df2.index[df2['eventDescription'] == trigger] for trigger in epoch_transition_triggers]
+    epoch_transition_labels = [globals.TRIAL_STARTED, globals.SLICES_ACTIVE, globals.POST_CHOICE, globals.ITI]
+
+    # insert the epoch period label at all indexes where this transition occurs
+    # and do this for all epoch periods
+    for i in range(len(epoch_transition_idxs)):
+        df2.loc[epoch_transition_idxs[i], col_name] = epoch_transition_labels[i]
+    # add a pre-trials label to the very beginning of recording
+    df2.loc[0, col_name] = globals.PRE_TRIALS
+
+    # forward fill trial epoch to replace all nans and make the labels continuous
+    df2[col_name] = df2[col_name].ffill()
+
+    return df2
+
+
 # In[1]:
 
 
@@ -119,8 +164,9 @@ def standard_preprocessing(df):
     df = reference_application_time(df)
     df = fill_trial_zero(df)
     df = fill_trial_type_full(df)
-    df = fill_player_scores_solo(df)
+    df = fill_player_scores(df)
     df = fill_trial_walls(df)
+    df = create_trial_epoch_column(df)
 
     print("Preprocessing complete.")
     
