@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[9]:
 
 
 import globals
@@ -11,17 +11,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# In[3]:
+# In[7]:
 
 
 def plot_trajectory(trials_list, trial_index=0, cmap_winner=mpl.cm.spring, cmap_loser=mpl.cm.summer,
-                   s=0.5, social=False, trial=None):
-    
+                   s=0.5, social=False):
     # isolate trial
-    if not trial is None:
-        this_trial = trial
-    else:
-        this_trial = trials_list[trial_index]
+    this_trial = trials_list[trial_index]
 
     # isolate trigger event and activating client
     trigger_event = this_trial[this_trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
@@ -61,12 +57,8 @@ def plot_trajectory(trials_list, trial_index=0, cmap_winner=mpl.cm.spring, cmap_
     else:
         ax.scatter(coordinate_arrays[globals.PLAYER_0_XLOC], coordinate_arrays[globals.PLAYER_0_YLOC], s=0.5, c=timestamps, cmap=cmap_winner, norm=norm)
         plt.show()
+
+    return coordinate_arrays
     
     
-
-
-# In[ ]:
-
-
-
 
