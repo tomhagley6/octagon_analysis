@@ -41,6 +41,21 @@ def fill_trial_zero(df):
     return df2
 
 
+# In[5]:
+
+
+def is_social(df):
+    return globals.PLAYER_1_XLOC in df.columns
+        
+
+
+# In[ ]:
+
+
+def num_players(df):
+    return len(df.filter(like=globals.XLOC).columns)
+
+
 # In[34]:
 
 
@@ -164,7 +179,8 @@ def standard_preprocessing(df):
     df = reference_application_time(df)
     df = fill_trial_zero(df)
     df = fill_trial_type_full(df)
-    df = fill_player_scores(df)
+    social = is_social(df)
+    df = fill_player_scores(df, social=social)
     df = fill_trial_walls(df)
     df = create_trial_epoch_column(df)
 
