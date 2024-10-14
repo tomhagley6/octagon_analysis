@@ -60,13 +60,13 @@ def num_players(df):
 
 
 # Fill player scores 
-def fill_player_scores(df, social=False):
+def fill_player_scores(df, num_players):
     df2 = df.copy()
     
     df2.loc[0, 'data.playerScores.0'] = 0 
     df2['data.playerScores.0'] = df2['data.playerScores.0'].ffill()
 
-    if social:
+    if num_players == 2:
         df2.loc[0, 'data.playerScores.1'] = 0 
         df2['data.playerScores.1'] = df2['data.playerScores.1'].ffill()
 
@@ -180,7 +180,8 @@ def standard_preprocessing(df):
     df = fill_trial_zero(df)
     df = fill_trial_type_full(df)
     social = is_social(df)
-    df = fill_player_scores(df, social=social)
+    n_players = num_players(df)
+    df = fill_player_scores(df, num_players)
     df = fill_trial_walls(df)
     df = create_trial_epoch_column(df)
 
