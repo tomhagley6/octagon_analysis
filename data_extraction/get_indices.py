@@ -79,3 +79,60 @@ def get_trials_with_wall_sep(trial_list, wall_sep=1):
 
     return trial_indices
 
+
+# In[3]:
+
+
+def get_trigger_activators(trial_list):
+
+    trigger_activators = []
+    for i in range(len(trial_list)):
+        this_trial = trial_list[i]
+
+        trigger_event = this_trial[this_trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
+        trigger_activator = int(
+            trigger_event[globals.TRIGGER_CLIENT].item()
+        )
+
+        trigger_activators.append(trigger_activator)
+
+
+    return trigger_activators
+        
+
+
+# In[5]:
+
+
+def get_trigger_activators_trial_start_loc(trial_list):
+    trigger_activators = get_trigger_activators(trial_list)
+    winner_x_location_slice_onset = []
+    winner_y_location_slice_onset = []
+
+
+    for i in range(len(trial_list)): 
+        this_trial = trial_list[i]
+        trigger_activator = trigger_activators[i]
+
+        xloc_key = globals.PLAYER_LOC_DICT[trigger_activator]['xloc']
+        yloc_key = globals.PLAYER_LOC_DICT[trigger_activator]['yloc']
+        
+        this_trial_slice_onset = this_trial[this_trial['eventDescription'] == globals.SLICE_ONSET]
+
+        if not this_trial_slice_onset.empty:
+            
+            this_trial_slice_onset_index = this_trial_slice_onset.index[0] - this_trial.index[0]
+            # print(f"slice onset index is: {this_trial_slice_onset.index[0]}")
+            # print(f"trial onset index is: {this_trial.index[0]}")
+            # print(f"this_trial_slice_onset_index is: {this_trial_slice_onset_index}")
+            
+            this_trial_winner_x_location_slice_onset = this_trial[xloc_key].iloc[this_trial_slice_onset_index]
+            this_trial_winner_y_location_slice_onset = this_trial[yloc_key].iloc[this_trial_slice_onset_index]
+    
+            winner_x_location_slice_onset.append(this_trial_winner_x_location_slice_onset)
+            winner_y_location_slice_onset.append(this_trial_winner_y_location_slice_onset)
+
+        
+
+    return list(zip(winner_x_location_slice_onset, winner_y_location_slice_onset))
+
