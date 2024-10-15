@@ -4,6 +4,7 @@ NUM_WALLS = 8
 
 ## Unity project logging event strings
 SELECTED_TRIGGER_ACTIVATION = 'server-selected trigger activation'
+SLICE_ONSET = 'slice onset'
 
 ## trial epoch name strings
 PRE_TRIALS = 'pre trials'
@@ -17,6 +18,14 @@ PLAYER_0_XLOC = 'data.playerPosition.0.location.x'
 PLAYER_1_XLOC = 'data.playerPosition.1.location.x'
 PLAYER_0_YLOC = 'data.playerPosition.0.location.z'
 PLAYER_1_YLOC = 'data.playerPosition.1.location.z'
+
+WALL_1 = 'data.wall1'
+WALL_2 = 'data.wall2'
+WALL_3 = 'data.wall3'
+WALL_4 = 'data.wall4'
+
+WALL_TRIGGERED = 'data.wallTriggered'
+TRIGGER_CLIENT = 'data.triggerClient'
 
 PLAYER_LOC_DICT = {
                      0: {'xloc': PLAYER_0_XLOC, 'yloc': PLAYER_0_YLOC},

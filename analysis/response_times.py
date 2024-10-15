@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 
 class ResponseTimes:
+    ''' Class to hold all data related to response times ''' 
 
     def __init__(self, response_times, mean, median, iqr,
                  *social_response_times, **social_stats):
@@ -131,6 +132,7 @@ def calculate_response_times(df):
 
 
 def plot_response_times(response_times):
+    ''' Plot overlapping line graphs of response time for for up to 2 players in a session '''
 
     if response_times.is_social():
         plt.plot(response_times.social_response_times[0].astype('timedelta64[ms]')) # plot in milliseconds (default ns)
@@ -141,7 +143,7 @@ def plot_response_times(response_times):
     
     
     plt.ylabel('Time (ms)')
-    plt.xlabel('Trial num')
+    plt.xlabel('Trial number')
 
     return None
 
