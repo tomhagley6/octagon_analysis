@@ -33,6 +33,7 @@ def find_rotation_angle_trial(trial_list, trial_index):
     rotate arena s.t. high wall is at wall 1"""
 
     trial = trial_list[trial_index]
+    print(f"Trial in find_rotation_angle_trial is: {type(trial)}")
     
     # identify trial walls
     wall1, wall2 = get_indices.get_walls(trial=trial, trial_list=None, trial_index=None, num_walls=2)
@@ -148,7 +149,7 @@ def flip_rotate_trajectories(trial_list, trial_index=0):
         Return a copy of that trial '''
     
     theta = find_rotation_angle_trial(trial_list, trial_index)
-    altered_coords = flip_rotate(trial_list, trial_index, theta)
+    altered_coords = flip_rotate_trial(trial_list, trial_index, theta)
     trial_copy = replace_with_altered_coordinates(trial_list, trial_index, altered_coords)
     
     return trial_copy

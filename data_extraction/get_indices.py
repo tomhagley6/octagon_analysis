@@ -25,6 +25,7 @@ def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
         in ascending order '''
     
     this_trial = plot_trajectory.extract_trial(trial, trial_list, trial_index)
+    print(f"Trial in get_walls is: {type(trial)}")
 
     wall_column_names = [globals.WALL_1, globals.WALL_2, globals.WALL_3, globals.WALL_4]
     
@@ -75,9 +76,9 @@ def get_trials_with_wall_sep(trial_list, wall_sep=1):
         difference = get_wall_difference(trial=this_trial)
 
         if difference == wall_sep:
-            trial_indices.append(this_trial)
+            trial_indices.append(i)
 
-    return trial_indices
+    return np.asarray(trial_indices)
 
 
 # In[3]:
@@ -97,7 +98,7 @@ def get_trigger_activators(trial_list):
         trigger_activators.append(trigger_activator)
 
 
-    return trigger_activators
+    return np.asarray(trigger_activators)
         
 
 
