@@ -116,7 +116,7 @@ def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c',
     return ax
 
 
-# In[5]:
+# In[10]:
 
 
 def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wall1='blue', colour_wall2='blueviolet',
@@ -165,9 +165,14 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
 
     # plot relevant players trajectory, with colours separating wall1 and wall2 trajectories
     colours = [colour_wall1, colour_wall2]
-    ax.plot(coordinate_arrays[coordinate_array_labels[0]], coordinate_arrays[coordinate_array_labels[1]], markersize=1, color=colours[0 if wall1_triggered else 1])
- 
-    return ax
+    x_coordinates = coordinate_arrays[coordinate_array_labels[0]]
+    y_coordinates = coordinate_arrays[coordinate_array_labels[1]]
+    ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1])
+
+    testing = x_coordinates[0], y_coordinates[0]
+    print(testing)
+    
+    return ax 
 
 
 # In[6]:

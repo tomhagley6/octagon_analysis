@@ -25,7 +25,7 @@ import data_extraction.get_indices as get_indices
 ## flip and rotate trials ##
 
 
-# In[340]:
+# In[1]:
 
 
 def find_rotation_angle_trial(trial_list, trial_index):
@@ -33,7 +33,7 @@ def find_rotation_angle_trial(trial_list, trial_index):
     rotate arena s.t. high wall is at wall 1"""
 
     trial = trial_list[trial_index]
-    print(f"Trial in find_rotation_angle_trial is: {type(trial)}")
+    # print(f"Trial in find_rotation_angle_trial is: {type(trial)}")
     
     # identify trial walls
     wall1, wall2 = get_indices.get_walls(trial=trial, trial_list=None, trial_index=None, num_walls=2)

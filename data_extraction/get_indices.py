@@ -25,7 +25,7 @@ def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
         in ascending order '''
     
     this_trial = plot_trajectory.extract_trial(trial, trial_list, trial_index)
-    print(f"Trial in get_walls is: {type(trial)}")
+    # print(f"Trial in get_walls is: {type(trial)}")
 
     wall_column_names = [globals.WALL_1, globals.WALL_2, globals.WALL_3, globals.WALL_4]
     
