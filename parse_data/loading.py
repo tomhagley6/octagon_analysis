@@ -61,11 +61,12 @@ def handle_date_sensitive_processing(df, json_filename):
     date_first_experiment = datetime.strptime("2024-09-13", "%Y-%m-%d")
 
     # conditional statements based on date of data
+    df2 = df.copy()
     if timestamp_dt < date_first_experiment + timedelta(days=1):
         print(f"Data is from period before {timestamp_dt}")
-        df2 = df.copy()
         df2 = playerinfo_playerposition_conversion(df2)
         print(f"Running dataframe through playerinfo_playerposition_conversion.")
+
 
     print("Loading complete.")
 

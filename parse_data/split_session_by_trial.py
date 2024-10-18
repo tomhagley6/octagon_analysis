@@ -26,13 +26,14 @@ import matplotlib as mpl
 # In[33]:
 
 
-def split_session_by_trial(df):
+def split_session_by_trial(df, drop_trial_zero=True):
     
     # groupby produces an interable of tuples with the group key and the dataframe 
     trials_list = [data for _, data in df.groupby('data.trialNum')]
-    
-    # exclude trial 0 (could also exclude trial 1)
-    trials_list = trials_list[1:]
+
+    if drop_trial_zero:
+        # exclude trial 0 (could also exclude trial 1)
+        trials_list = trials_list[1:]
 
     # if final  trial does not contain a server selected trigger activation, discard it
     if not globals.SELECTED_TRIGGER_ACTIVATION in trials_list[-1]['eventDescription'].unique():

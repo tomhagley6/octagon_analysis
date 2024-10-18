@@ -26,6 +26,7 @@ WALL_4 = 'data.wall4'
 
 WALL_TRIGGERED = 'data.wallTriggered'
 TRIGGER_CLIENT = 'data.triggerClient'
+TRIAL_NUM = 'data.trialNum'
 
 PLAYER_LOC_DICT = {
                      0: {'xloc': PLAYER_0_XLOC, 'yloc': PLAYER_0_YLOC},

@@ -169,8 +169,8 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     y_coordinates = coordinate_arrays[coordinate_array_labels[1]]
     ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1])
 
-    testing = x_coordinates[0], y_coordinates[0]
-    print(testing)
+    # testing = x_coordinates[0], y_coordinates[0]
+    # print(testing)
     
     return ax 
 
