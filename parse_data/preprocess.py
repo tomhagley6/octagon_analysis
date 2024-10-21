@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[16]:
 
 
 import pandas as pd
@@ -9,13 +9,13 @@ import numpy as np
 import globals
 
 
-# In[30]:
+# In[17]:
 
 
 ## Pre-process data ##
 
 
-# In[31]:
+# In[18]:
 
 
 # Take time in reference to start time
@@ -27,7 +27,7 @@ def reference_application_time(df):
     return df2
 
 
-# In[33]:
+# In[19]:
 
 
 # Fill nans in trialNum with the correct trial number (starting at 0 for pre-trial data)
@@ -41,7 +41,7 @@ def fill_trial_zero(df):
     return df2
 
 
-# In[5]:
+# In[20]:
 
 
 def is_social(df):
@@ -49,14 +49,14 @@ def is_social(df):
         
 
 
-# In[ ]:
+# In[21]:
 
 
 def num_players(df):
     return len(df.filter(like=globals.XLOC).columns)
 
 
-# In[34]:
+# In[22]:
 
 
 # Fill player scores 
@@ -74,7 +74,7 @@ def fill_player_scores(df, num_players):
     return df2
 
 
-# In[35]:
+# In[23]:
 
 
 # Fill current trial type and account for data pre trial 1
@@ -86,7 +86,7 @@ def fill_trial_type(df):
     return df2
 
 
-# In[36]:
+# In[24]:
 
 
 # Fill data past the final trial end with post-trials label
@@ -104,7 +104,7 @@ def fill_post_final_trial_type(df):
     return df2
 
 
-# In[37]:
+# In[25]:
 
 
 # Fill current trial type for all rows
@@ -115,12 +115,12 @@ def fill_trial_type_full(df):
     return df
 
 
-# In[38]:
+# In[26]:
 
 
-# Fill currently active walls with values throughout the trial 
-# But only between start of trial and end of trial indices
 def fill_trial_walls(df): 
+    '''  Fill currently active walls with values throughout the trial 
+         But only between start of trial and end of trial indices '''
     df2 = df.copy()
     
     trial_start_indices = df2[df2['eventDescription'] == 'trial start'].index
@@ -140,7 +140,49 @@ def fill_trial_walls(df):
     
 
 
-# In[ ]:
+# In[27]:
+
+
+def fill_trial_walls_fully(df):
+    '''  Fill currently active walls with values throughout the trial 
+         Past the end trial index and throughout the ITI '''
+    
+    df2 = df.copy()
+    
+    trial_start_indices = df2[df2['eventDescription'] == 'trial start'].index
+    slice_onset_indices = df2[df2['eventDescription'] == 'slice onset'].index
+
+    for idx in range(len(trial_start_indices) -1):
+        this_slice_onset = slice_onset_indices[idx]
+        first_index_in_trial = trial_start_indices[idx]
+        last_index_in_trial = trial_start_indices[idx+1] - 1
+        
+        # Forward fill the wall numbers from slice onset to next start trial
+        df2.loc[this_slice_onset:last_index_in_trial, 'data.wall1'] = df2.loc[this_slice_onset:last_index_in_trial, 'data.wall1'].ffill()
+        df2.loc[this_slice_onset:last_index_in_trial, 'data.wall2'] = df2.loc[this_slice_onset:last_index_in_trial, 'data.wall2'].ffill()
+
+        # Backwards fill the wall numbers from slice onset to start trial
+        df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'].bfill()
+        df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'].bfill()
+    
+    return df2
+
+
+# In[28]:
+
+
+def remove_zero_wall_numbers(df):
+    ''' When a trigger activation occurred that was not selected by the server, it will trial walls as 0,0
+        Remove these values and replace with nans to allow forward and backward filling of wall numbers '''
+
+    df2 = df.copy()
+    df2[df2['data.wall1'] == 0] = np.nan
+    df2[df2['data.wall2'] == 0] = np.nan
+
+    return df2
+
+
+# In[29]:
 
 
 # Create a column to reflect the current trial epoch for each row
@@ -171,7 +213,7 @@ def create_trial_epoch_column(df, col_name='trial_epoch'):
     return df2
 
 
-# In[1]:
+# In[30]:
 
 
 # umbrella function for the above preprocessing
@@ -182,7 +224,8 @@ def standard_preprocessing(df):
     social = is_social(df)
     n_players = num_players(df)
     df = fill_player_scores(df, num_players)
-    df = fill_trial_walls(df)
+    df = fill_trial_walls_fully(df)
+    df = remove_zero_wall_numbers(df)
     df = create_trial_epoch_column(df)
 
     print("Preprocessing complete.")

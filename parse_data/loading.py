@@ -9,7 +9,7 @@ import re
 import os
 import pandas as pd
 from datetime import datetime, timedelta
-from parse_data.handle_specific_datasets import playerinfo_playerposition_conversion
+from parse_data.handle_specific_datasets import playerinfo_playerposition_conversion, remove_zero_wall_numbers
 
 
 # In[4]:
@@ -45,7 +45,7 @@ def convert_time_strings(df):
     return df2
 
 
-# In[6]:
+# In[1]:
 
 
 # check the date of the file against any date conditionals, and then run the relevant functions
@@ -58,15 +58,25 @@ def handle_date_sensitive_processing(df, json_filename):
     timestamp_dt = datetime.strptime(match.group(), "%Y-%m-%d_%H-%M-%S")
 
     # list of all dates with data that needs specific handling
-    date_first_experiment = datetime.strptime("2024-09-13", "%Y-%m-%d")
+    date_first_experiment = datetime.strptime("2024-09-13", "%Y-%m-%d") # merging playerinfo
+    date_fourth_experiment = datetime.strptime("2024-10-18", "%Y-%m-%d") # removing zeros from wallnums
 
     # conditional statements based on date of data
     df2 = df.copy()
+
+    # merging playerinfo dictionary into playerposition
     if timestamp_dt < date_first_experiment + timedelta(days=1):
-        print(f"Data is from period before {timestamp_dt}")
+        print(f"Data is from period before {date_first_experiment}")
         df2 = playerinfo_playerposition_conversion(df2)
         print(f"Running dataframe through playerinfo_playerposition_conversion.")
 
+    # # currently treating this a standard preprocessing step
+    # # removing any zeros from recorded wall numbers and replacing them with nans
+    # if timestamp_dt < date_fourth_experiment + timedelta(days=1):
+    #     print(f"Data is from period before {date_fourth_experiment}")
+    #     df2 = remove_zero_wall_numbers(df2)
+    #     print("Running dataframe through remove_zero_wall_numbers")
+    
 
     print("Loading complete.")
 

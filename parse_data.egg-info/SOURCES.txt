@@ -1,9 +1,0 @@
-setup.py
-parse_data/__init__.py
-parse_data/handle_specific_datasets.py
-parse_data/load_and_clean.py
-parse_data.egg-info/PKG-INFO
-parse_data.egg-info/SOURCES.txt
-parse_data.egg-info/dependency_links.txt
-parse_data.egg-info/requires.txt
-parse_data.egg-info/top_level.txt

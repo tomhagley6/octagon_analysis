@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[47]:
+# In[1]:
 
 
 import json
@@ -18,47 +18,48 @@ pd.set_option('display.max_columns', None)  # Show all columns
 json_normalise = True
 
 
-# In[48]:
+# In[2]:
 
 
 ## Load JSON file into pandas df with collapsed data dictionary ##
 
 
-# In[49]:
+# In[3]:
 
 
 ## paths
 # data_folder = '/home/tom/Documents/SWC/data' # desktop Duan Lab
 # json_filename = '240913_Yansu_Jerry/2024-09-13_11-23-37_YansuFirstSolo.json' 
-# data_folder = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # desktop home
-# json_filename = r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json'
-# filepath = data_folder + os.sep + json_filename
+data_folder = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # desktop home
+json_filename = r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json'
+
+filepath = data_folder + os.sep + json_filename
 
 
-# # In[50]:
+# In[4]:
 
 
-# # Note json_normalize requires the json file, whereas read_json requires the filepath
-# if json_normalise == True:
-#     with open(filepath) as f:
-#         file = json.load(f)
-#         df = pd.json_normalize(file)
-# else:
-#     with open(filepath) as f:
-#         df = pd.read_json(f)
-#         print(type(df))
+# Note json_normalize requires the json file, whereas read_json requires the filepath
+if json_normalise == True:
+    with open(filepath) as f:
+        file = json.load(f)
+        df = pd.json_normalize(file)
+else:
+    with open(filepath) as f:
+        df = pd.read_json(f)
+        print(type(df))
 
 
-# In[51]:
+# In[5]:
 
 
-# ##  Convert time columns into datetime format
-# df['timeLocal'] = pd.to_datetime(df['timeLocal'], format='%H:%M:%S:%f')
+##  Convert time columns into datetime format
+df['timeLocal'] = pd.to_datetime(df['timeLocal'], format='%H:%M:%S:%f')
 
-# # Use to_timedelta instead as a vectorised function (lambdas are python loops)
-# # df['timeApplication'] = df['timeApplication'].apply(lambda x: timedelta(seconds=int(x) + (x - int(x))))
-# df['timeApplication'] = pd.to_numeric(df['timeApplication']) 
-# df['timeApplication'] = pd.to_timedelta(df['timeApplication'], unit='s')
+# Use to_timedelta instead as a vectorised function (lambdas are python loops)
+# df['timeApplication'] = df['timeApplication'].apply(lambda x: timedelta(seconds=int(x) + (x - int(x))))
+df['timeApplication'] = pd.to_numeric(df['timeApplication']) 
+df['timeApplication'] = pd.to_timedelta(df['timeApplication'], unit='s')
 
 
 # In[52]:
@@ -71,6 +72,9 @@ json_normalise = True
 
 
 def playerinfo_playerposition_conversion(df, solo=True):
+    ''' Initially, playerinfo was included alongside playerposition, although the data was indentical
+        Transfer the data from playerinfo into the playerposition dict for these datasets '''
+
     
     # List of data affected by issue (relative paths)
     if solo:
@@ -93,14 +97,52 @@ def playerinfo_playerposition_conversion(df, solo=True):
     return df2
 
 
+# In[10]:
+
+
+df[df['data.wall1'] == 0]['data.wall1']
+
+
+# In[12]:
+
+
+df2 = df.copy()
+
+
+# In[14]:
+
+
+df2[df2['data.wall1'] == 0] = np.nan
+
+
+# In[16]:
+
+
+df2['data.wall1'].iloc[4097]
+
+
+# In[17]:
+
+
+def remove_zero_wall_numbers(df):
+    ''' When a trigger activation occurred that was not selected by the server, it would record trial walls as 0,0
+        Remove these values and replace with nans to allow forward and backward filling of wall numbers '''
+
+    df2 = df.copy()
+    df2[df2['data.wall1'] == 0] = np.nan
+    df2[df2['data.wall2'] == 0] = np.nan
+
+    return df2
+
+
 # In[58]:
 
 
-# df2 = playerinfo_playerposition_conversion(df, solo=True)
+df2 = playerinfo_playerposition_conversion(df, solo=True)
 
 
 # In[59]:
 
 
-# df2.tail()
+df2.tail()
 
