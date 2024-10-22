@@ -1,10 +1,16 @@
 setup.py
+analysis/__init__.py
+analysis/response_times.py
 octagon_analysis.egg-info/PKG-INFO
 octagon_analysis.egg-info/SOURCES.txt
 octagon_analysis.egg-info/dependency_links.txt
 octagon_analysis.egg-info/requires.txt
 octagon_analysis.egg-info/top_level.txt
 parse_data/__init__.py
+parse_data/combine_sessions.py
+parse_data/flip_rotate_trajectories.py
 parse_data/handle_specific_datasets.py
 parse_data/loading.py
+parse_data/prepare_data.py
 parse_data/preprocess.py
+parse_data/split_session_by_trial.py
