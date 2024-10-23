@@ -184,3 +184,49 @@ def get_trigger_activators_slice_onset_loc(trial_list):
 
     return list(zip(winner_x_location_slice_onset, winner_y_location_slice_onset))
 
+
+# In[ ]:
+
+
+def get_player_slice_onset_loc(trial_list, player_id_list=None):
+    ''' Return a list of zipped x coordinate and y coordinate for player location
+        at slice onset. By default, the player is the winner for the trial, but an array
+        of player ids can be passed, with the same dimensions as trial_list '''
+    
+    player_x_location_slice_onset = []
+    player_y_location_slice_onset = []
+
+    if player_id_list is None:
+        trigger_activators = get_trigger_activators(trial_list)
+
+
+    for i in range(len(trial_list)): 
+        this_trial = trial_list[i]
+
+        if player_id_list is None:
+            player_id = trigger_activators[i]
+        else:
+            player_id = player_id_list[i]
+
+        xloc_key = globals.PLAYER_LOC_DICT[player_id]['xloc']
+        yloc_key = globals.PLAYER_LOC_DICT[player_id]['yloc']
+        
+        this_trial_slice_onset = this_trial[this_trial['eventDescription'] == globals.SLICE_ONSET]
+
+        if not this_trial_slice_onset.empty:
+            
+            this_trial_slice_onset_index = this_trial_slice_onset.index[0] - this_trial.index[0]
+            # print(f"slice onset index is: {this_trial_slice_onset.index[0]}")
+            # print(f"trial onset index is: {this_trial.index[0]}")
+            # print(f"this_trial_slice_onset_index is: {this_trial_slice_onset_index}")
+            
+            this_trial_player_x_location_slice_onset = this_trial[xloc_key].iloc[this_trial_slice_onset_index]
+            this_trial_player_y_location_slice_onset = this_trial[yloc_key].iloc[this_trial_slice_onset_index]
+    
+            player_x_location_slice_onset.append(this_trial_player_x_location_slice_onset)
+            player_y_location_slice_onset.append(this_trial_player_y_location_slice_onset)
+
+        
+
+    return list(zip(player_x_location_slice_onset, player_y_location_slice_onset))
+
