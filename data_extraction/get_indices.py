@@ -102,14 +102,14 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
 # In[10]:
 
 
-def get_trials_chose_high(trial_list):
+def get_trials_chose_wall(trial_list, chosen_wall=globals.WALL_1):
     ''' Get indices of trials where the winner chose High '''
 
     trial_indices = []
     for i in range(len(trial_list)):
         this_trial = trial_list[i]
 
-        # if the wallTriggered value aligns with the wall1 value, winner chose High
+        # if the wallTriggered value aligns with the chosen_wall value, winner chose chosen_wall
         # find all non-nan values for wallTriggered
         this_trial_triggers = trial_list[i][
                         ~np.isnan(trial_list[i]['data.wallTriggered'])
@@ -120,9 +120,9 @@ def get_trials_chose_high(trial_list):
                                                           ]['data.wallTriggered'].item()
 
         # identify whether this matches the High wall
-        chose_high = this_trial_selected_trigger == trial_list[i]['data.wall1'].unique().item()
+        chose_wall = this_trial_selected_trigger == trial_list[i][chosen_wall].unique().item()
 
-        if chose_high:
+        if chose_wall:
             trial_indices.append(i)
 
     return np.asarray(trial_indices)
