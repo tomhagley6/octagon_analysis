@@ -18,6 +18,10 @@ PLAYER_0_XLOC = 'data.playerPosition.0.location.x'
 PLAYER_1_XLOC = 'data.playerPosition.1.location.x'
 PLAYER_0_YLOC = 'data.playerPosition.0.location.z'
 PLAYER_1_YLOC = 'data.playerPosition.1.location.z'
+PLAYER_0_XROT = 'data.playerPosition.0.rotation.x'
+PLAYER_1_XROT = 'data.playerPosition.1.rotation.x'
+PLAYER_0_YROT = 'data.playerPosition.0.rotation.y'
+PLAYER_1_YROT = 'data.playerPosition.1.rotation.y'
 
 WALL_1 = 'data.wall1'
 WALL_2 = 'data.wall2'
@@ -38,3 +42,9 @@ PLAYER_LOC_DICT = {
                   } 
 
 XLOC = 'location.x'
+
+PLAYER_ROT_DICT = {
+                     0: {'yrot': PLAYER_0_YROT},
+                     1: {'yrot': PLAYER_1_YROT}
+                  } 
+YLOC = 'rotation.y'
