@@ -178,14 +178,12 @@ def find_alcove_centre_points(alcove_x_coords, alcove_y_coords, vertex_x_thirds,
     combined_x_coordinates = [val for pair in zip(vertex_x_thirds, alcove_x_coords) for val in pair] 
     combined_y_coordinates = [val for pair in zip(vertex_y_thirds, alcove_y_coords) for val in pair] 
 
-    print(len(combined_x_coordinates)/4)
     average_alcove_coordinates = np.zeros([2, int(len(combined_x_coordinates)/4)])
     j = 0
     for i in range(0, len(combined_x_coordinates), 4):
         average_x_coordinate = np.mean(combined_x_coordinates[i:i+4])
         average_y_coordinate = np.mean(combined_y_coordinates[i:i+4])
 
-        # average_alcove_coordinates[:, j] = np.vstack((average_x_coordinate, average_y_coordinate))
         average_alcove_coordinates[:, j] = np.array([average_x_coordinate, average_y_coordinate])
         j += 1
 
@@ -352,25 +350,6 @@ def return_alcove_centre_points():
     average_alcove_coordinates = np.hstack([average_alcove_coordinates[:,-1:], average_alcove_coordinates[:,:-1]])
 
     return average_alcove_coordinates
-
-
-# In[3]:
-
-
-def test_function_delete():
-    ''' Umbrella function to return only the central points within each alcove
-        as a 2x8 np.array '''
-    
-    # get vertex coordinates
-    vertex_x, vertex_y = calculate_coordinates(vertex=True)
-
-    # get coordinates for the points 1/3 and 2/3 along each wall
-    wall_thirds_x, wall_thirds_y = calculate_wall_thirds_coordinates(vertex_x, vertex_y)
-
-    # get coordinates for the alcove endpoints
-    alcove_x, alcove_y = generate_alcove_endpoints(wall_thirds_x, wall_thirds_y, alcove_length_scaled, alcove_length_axis_projection)
-
-    return wall_thirds_x, wall_thirds_y, alcove_x, alcove_y
 
 
 # In[ ]:
