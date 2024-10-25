@@ -102,6 +102,6 @@ for i in range(len(trial_list)):
             print(f"Wall {wall} not found in alcove_coordinates.")
     
   ax = plot_cones(ax, trial_list=trial_list, trial_index = i)
-  ax.set_title("xdfghjk")
+  ax.set_title("Player point of view and active walls at slice onset")
 
 plt.show()
