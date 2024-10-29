@@ -12,6 +12,17 @@ from datetime import datetime, timedelta
 from parse_data.handle_specific_datasets import playerinfo_playerposition_conversion, remove_zero_wall_numbers
 
 
+# In[1]:
+
+
+def match_filename_to_filesystem(json_filename):
+    json_filename_parts = json_filename.split('\\')
+    json_filename_rejoined = os.path.join(*json_filename_parts)
+
+    return json_filename_rejoined
+    
+
+
 # In[4]:
 
 
@@ -45,7 +56,7 @@ def convert_time_strings(df):
     return df2
 
 
-# In[1]:
+# In[2]:
 
 
 # check the date of the file against any date conditionals, and then run the relevant functions
@@ -83,10 +94,11 @@ def handle_date_sensitive_processing(df, json_filename):
     return df2
 
 
-# In[ ]:
+# In[2]:
 
 
 def loading_pipeline(data_folder, json_filename, json_normalise=True):
+    json_filename = match_filename_to_filesystem(json_filename)
     df = load_df_from_file(data_folder, json_filename, json_normalise=True)
     df = convert_time_strings(df)
     df = handle_date_sensitive_processing(df, json_filename)
