@@ -73,7 +73,7 @@ def direct_distance(trial_index):
 
     return distances
 
-for trial_index in range(len(trial_list)):  # Change this to the appropriate index of your trial
+for trial_index in range(len(trial_list)): 
     try:
         distances = direct_distance(trial_index)
         print("Distances from starting positions to the alcove center:", distances)
