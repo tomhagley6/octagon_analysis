@@ -1,12 +1,10 @@
-# Add imports
+# Add imports - delete unnecessary imports
 import json
 import numpy as np
 import pandas as pd
 import parse_data.prepare_data as prepare_data
 import globals
 import scipy
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import math
 import data_extraction.get_indices as get_indices
 from assign_coordinates_to_walls import alcove_x, alcove_y
