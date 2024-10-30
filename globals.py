@@ -42,9 +42,9 @@ PLAYER_LOC_DICT = {
                   } 
 
 XLOC = 'location.x'
+YLOC = 'rotation.y'
 
 PLAYER_ROT_DICT = {
                      0: {'yrot': PLAYER_0_YROT},
                      1: {'yrot': PLAYER_1_YROT}
                   } 
-YLOC = 'rotation.y'
