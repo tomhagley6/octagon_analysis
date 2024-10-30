@@ -31,7 +31,8 @@ def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
     
     walls = []
     for i in range(num_walls):
-        walls.append(this_trial.iloc[0][wall_column_names[i]])
+        this_wall = int(this_trial.iloc[0][wall_column_names[i]])
+        walls.append(this_wall)
 
     return walls
 
@@ -99,7 +100,7 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
     return np.asarray(trial_indices)
 
 
-# In[10]:
+# In[6]:
 
 
 def get_trials_chose_wall(trial_list, chosen_wall=globals.WALL_1):
@@ -128,7 +129,7 @@ def get_trials_chose_wall(trial_list, chosen_wall=globals.WALL_1):
     return np.asarray(trial_indices)
 
 
-# In[6]:
+# In[7]:
 
 
 def get_trigger_activators(trial_list):
@@ -149,7 +150,7 @@ def get_trigger_activators(trial_list):
         
 
 
-# In[7]:
+# In[8]:
 
 
 def get_trigger_activators_slice_onset_loc(trial_list):
@@ -185,7 +186,7 @@ def get_trigger_activators_slice_onset_loc(trial_list):
     return list(zip(winner_x_location_slice_onset, winner_y_location_slice_onset))
 
 
-# In[ ]:
+# In[9]:
 
 
 def get_player_slice_onset_loc(trial_list, player_id_list=None):
