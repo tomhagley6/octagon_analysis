@@ -14,15 +14,9 @@ from parse_data import preprocess
 data_folder = '/Users/benny/Desktop/MSc/Project/Git/repos/octagon_analysis/Json data'
 json_filenames = ['2024-09-13_11-31-00_YansuJerrySocial.json']
 
-# Prepare data - load json data and convert it into df and list of trials
-data_folder = '/Users/benny/Desktop/MSc/Project/Git/repos/octagon_analysis/Json data'
-json_filenames = ['2024-09-13_11-31-00_YansuJerrySocial.json']
-
 df, trial_list = prepare_data.prepare_data(data_folder, json_filenames)
 
-
-
-# OPTIMAL DISTANCE
+# DIRECT DISTANCE
 
 def direct_distance(trial_index, chosen_player):
   
@@ -48,7 +42,7 @@ def direct_distance(trial_index, chosen_player):
         # Get the x and y coordinates for the current wall
         x1, x2 = alcove_x[i * 2], alcove_x[i * 2 + 1]
         y1, y2 = alcove_y[i * 2], alcove_y[i * 2 + 1]
-
+        
         # Calculate the center point
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
@@ -68,7 +62,7 @@ def direct_distance(trial_index, chosen_player):
     coordinate_arrays = {label : this_trial[label].values[slice_onset_idx:] for label in coordinate_array_labels}
 
     # extract x and y values at the start looping over players
-    distances = []
+    d_distances = []
     for i in range(num_players):
         if chosen_player is None:
            x = coordinate_arrays[globals.PLAYER_LOC_DICT[i]['xloc']][0]  # Player's x position
@@ -76,11 +70,10 @@ def direct_distance(trial_index, chosen_player):
            starting_position = np.array([x, y])
     
            # calculate distances using alcove_center and starting position arrats
-           distance = [np.linalg.norm(np.array(alcove_center) - starting_position)]
-           distances.append(distance)
-
+           d_distance = [np.linalg.norm(np.array(alcove_center) - starting_position)]
+           d_distances.append(d_distance)
             
-           print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, distance = {distance}")
+           print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, d_distance = {d_distance}")
         
         else:
            if i != chosen_player:
@@ -91,27 +84,25 @@ def direct_distance(trial_index, chosen_player):
               starting_position = np.array([x, y])
     
               # calculate distances using alcove_center and starting position arrats
-              distance = [np.linalg.norm(np.array(alcove_center) - starting_position)]
-              distances.append(distance)
+              d_distance = [np.linalg.norm(np.array(alcove_center) - starting_position)]
+              d_distances.append(d_distance)
                
-              print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, distance = {distance}")
+              print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, d_distance = {d_distance}")
 
-    return distances
+    return d_distances
 # above as stand-alone code not functional, needs below to execute but I'm not actually sure why, because it needs to loop over trials I guess?
 
 # TEST----------
 # loop over trials within trial_list and return distances for chosen player using direct_distance function, prints Error if not 
 for trial_index in range(len(trial_list)): 
     try:
-        distance = direct_distance(trial_index, chosen_player = 0)
-        print("Distances from starting positions to the alcove center:", distance)
+        d_distance = direct_distance(trial_index, chosen_player = 0)
+        print("Direct distances from starting positions to the alcove center:", d_distance)
     except Exception as e:
         print(f"Error: {e}")
 
 
-
-
-# ACTUAL DISTANCE TRAVELLED
+# PATH DISTANCE
 
 # main function summing over euclidian distances between points on trajectory
 def path_distance(trial_index, chosen_player = None):
@@ -136,18 +127,20 @@ def path_distance(trial_index, chosen_player = None):
     for i in range(num_players):
         coordinate_array_labels.extend((globals.PLAYER_LOC_DICT[i]['xloc'], globals.PLAYER_LOC_DICT[i]['yloc'])) 
     coordinate_arrays = {label : this_trial[label].values[slice_onset_idx:trigger_idx] for label in coordinate_array_labels}
+    # maybe update above coordinate_array_labels?
 
-    distances = []
+
+    a_distances = []
     for i in range(num_players):
         if chosen_player is None:
            x = coordinate_arrays[globals.PLAYER_LOC_DICT[i]['xloc']]  # Player's x position
            y = coordinate_arrays[globals.PLAYER_LOC_DICT[i]['yloc']]  # Player's y position
            trajectory = np.array([x,y])
         
-           distance = np.sum(np.linalg.norm(np.diff(trajectory, axis=1), axis=0))
-           distances.append(distance)
+           a_distance = np.sum(np.linalg.norm(np.diff(trajectory, axis=1), axis=0))
+           a_distances.append(a_distance)
         
-           print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, distance = {distance}")
+           print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, a_distance = {a_distance}")
             
         else:
            if i != chosen_player:
@@ -157,20 +150,20 @@ def path_distance(trial_index, chosen_player = None):
               y = coordinate_arrays[globals.PLAYER_LOC_DICT[i]['yloc']]  # Player's y position
               trajectory = np.array([x,y])
         
-              distance = np.sum(np.linalg.norm(np.diff(trajectory, axis=1), axis=0))
-              distances.append(distance)
+              a_distance = np.sum(np.linalg.norm(np.diff(trajectory, axis=1), axis=0))
+              a_distances.append(a_distance)
         
-              print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, distance = {distance}")
+              print(f"Trial {trial_index}, Player {i}: x = {x}, y = {y}, a_distance = {a_distance}")
                
-    return distances
+    return a_distances
     
 # TEST-------------
 
     
 for trial_index in range(len(trial_list)): 
     try:
-       distance = path_distance(trial_index, chosen_player = 0)
-       print("Actual distance travelled from slice onset to trigger event:", distance)
+       a_distance = path_distance(trial_index, chosen_player = 0)
+       print("Actual actual distance travelled from slice onset to trigger event:", a_distance)
     except Exception as e:
        print(f"Error: {e}")
 
