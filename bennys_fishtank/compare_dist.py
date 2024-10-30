@@ -20,6 +20,8 @@ json_filenames = ['2024-09-13_11-31-00_YansuJerrySocial.json']
 
 df, trial_list = prepare_data.prepare_data(data_folder, json_filenames)
 
+
+
 # OPTIMAL DISTANCE
 
 def direct_distance(trial_index, chosen_player):
@@ -111,7 +113,6 @@ for trial_index in range(len(trial_list)):
 
 # ACTUAL DISTANCE TRAVELLED
 
-
 # main function summing over euclidian distances between points on trajectory
 def path_distance(trial_index, chosen_player = None):
   
@@ -172,4 +173,28 @@ for trial_index in range(len(trial_list)):
        print("Actual distance travelled from slice onset to trigger event:", distance)
     except Exception as e:
        print(f"Error: {e}")
+
+
+# CALCULATE RATIO
+
+def ratio_f(trial_index, chosen_player = 0):
+   actual_distances = path_distance(trial_index, chosen_player)
+   direct_distances = direct_distance(trial_index, chosen_player)
+
+   a_distance = actual_distances[chosen_player]
+   d_distance = direct_distances[chosen_player]
+    
+   if d_distance == 0:
+     return a_distance
+       
+   return a_distance/d_distance
+
+for trial_index in range(len(trial_list)): 
+    try:
+       ratio = ratio_f(trial_index)
+       print("Ratio between actual distance and direct distance:", ratio)
+    except Exception as e:
+       print(f"Error: {e}")
+        
+
 
