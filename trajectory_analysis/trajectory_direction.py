@@ -101,7 +101,7 @@ def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_wall
     
     # 5. calculate cosine similarity for the direction vector as compared to the vector from the player to each wall
     # this is done for all timepoints in a trajectory
-    cosine_similairities_trajectory = trajectory_vectors.calculate_cosine_similarity_for_trajectory(dot_products_trajectory,
+    cosine_similarities_trajectory = trajectory_vectors.calculate_cosine_similarity_for_trajectory(dot_products_trajectory,
                                                                                  direction_vector_norms_trajectory,
                                                                                  player_to_alcove_vector_norms_trajectory,
                                                                                  num_walls=8)
@@ -114,9 +114,9 @@ def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_wall
     # vectors if specified
     if calculate_thetas:
         thetas_trajectory = trajectory_vectors.calculate_thetas_for_trajectory(cosine_similarities_trajectory)
-        return cosine_similairities_trajectory, thetas_trajectory
+        return cosine_similarities_trajectory, thetas_trajectory
     else:
-        return cosine_similairities_trajectory
+        return cosine_similarities_trajectory
     
     
 

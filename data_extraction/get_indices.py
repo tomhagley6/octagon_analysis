@@ -231,3 +231,52 @@ def get_player_slice_onset_loc(trial_list, player_id_list=None):
 
     return list(zip(player_x_location_slice_onset, player_y_location_slice_onset))
 
+
+# In[10]:
+
+
+def get_chosen_walls(trial_list):
+
+    chosen_walls = np.zeros(len(trial_list))
+    for i in range(len(trial_list)): 
+        this_trial = trial_list[i]
+        
+        wall_chosen = this_trial[globals.WALL_TRIGGERED].unique()
+        wall_chosen_filter_nans = wall_chosen[~np.isnan(wall_chosen)]
+        wall_chosen_val = wall_chosen_filter_nans.item()
+
+        chosen_walls[i] = wall_chosen_val
+
+    return chosen_walls
+
+
+# In[11]:
+
+
+def was_high_wall_chosen(trial_list):
+    ''' Identify whether the chosen wall on each trial was High or Low
+        Returns an array of length num_trials '''
+
+    # initialise array
+    high_wall_chosen = np.zeros(len(trial_list), dtype=np.bool)
+    
+    # get the chosen walls for each trial
+    chosen_walls = get_chosen_walls(trial_list)
+
+    # loop through trials, identify wall1, and compare it to chosen wall
+    for i in range(len(trial_list)):
+        this_trial = trial_list[i]
+        
+        walls = get_walls(this_trial)
+        wall1 = walls[0]
+
+        # print(f"chosen wall: {chosen_walls[i]}, wall1: {wall1}")
+        # if chosen wall and wall1 are identical, set to True for this trial
+        # False will be by default
+        if wall1 == chosen_walls[i]:
+            high_wall_chosen[i] = True
+
+    return high_wall_chosen
+
+    
+
