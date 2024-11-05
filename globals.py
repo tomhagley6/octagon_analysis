@@ -5,6 +5,7 @@ NUM_WALLS = 8
 ## Unity project logging event strings
 SELECTED_TRIGGER_ACTIVATION = 'server-selected trigger activation'
 SLICE_ONSET = 'slice onset'
+TRIAL_END = 'trial end'
 
 ## trial epoch name strings
 PRE_TRIALS = 'pre trials'
@@ -25,6 +26,9 @@ PLAYER_0_YROT = 'data.playerPosition.0.rotation.y'
 PLAYER_1_YROT = 'data.playerPosition.1.rotation.y'
 PLAYER_0_ZROT = 'data.playerPosition.0.rotation.z'
 PLAYER_1_ZROT = 'data.playerPosition.1.rotation.z'
+
+PLAYER_0_SCORE = 'data.playerScores.0'
+PLAYER_1_SCORE = 'data.playerScores.1'
 
 
 
@@ -50,5 +54,10 @@ PLAYER_ROT_DICT = {
                      0: {'xrot': PLAYER_0_XROT, 'yrot': PLAYER_0_YROT, 'zrot': PLAYER_0_ZROT},
                      1: {'xrot': PLAYER_1_XROT, 'yrot': PLAYER_1_YROT, 'zrot': PLAYER_1_ZROT}
                   } 
+
+PLAYER_SCORE_DICT = {
+                     0: {'score': PLAYER_0_SCORE},
+                     1: {'score': PLAYER_1_SCORE}
+                    } 
 
 XLOC = 'location.x'

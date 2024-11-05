@@ -76,12 +76,13 @@ def plot_trial_trajectory_colour_map(ax, trial_list=None, trial_index=0, cmap_wi
     
 
 
-# In[4]:
+# In[8]:
 
 
 def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c', colour_loser='m',
-                   s=0.5, trial=None):
+                   s=0.5, trial=None, label=False):
     ''' Plot the trajectories of each player for a single trial, with separate colours for winner and loser '''
+
     
     # isolate trial
     this_trial = extract_trial(trial, trial_list, trial_index)
@@ -108,9 +109,17 @@ def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c',
 
     # scatter each players trajectory, with a unique colour map for the winning player
     colours = [colour_winner, colour_loser]
+    labels = ['winner', 'loser']
     for i in range(num_players):
         colour_index = 0 if i == trigger_activating_client else 1
-        ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[colour_index])
+        if label: # include some labels for the legend
+            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1,
+                    color=colours[colour_index], label=labels[colour_index])
+        else:
+            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1,
+                    color=colours[colour_index])
+
+    # plt.legend()
 
 
     return ax

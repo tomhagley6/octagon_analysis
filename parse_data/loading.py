@@ -23,7 +23,7 @@ def match_filename_to_filesystem(json_filename):
     
 
 
-# In[4]:
+# In[1]:
 
 
 # given a filepath, load dataframe from .json, with nesting flattened or not
@@ -31,6 +31,7 @@ def load_df_from_file(data_folder, json_filename, json_normalise=True):
     filepath = data_folder + os.sep + json_filename
     if json_normalise == True:
         with open(filepath) as f:
+            print(f"filepath: {filepath}")
             file = json.load(f)
             df = pd.json_normalize(file)
     else:
@@ -62,7 +63,7 @@ def convert_time_strings(df):
 # check the date of the file against any date conditionals, and then run the relevant functions
 def handle_date_sensitive_processing(df, json_filename):
     # find date string in filename
-    pattern = r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}'
+    pattern = r'\d{4}-\d{1,2}-\d{1,2}_\d{1,2}-\d{1,2}-\d{1,2}'
     match = re.search(pattern, json_filename)
 
     # convert date string to datetime

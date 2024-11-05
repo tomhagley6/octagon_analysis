@@ -17,7 +17,7 @@ import math
 from plotting import plot_trajectory
 
 
-# In[2]:
+# In[18]:
 
 
 def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
@@ -31,6 +31,7 @@ def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
     
     walls = []
     for i in range(num_walls):
+        # print(f"this_wall for trial {this_trial[globals.TRIAL_NUM].unique().item()}, wall {i}")
         this_wall = int(this_trial.iloc[0][wall_column_names[i]])
         walls.append(this_wall)
 
@@ -103,7 +104,7 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
 # In[6]:
 
 
-def get_trials_chose_wall(trial_list, chosen_wall=globals.WALL_1):
+def get_trials_chose_wall(trial_list, chosen_wall):
     ''' Get indices of trials where the winner chose High '''
 
     trial_indices = []
@@ -133,6 +134,8 @@ def get_trials_chose_wall(trial_list, chosen_wall=globals.WALL_1):
 
 
 def get_trigger_activators(trial_list):
+    ''' Return a trial_num length array of the player which activated the trigger
+        on each trial (starting from player 0) '''
 
     trigger_activators = []
     for i in range(len(trial_list)):
@@ -151,6 +154,20 @@ def get_trigger_activators(trial_list):
 
 
 # In[8]:
+
+
+def get_trigger_activator(trial):
+    ''' Return the player on this trial that activated the trigger '''
+    
+    trigger_event = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
+    trigger_activator = int(
+        trigger_event[globals.TRIGGER_CLIENT].item()
+    )
+
+    return trigger_activator
+
+
+# In[9]:
 
 
 def get_trigger_activators_slice_onset_loc(trial_list):
@@ -186,10 +203,10 @@ def get_trigger_activators_slice_onset_loc(trial_list):
     return list(zip(winner_x_location_slice_onset, winner_y_location_slice_onset))
 
 
-# In[9]:
+# In[10]:
 
 
-def get_player_slice_onset_loc(trial_list, player_id_list=None):
+def get_player_slice_onset_locs(trial_list, player_id_list=None):
     ''' Return a list of zipped x coordinate and y coordinate for player location
         at slice onset. By default, the player is the winner for the trial, but an array
         of player ids can be passed, with the same dimensions as trial_list '''
@@ -232,7 +249,40 @@ def get_player_slice_onset_loc(trial_list, player_id_list=None):
     return list(zip(player_x_location_slice_onset, player_y_location_slice_onset))
 
 
-# In[10]:
+# In[11]:
+
+
+def get_player_slice_onset_loc(trial, player_id):
+    ''' return the x,y location tuple of the given player for the given trial
+        at slice onset '''
+
+    xloc_key = globals.PLAYER_LOC_DICT[player_id]['xloc']
+    yloc_key = globals.PLAYER_LOC_DICT[player_id]['yloc']
+
+    this_trial_slice_onset = trial[trial['eventDescription'] == globals.SLICE_ONSET] 
+    this_trial_slice_onset_index = this_trial_slice_onset.index[0] - trial.index[0]
+
+    this_trial_player_x_location_slice_onset = trial[xloc_key].iloc[this_trial_slice_onset_index]
+    this_trial_player_y_location_slice_onset = trial[yloc_key].iloc[this_trial_slice_onset_index]
+
+    return (this_trial_player_x_location_slice_onset, this_trial_player_y_location_slice_onset)
+
+
+# In[12]:
+
+
+def get_player_win_indices(trial_list, player_id):
+    ''' Indices of a trial list where the specified player won '''
+    
+    trigger_activators = get_trigger_activators(trial_list)
+    
+    this_player_win_indices = np.where(trigger_activators == player_id)[0]
+
+    return this_player_win_indices
+        
+
+
+# In[13]:
 
 
 def get_chosen_walls(trial_list):
@@ -241,16 +291,19 @@ def get_chosen_walls(trial_list):
     for i in range(len(trial_list)): 
         this_trial = trial_list[i]
         
-        wall_chosen = this_trial[globals.WALL_TRIGGERED].unique()
+
+        # only select from the trigger event chosen by the server
+        selected_trigger_activation_event = this_trial[this_trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
+        wall_chosen = selected_trigger_activation_event[globals.WALL_TRIGGERED].unique()
         wall_chosen_filter_nans = wall_chosen[~np.isnan(wall_chosen)]
         wall_chosen_val = wall_chosen_filter_nans.item()
 
-        chosen_walls[i] = wall_chosen_val
+        chosen_walls[i] = int(wall_chosen_val)
 
     return chosen_walls
 
 
-# In[11]:
+# In[16]:
 
 
 def was_high_wall_chosen(trial_list):
@@ -279,4 +332,20 @@ def was_high_wall_chosen(trial_list):
     return high_wall_chosen
 
     
+
+
+# In[15]:
+
+
+def get_indices_slice_onset_trigger_activation(trial):
+    
+    # get slice onset index, referenced to trial start index
+    slice_onset = trial[trial['eventDescription'] == globals.SLICE_ONSET]
+    slice_onset_index = slice_onset.index[0] - trial.index[0]
+
+    # get trigger activation index, referenced to trial start
+    selected_trigger_activation = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
+    selected_trigger_activation_index = selected_trigger_activation.index[0] - trial.index[0]
+
+    return slice_onset_index, selected_trigger_activation_index
 

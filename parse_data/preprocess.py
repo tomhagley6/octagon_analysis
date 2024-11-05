@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[16]:
+# In[46]:
 
 
 import pandas as pd
@@ -9,13 +9,13 @@ import numpy as np
 import globals
 
 
-# In[17]:
+# In[47]:
 
 
 ## Pre-process data ##
 
 
-# In[18]:
+# In[48]:
 
 
 # Take time in reference to start time
@@ -27,7 +27,7 @@ def reference_application_time(df):
     return df2
 
 
-# In[19]:
+# In[49]:
 
 
 # Fill nans in trialNum with the correct trial number (starting at 0 for pre-trial data)
@@ -41,7 +41,7 @@ def fill_trial_zero(df):
     return df2
 
 
-# In[20]:
+# In[50]:
 
 
 def is_social(df):
@@ -49,14 +49,14 @@ def is_social(df):
         
 
 
-# In[21]:
+# In[51]:
 
 
 def num_players(df):
     return len(df.filter(like=globals.XLOC).columns)
 
 
-# In[22]:
+# In[52]:
 
 
 # Fill player scores 
@@ -74,7 +74,7 @@ def fill_player_scores(df, num_players):
     return df2
 
 
-# In[23]:
+# In[53]:
 
 
 # Fill current trial type and account for data pre trial 1
@@ -86,7 +86,7 @@ def fill_trial_type(df):
     return df2
 
 
-# In[24]:
+# In[54]:
 
 
 # Fill data past the final trial end with post-trials label
@@ -104,7 +104,7 @@ def fill_post_final_trial_type(df):
     return df2
 
 
-# In[25]:
+# In[55]:
 
 
 # Fill current trial type for all rows
@@ -115,7 +115,7 @@ def fill_trial_type_full(df):
     return df
 
 
-# In[26]:
+# In[56]:
 
 
 def fill_trial_walls(df): 
@@ -140,7 +140,7 @@ def fill_trial_walls(df):
     
 
 
-# In[27]:
+# In[10]:
 
 
 def fill_trial_walls_fully(df):
@@ -164,11 +164,29 @@ def fill_trial_walls_fully(df):
         # Backwards fill the wall numbers from slice onset to start trial
         df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'].bfill()
         df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'].bfill()
+
+    # account for there being a fully complete trial at the end without a new trial start (i.e., recording ends
+    # on ITI phase
+    trial_end_indices = df2[df2['eventDescription'] == globals.TRIAL_END].index
+    
+    if len(trial_end_indices) == len(trial_start_indices):
+        this_slice_onset = slice_onset_indices[len(trial_start_indices) -1]
+        first_index_in_trial = trial_start_indices[len(trial_start_indices) -1]
+        last_index_in_trial = df.index[-1]
+        
+        # Forward fill the wall numbers from slice onset to next start trial
+        df2.loc[this_slice_onset:last_index_in_trial, 'data.wall1'] = df2.loc[this_slice_onset:last_index_in_trial, 'data.wall1'].ffill()
+        df2.loc[this_slice_onset:last_index_in_trial, 'data.wall2'] = df2.loc[this_slice_onset:last_index_in_trial, 'data.wall2'].ffill()
+        
+        # Backwards fill the wall numbers from slice onset to start trial
+        df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall1'].bfill()
+        df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'] = df2.loc[first_index_in_trial:this_slice_onset, 'data.wall2'].bfill()   
+        
     
     return df2
 
 
-# In[28]:
+# In[5]:
 
 
 def remove_zero_wall_numbers(df):
@@ -176,13 +194,13 @@ def remove_zero_wall_numbers(df):
         Remove these values and replace with nans to allow forward and backward filling of wall numbers '''
 
     df2 = df.copy()
-    df2[df2['data.wall1'] == 0] = np.nan
-    df2[df2['data.wall2'] == 0] = np.nan
+    df2.loc[df2['data.wall1'] == 0, 'data.wall1'] = np.nan
+    df2.loc[df2['data.wall2'] == 0, 'data.wall2'] = np.nan
 
     return df2
 
 
-# In[29]:
+# In[59]:
 
 
 # Create a column to reflect the current trial epoch for each row
@@ -213,7 +231,7 @@ def create_trial_epoch_column(df, col_name='trial_epoch'):
     return df2
 
 
-# In[30]:
+# In[2]:
 
 
 # umbrella function for the above preprocessing
@@ -224,8 +242,8 @@ def standard_preprocessing(df):
     social = is_social(df)
     n_players = num_players(df)
     df = fill_player_scores(df, num_players)
-    df = fill_trial_walls_fully(df)
     df = remove_zero_wall_numbers(df)
+    df = fill_trial_walls_fully(df)
     df = create_trial_epoch_column(df)
 
     print("Preprocessing complete.")

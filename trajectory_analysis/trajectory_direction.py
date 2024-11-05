@@ -32,7 +32,7 @@ def get_player_direction_vectors_for_trajectory(trajectory):
     return direction_vectors
 
 
-# In[ ]:
+# In[2]:
 
 
 def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size=10):
@@ -44,12 +44,16 @@ def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size
     for i in range(trajectory.shape[1] - 1):
         direction_vector = trajectory[:,i+1] - trajectory[:,i] # direction vector between 2 consecutive points
         direction_vectors[:,i] = direction_vector
-    
-    # mean average the rolling window of window_size direction vectors
-    direction_vectors_smoothed = np.zeros([2,direction_vectors.shape[1]-window_size])
-    for i in range(direction_vectors.shape[1] - window_size):
-        smoothed_direction_vector = np.mean(direction_vectors[:,i:i+window_size], axis=1) # take the mean across columns
-        direction_vectors_smoothed[:,i] = smoothed_direction_vector
+
+    try:
+        # mean average the rolling window of window_size direction vectors
+        direction_vectors_smoothed = np.zeros([2,direction_vectors.shape[1]-window_size])
+        for i in range(direction_vectors.shape[1] - window_size):
+            smoothed_direction_vector = np.mean(direction_vectors[:,i:i+window_size], axis=1) # take the mean across columns
+            direction_vectors_smoothed[:,i] = smoothed_direction_vector
+    except ValueError:
+        print("Direction vector too short to smooth, taking raw direction vector instead")
+        direction_vectors_smoothed = direction_vectors
 
     return direction_vectors_smoothed
 
