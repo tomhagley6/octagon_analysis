@@ -127,8 +127,130 @@ def plot_performance_against_probability_low_when_first_visible(data_folder, jso
 # In[ ]:
 
 
+def plot_performance_against_probability_low_when_first_visible(data_folder, json_filenames_all, correlation_line=True):
+    '''Plot the graph of session performance against session probability for players choosing low when it is first visible.
+       One data point for each session to avoid replicating data from within a session.
+       Data is taken as the ratio player0:player1 for proportion score and for probability of choice '''
+
+    # get probability of choosing the low wall when it is first visible, and the proportion of score within the session
+    # these are both recorded per player and session, shape num_sessions*num_players
+    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions(data_folder, json_filenames_all)
+    proportion_scores_all_sessions = get_proportion_scores(data_folder, json_filenames_all)
+
+    print(f"Probability low when first visible: \n {probability_low_when_first_visible}")
+    print(f"Proportion of scores for all sessions \n {proportion_scores_all_sessions}")
+
+    # from the above arrays, find the probability of choosing the low wall when it is first visible in the ratio player0:player1
+    # also find the proportion of total session score in the ratio player0:player1
+    ratio_probability_low_when_first_visible = probability_low_when_first_visible[:,0]/probability_low_when_first_visible[:,1]
+    proportion_scores_player_0 = proportion_scores_all_sessions[:,0]/proportion_scores_all_sessions[:,1] # use ratio or just player 1 proportion here?
+
+    x = ratio_probability_low_when_first_visible.ravel()
+    y = proportion_scores_player_0.ravel()
+
+    plt.scatter(x, y)
+
+    if correlation_line:
+        # Fit a line to the data
+        slope, intercept = np.polyfit(x, y, 1)  # 1st-degree polynomial (linear fit)
+        line = slope * x + intercept
+
+        # Plot the correlation line
+        plt.plot(x, line, color='red', label=f'Fit line: y = {slope:.2f}x + {intercept:.2f}')
+
+    plt.title("Performance in session against the probability of choosing\n the Low wall when the Low wall is the first visible")
+    plt.xlabel("Probability")
+    plt.ylabel("Performance")
+
+    # Remove top and bottom spines
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+
+
+# In[ ]:
+
+
+def plot_performance_against_probability_low_when_first_visible_df(dfs, correlation_line=True):
+    '''Plot the graph of session performance against session probability for players choosing low when it is first visible.
+       One data point for each session to avoid replicating data from within a session.
+       Data is taken as the ratio player0:player1 for proportion score and for probability of choice '''
+
+    # get probability of choosing the low wall when it is first visible, and the proportion of score within the session
+    # these are both recorded per player and session, shape num_sessions*num_players
+    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions_df(dfs)
+    proportion_scores_all_sessions = get_proportion_scores_df(dfs)
+
+    print(f"Probability low when first visible: \n {probability_low_when_first_visible}")
+    print(f"Proportion of scores for all sessions \n {proportion_scores_all_sessions}")
+
+    # from the above arrays, find the probability of choosing the low wall when it is first visible in the ratio player0:player1
+    # also find the proportion of total session score in the ratio player0:player1
+    ratio_probability_low_when_first_visible = probability_low_when_first_visible[:,0]/probability_low_when_first_visible[:,1]
+    proportion_scores_player_0 = proportion_scores_all_sessions[:,0]/proportion_scores_all_sessions[:,1] # use ratio or just player 1 proportion here?
+
+    x = ratio_probability_low_when_first_visible.ravel()
+    y = proportion_scores_player_0.ravel()
+
+    plt.scatter(x, y)
+
+    if correlation_line:
+        # Fit a line to the data
+        slope, intercept = np.polyfit(x, y, 1)  # 1st-degree polynomial (linear fit)
+        line = slope * x + intercept
+
+        # Plot the correlation line
+        plt.plot(x, line, color='red', label=f'Fit line: y = {slope:.2f}x + {intercept:.2f}')
+
+    plt.title("Performance in session against the probability of choosing\n the Low wall when the Low wall is the first visible")
+    plt.xlabel("Probability")
+    plt.ylabel("Performance")
+
+    # Remove top and bottom spines
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+
+
+# In[ ]:
+
+
 # helper function for plot_performance_against_probability_low_when_first_visible
 def get_proportion_scores(data_folder, json_filenames_all):
+    ''' Returns a float array of shape num_session*num_players with the proportion of
+        total session score attributed to each player
+        Takes the data folder path string and list of filenames for JSON datasets '''
+
+    # go through every session and find the proportion of score in the session that players achieved
+    proportion_scores_all_sessions = np.zeros((len(json_filenames_all), 2))
+    
+    for json_filenames_index in range(len(json_filenames_all)):
+        # get data for session this loop index
+        json_filenames = json_filenames_all[json_filenames_index]
+        print(data_folder + os.sep + json_filenames)
+        _, trials_list = prepare_data.prepare_data(data_folder, [json_filenames])
+
+        # identify the overall session score from the final trial end log event
+        final_trial = trials_list[-1]
+        final_trial_trial_end = final_trial[final_trial['eventDescription'] == 'trial end']
+        
+        player0_score = final_trial_trial_end[globals.PLAYER_SCORE_DICT[0]['score']].item()
+        player1_score = final_trial_trial_end[globals.PLAYER_SCORE_DICT[1]['score']].item()
+        total_score = player0_score + player1_score
+        
+        # find the proportion of the total session score attributed to each player
+        proportion_score_player0 = player0_score/total_score
+        proportion_score_player1 = player1_score/total_score
+
+        proportion_scores_all_sessions[json_filenames_index, 0] = proportion_score_player0
+        proportion_scores_all_sessions[json_filenames_index, 1] = proportion_score_player1
+
+    return proportion_scores_all_sessions
+
+
+# In[ ]:
+
+
+# helper function for plot_performance_against_probability_low_when_first_visible
+def get_proportion_scores_df(dfs):
     ''' Returns a float array of shape num_session*num_players with the proportion of
         total session score attributed to each player
         Takes the data folder path string and list of filenames for JSON datasets '''
@@ -277,6 +399,53 @@ def get_probability_chose_high_social(data_folder, json_filename, trial_type=glo
 
 
 # helper function for plot_probability_choose_high_solo_social
+def get_probability_chose_high_social_df(trial_list, trial_type=globals.HIGH_LOW, wall_sep=None):
+    ''' Find the probability that each player chose High in a social context.
+        Optionally specify the trial type and wall separation type to use.
+        This does not include inferred choices.
+        Assumes one session only. '''
+
+
+    # filter trial list to include HighLow trials only
+    if trial_type is not None:
+        trial_list_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
+        trial_list = [trial_list[i] for i in trial_list_indices]
+    # print(f"len trial list = {len(trial_list)}")
+
+    # filter trial list to include specific wall separation
+    if wall_sep is not None:
+        trial_list_indices =  get_indices.get_trials_with_wall_sep(trial_list, wall_sep=wall_sep)
+        trial_list = [trial_list[i] for i in trial_list_indices]
+
+    # find the high wall trials and the indices where each player won
+    high_wall_chosen = get_indices.was_high_wall_chosen(trial_list)
+    # print(f"high_wall_chosen = {high_wall_chosen}")
+    player0_win_indices = get_indices.get_player_win_indices(trial_list, player_id=0)
+    # print(f"player0_win_indices = {player0_win_indices}")
+    player1_win_indices = get_indices.get_player_win_indices(trial_list, player_id=1)
+    # print(f"player1_win_indices = {player1_win_indices}")
+
+    # create an array of size player_win_indices that is True where this win was a High wall choice 
+    player0_wins_high = np.zeros(player0_win_indices.size)
+    for i in range(player0_win_indices.size):
+        trial_idx = player0_win_indices[i]
+        player0_wins_high[i] = True if high_wall_chosen[trial_idx] else False
+
+    player1_wins_high = np.zeros(player1_win_indices.size)
+    for i in range(player1_win_indices.size):
+        trial_idx = player1_win_indices[i]
+        player1_wins_high[i] = True if high_wall_chosen[trial_idx] else False
+
+    probability_player0_choose_high = player0_wins_high[player0_wins_high == True].size/player0_wins_high.size
+    probability_player1_choose_high = player1_wins_high[player1_wins_high == True].size/player1_wins_high.size
+
+    return probability_player0_choose_high, probability_player1_choose_high
+
+
+# In[ ]:
+
+
+# helper function for plot_probability_choose_high_solo_social
 def get_probability_chose_high_solo(data_folder, json_filename, trial_type=globals.HIGH_LOW, wall_sep=None):
     ''' Find the probability that the player chose High in a solo context
         Takes a data folder string and JSON filename.
@@ -284,6 +453,34 @@ def get_probability_chose_high_solo(data_folder, json_filename, trial_type=globa
 
     # get the dataframe for this session
     df, trial_list = prepare_data.prepare_data(data_folder, json_filename)
+
+    # filter trial list to include HighLow trials only
+    if trial_type is not None:
+        trial_list_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
+        trial_list = [trial_list[i] for i in trial_list_indices]
+
+
+    # filter trial list to include specific wall separation
+    if wall_sep is not None:
+        trial_list_indices =  get_indices.get_trials_with_wall_sep(trial_list, wall_sep=wall_sep)
+        trial_list = [trial_list[i] for i in trial_list_indices]
+
+    high_wall_chosen = get_indices.was_high_wall_chosen(trial_list)
+
+    probability_choose_high = high_wall_chosen[high_wall_chosen == True].size/trial_list_indices.size
+
+
+    return probability_choose_high
+
+
+# In[ ]:
+
+
+# helper function for plot_probability_choose_high_solo_social
+def get_probability_chose_high_solo_df(trial_list, trial_type=globals.HIGH_LOW, wall_sep=None):
+    ''' Find the probability that the player chose High in a solo context
+        Takes a data folder string and JSON filename.
+        Optionally specify the trial and wall separation type to use '''
 
     # filter trial list to include HighLow trials only
     if trial_type is not None:
@@ -355,6 +552,66 @@ def get_probability_chose_high_solo_social_all_sessions(data_folder, json_filena
 
         # add this to the sessions array
         probability_choose_high_solo_array_separated_sessions[int(json_filename_idx)] = probability_choose_high
+
+    probability_choose_high_solo_array_first_session = probability_choose_high_solo_array_separated_sessions[0::2]
+    probability_choose_high_solo_array_second_session = probability_choose_high_solo_array_separated_sessions[1::2]
+
+    
+    return (probability_choose_high_social_array, probability_choose_high_solo_array,
+            probability_choose_high_solo_array_first_session, probability_choose_high_solo_array_second_session)
+
+
+# In[ ]:
+
+
+# helper function for plot_probability_choose_high_solo_social
+def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, trial_lists_social, wall_sep, trial_type=globals.HIGH_LOW):
+    
+    # 1. social
+    # loop through all social sessions
+    probability_choose_high_social_array = np.zeros((len(trial_lists_social), 2))
+    for trial_list_idx in range(len(trial_lists_social)):
+
+        # get the dataframe for this session
+        trial_list = trial_lists_social[trial_list_idx]
+
+        # find the probability of choosing high for each player
+        probability_player0_choose_high, probability_player1_choose_high = get_probability_chose_high_social_df(trial_list,
+                                                                                                        trial_type=trial_type,
+                                                                                                        wall_sep=wall_sep)
+
+        # add this to the sessions array
+        probability_choose_high_social_array[trial_list_idx,:] = [probability_player0_choose_high, probability_player1_choose_high]
+    
+    # 2. solo combined
+    # loop through all solo sessions
+    # get solo choice data for combined pre- and post-
+    probability_choose_high_solo_array = np.zeros((int(len(trial_lists_solo)/2)))
+    for trial_list_idx in range(0, len(trial_lists_solo), 2):
+
+        # concatenate the trial lists for the 2 solos of this session
+        trial_list_combined = trial_lists_solo[trial_list_idx] + trial_lists_solo[trial_list_idx + 1]
+
+        # find the probability of choosing high for each player
+        probability_choose_high = get_probability_chose_high_solo_df(trial_list_combined, wall_sep=wall_sep)
+
+        # add this to the sessions array
+        probability_choose_high_solo_array[int(trial_list_idx/2)] = probability_choose_high
+
+    # 3. solo separated
+    # loop through all solo sessions
+    # get solo choice data for separated pre- and post
+    probability_choose_high_solo_array_separated_sessions = np.zeros(int(len(trial_lists_solo)))
+    for trial_list_idx in range(0, len(trial_lists_solo)):
+
+        # get the dataframe for this session
+        trial_list = trial_lists_solo[trial_list_idx]
+
+        # find the probability of choosing high for each player
+        probability_choose_high = get_probability_chose_high_solo_df(trial_list, wall_sep=wall_sep)
+
+        # add this to the sessions array
+        probability_choose_high_solo_array_separated_sessions[int(trial_list_idx)] = probability_choose_high
 
     probability_choose_high_solo_array_first_session = probability_choose_high_solo_array_separated_sessions[0::2]
     probability_choose_high_solo_array_second_session = probability_choose_high_solo_array_separated_sessions[1::2]
