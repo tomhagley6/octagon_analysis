@@ -23,55 +23,47 @@ import data_extraction.get_indices as get_indices
 ## HEADANGLES THROUGHOUT TRAJECTORY ##
 
 
-# In[3]:
+# In[ ]:
 
 
-def extract_trial_player_headangles(trial_list=None, trial_index=0, trial=None, player_id=0):
-    ''' return a 2xN array of the x- and y- coordinates for a single player's trial trajectory
-        from slice onset to selected trigger activation '''
+def get_player_headangle_vectors_for_trial(head_angles):
+    ''' Returns a 2xtimepoints array of vstacked x components and y components of head angle vector for a single player's trial trajectory
+        from trial start to trial end
+        This is the euclidean unit vector extracted from an Euler angle of head direction '''
 
-    # get trial dataframe
-    trial = extract_trial.extract_trial(trial, trial_list, trial_index)
 
-    # get slice onset index, referenced to trial start index
-    slice_onset = trial[trial['eventDescription'] == globals.SLICE_ONSET]
-    slice_onset_index = slice_onset.index[0] - trial.index[0]
-
-    # get trigger activation index, referenced to trial start
-    selected_trigger_activation = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
-    selected_trigger_activation_index = selected_trigger_activation.index[0] - trial.index[0]
-
-    # find the euler angles for the rotation around the y (Unity vertical) axis
-    y_rotation = trial[globals.PLAYER_ROT_DICT[player_id]['yrot']].iloc[slice_onset_index:selected_trigger_activation_index]
-    y_rotation = np.deg2rad(y_rotation)
-
-    # convert this angle into a unit vector in 2-dimensional (XY space)
-    x_components = np.zeros(y_rotation.size)
-    z_components = np.zeros(y_rotation.size)
-    x_components[:] = np.sin(y_rotation)
-    z_components[:] = np.cos(y_rotation)
+    # convert this angle into a unit vector in 2-dimensional (XY space) 
+    # (Y components here are named Z to separate from the y-axis above)
+    x_components = np.zeros(head_angles.size)
+    z_components = np.zeros(head_angles.size)
+    x_components[:] = np.sin(head_angles)
+    z_components[:] = np.cos(head_angles)
     head_angle_vector_array = np.vstack([x_components, z_components])
 
     return head_angle_vector_array
 
 
-# In[26]:
+# In[ ]:
 
 
-def get_smoothed_player_head_angle_vectors_for_trajectory(head_angle_vector_array, window_size=10):
+def get_smoothed_player_head_angle_vectors_for_trial(head_angles, window_size=5, debug=False):
     ''' Calculate smoothed player head angle vectors for a whole trajectory '''
 
-    # head angle vectors with a mean average rolling window of window_size 
-    window_size =10
+    head_angle_vector_array = get_player_headangle_vectors_for_trial(head_angles)
+
+    # mean average the rolling window of window_size head direction vectors 
     try:
-        head_angle_vector_array_smoothed = np.zeros([2,head_angle_vector_array.shape[1]-window_size])
-        for i in range(head_angle_vector_array.shape[1] - window_size):
+        timepoints = head_angle_vector_array.shape[1]
+        head_angle_vector_array_smoothed = np.zeros([2,timepoints-window_size])
+        for i in range(timepoints - window_size):
             smoothed_head_angle_vector = np.mean(head_angle_vector_array[:,i:i+window_size], axis=1)
             head_angle_vector_array_smoothed[:,i] = smoothed_head_angle_vector
         
     except ValueError:
-        print("head angle vector array too short to smooth, taking the raw array instead")
         head_angle_vector_array_smoothed = head_angle_vector_array
+        if debug:
+            print("head angle vector array too short to smooth, taking the raw array instead")
+            print(f"Length of the unsmoothed head angle vector array is {head_angle_vector_array.shape[1]}")
         
 
     return head_angle_vector_array_smoothed
@@ -83,52 +75,57 @@ def get_smoothed_player_head_angle_vectors_for_trajectory(head_angle_vector_arra
 ## HEAD ANGLE COMPARED TO WALL CENTRES ##
 
 
-# In[6]:
+# In[ ]:
 
 
 # Umbrella function for getting angle difference between FoV centre and walls for a player
 # for an entire trial
-# stored in a num_walls*timepoints shaped array
 
-def head_angle_to_walls_throughout_trajectory(trajectory, head_angle_vector_array_trajectory, window_size=10, num_walls=8):
+def head_angle_to_walls_throughout_trajectory(trajectory, head_angle_vector_array_trial, window_size=5, num_walls=8, debug=False):
     ''' From a trajectory, calculate the angles between the player head angle vector and 
         the player-to-alcove vectors for an entire trial
-        Returns an array of shape num_walls*timepoints '''
+        Returns an array of angles of shape num_walls*timepoints '''
 
     # 1. find head angle unit vectors for a player at each timepoint, smoothed with a rolling window
-    smoothed_player_head_angles = get_smoothed_player_head_angle_vectors_for_trajectory(head_angle_vector_array_trajectory,
-                                                                                        window_size=10)
-    print("smoothed_player_head_angles.shape: ", smoothed_player_head_angles.shape)
-    print("smoothed_player_head_angles\n", smoothed_player_head_angles[:,110:120])
+    smoothed_player_head_angles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial,
+                                                                                        window_size=window_size)
+    
+    # # if the trial was too short, return np.nan instead of continuing analysis
+    # if smoothed_player_head_angles.shape[1] < 20:
+    #     return np.nan
+    
+    if debug:
+        print("smoothed_player_head_angles.shape: ", smoothed_player_head_angles.shape)
+        print("smoothed_player_head_angles\n", smoothed_player_head_angles[:,50:60])
 
     # 2. find the player-to-alcove vectors for each wall, for each timepoint
     player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(trajectory,
                                                                                                      num_walls=num_walls)
     
-    print("player_to_alcove_vectors.shape: ", player_to_alcove_vectors.shape)
-    print("player_to_alcove_vectors\n", player_to_alcove_vectors[:,1,110:120])
+    if debug:
+        print("player_to_alcove_vectors.shape: ", player_to_alcove_vectors.shape)
+        print("player_to_alcove_vectors\n", player_to_alcove_vectors[:,1,50:60])
     
     # 3. calculate the dot products between the two sets of vectors 
     dot_products_trajectory = trajectory_vectors.calculate_vector_dot_products_for_trajectory(player_to_alcove_vectors,
                                                                                    smoothed_player_head_angles,
                                                                                    num_walls=num_walls)
-
-    print("dot_products_trajectory.shape: ", dot_products_trajectory.shape)
-    print("dot_products_trajectory\n", dot_products_trajectory[:,110:120]) 
-
-
+    
+    if debug:
+        print("dot_products_trajectory.shape: ", dot_products_trajectory.shape)
+        print("dot_products_trajectory\n", dot_products_trajectory[:,50:60]) 
     
     # 4. calculate the norms for the two sets of vectors
     (head_angle_vector_norms_trajectory,
      player_to_alcove_vector_norms_trajectory) = trajectory_vectors.calculate_vector_norms_for_trajectory(player_to_alcove_vectors,
                                                                                                    smoothed_player_head_angles,
                                                                                                    num_walls=8)
-
-    print("head_angle_vector_norms_trajectory\n", head_angle_vector_norms_trajectory[110:120])
-    print("player_to_alcove_vector_norms_trajectory\n", player_to_alcove_vector_norms_trajectory[:,110:120])
+    if debug:
+        print("head_angle_vector_norms_trajectory\n", head_angle_vector_norms_trajectory[50:60])
+        print("player_to_alcove_vector_norms_trajectory\n", player_to_alcove_vector_norms_trajectory[:,50:60])
     
-    print("head_angle_vector_norms_trajectory.shape: ", head_angle_vector_norms_trajectory.shape)
-    print("player_to_alcove_vector_norms_trajectory.shape: ", player_to_alcove_vector_norms_trajectory.shape)
+        print("head_angle_vector_norms_trajectory.shape: ", head_angle_vector_norms_trajectory.shape)
+        print("player_to_alcove_vector_norms_trajectory.shape: ", player_to_alcove_vector_norms_trajectory.shape)
 
     # 5. calculate cosine similarity for the head angle vector as compared to the vector from the player to each wall
     # this is done for all timepoints in a trajectory
@@ -136,8 +133,8 @@ def head_angle_to_walls_throughout_trajectory(trajectory, head_angle_vector_arra
                                                                                              head_angle_vector_norms_trajectory,
                                                                                              player_to_alcove_vector_norms_trajectory,
                                                                                              num_walls=8)
-
-    print("cosine_similairities_trajectory.shape: ", cosine_similairities_trajectory.shape)
+    if debug:
+        print("cosine_similairities_trajectory.shape: ", cosine_similairities_trajectory.shape)
 
     # 6. calculate angles between player head direction and player-to-alcove vectors for each wall
     thetas = trajectory_vectors.calculate_thetas_for_trajectory(cosine_similairities_trajectory, num_walls=8)
@@ -152,7 +149,7 @@ def head_angle_to_walls_throughout_trajectory(trajectory, head_angle_vector_arra
 ## WALL VISIBILITY ##
 
 
-# In[8]:
+# In[ ]:
 
 
 def get_octagon_vertex_coordinates():
@@ -162,7 +159,7 @@ def get_octagon_vertex_coordinates():
     # get octagon vertex coordinates
     octagon_vertex_coords = plot_octagon.calculate_coordinates(vertex=True)
     
-    # convert to array rows as x coords, y coords
+    # vstack as a 2*8 array
     octagon_vertex_coords = np.vstack([octagon_vertex_coords[0], octagon_vertex_coords[1]]) 
     
     # remove repeated first coordinate
@@ -175,14 +172,14 @@ def get_octagon_vertex_coordinates():
     return octagon_vertex_coords
 
 
-# In[9]:
+# In[ ]:
 
 
 def get_CW_CCW_vertex_coords(octagon_vertex_coords):
     ''' Take a 2*8 array of octagon vertex coordinates and return two arrays
-        First is the 'clockwise' array, where the first column is the CCW vertex of wall 1
-        Second is the 'counterlockwise' array, where the first column is the CW vertex of wall 1
-        Both returned arrays are still shape 2*8 '''
+        First is the 'clockwise' array, to be used when individual is CW of the wall, where the first column is the CCW vertex of wall 1
+        Second is the 'counterlockwise' array, to be used when individual is CCW of the wall, where the first column is the CW vertex of wall 1
+        Both returned arrays are shape 2*8 '''
 
     CW_octagon_vertex_coords = octagon_vertex_coords
     CCW_octagon_vertex_coords = np.hstack([octagon_vertex_coords[:,1::], octagon_vertex_coords[:,0:1:]])
@@ -190,7 +187,7 @@ def get_CW_CCW_vertex_coords(octagon_vertex_coords):
     return CW_octagon_vertex_coords, CCW_octagon_vertex_coords
 
 
-# In[10]:
+# In[ ]:
 
 
 def calculate_cross_product(smoothed_player_headangles_trial, player_to_alcove_vectors, num_walls=8):
@@ -200,8 +197,9 @@ def calculate_cross_product(smoothed_player_headangles_trial, player_to_alcove_v
         vector is CW of the first
         Return a num_walls*trajectory_length-1 shaped array '''
 
-    cross_products_wall_headangle = np.zeros([num_walls,smoothed_player_headangles_trial.shape[1]])
-    for timepoint in range(smoothed_player_headangles_trial.shape[1]):
+    timepoints = smoothed_player_headangles_trial.shape[1]
+    cross_products_wall_headangle = np.zeros([num_walls,timepoints])
+    for timepoint in range(timepoints):
         headangle_vector_x_coord = smoothed_player_headangles_trial[0, timepoint]
         headangle_vector_y_coord = smoothed_player_headangles_trial[1, timepoint]
         
@@ -215,54 +213,61 @@ def calculate_cross_product(smoothed_player_headangles_trial, player_to_alcove_v
     
 
 
-# In[11]:
+# In[ ]:
 
 
 def is_wall_clockwise_of_player(cross_products_wall_headangle):
-    ''' Return a boolean array of shape num_walls*player_headangles_trial.shape[1]
+    ''' Return a boolean array of shape num_walls*timepoints
         which is True for when the wall is clockwise of the player's current headangle vector '''
 
     return cross_products_wall_headangle < 0
 
 
-# In[12]:
+# In[ ]:
 
 
-def get_closest_wall_section_coords_trajectory(wall_is_clockwise, CW_octagon_vertex_coords, CCW_octagon_vertex_coords):
-    ''' Taking the clockwise and counterclockwise octagon vertex coordinates (i.e., the coordinates of the
+# Helper function
+def get_closest_wall_section_coords_trajectory(wall_is_clockwise, CW_octagon_vertex_coords, CCW_octagon_vertex_coords, debug=False):
+    ''' Takes the clockwise and counterclockwise octagon vertex coordinates (i.e., the coordinates of the
         vertices of each wall, 1-8, that would be seen first if rotating clockwise or counterclockwise)
-        Create an array of shape wall_angular_direction.shape*2 that records the x/y coordinates of the wall
-        for all timepoints, being either CW or CCW coordinate dictated by np.where(wall_is_clockwise)
-        Where wall_is_clockwise is true when the wall is clockwise of the current headangle vector '''
+        These are both 2*8 arrays
+        Also takes a boolean array of size num_walls*timepoints which is True where the wall is clockwise of the
+        current head angle at that timepoint
+        Return an array of shape num_walls*timepoints*2 that records the x/y coordinates of the wall
+        for all timepoints, being either CW or CCW coordinate dictated by np.where(wall_is_clockwise) '''
     
     
     wall_coords_cross_product_dependent = np.zeros((*wall_is_clockwise.shape, 2)) # add a 3rd dimension of size
                                                                                      # 2 to store x/y coordinates
     
     # reshape and broadcast the x and y coordinates of octagon_vertex_coords to fit np.where
+    timepoints = wall_is_clockwise.shape[1]
     CW_octagon_vertex_coords_x = CW_octagon_vertex_coords[0].reshape(8,1)
-    CW_octagon_vertex_coords_x = CW_octagon_vertex_coords_x * np.ones((8,wall_is_clockwise.shape[1]))
+    CW_octagon_vertex_coords_x = CW_octagon_vertex_coords_x * np.ones((8,timepoints))
     
     CCW_octagon_vertex_coords_x = CCW_octagon_vertex_coords[0].reshape(8,1)
-    CCW_octagon_vertex_coords_x = CCW_octagon_vertex_coords_x * np.ones((8,wall_is_clockwise.shape[1]))
+    CCW_octagon_vertex_coords_x = CCW_octagon_vertex_coords_x * np.ones((8,timepoints))
     
     CW_octagon_vertex_coords_y = CW_octagon_vertex_coords[1].reshape(8,1)
-    CW_octagon_vertex_coords_y = CW_octagon_vertex_coords_y * np.ones((8,wall_is_clockwise.shape[1]))
+    CW_octagon_vertex_coords_y = CW_octagon_vertex_coords_y * np.ones((8,timepoints))
     
     CCW_octagon_vertex_coords_y = CCW_octagon_vertex_coords[1].reshape(8,1)
-    CCW_octagon_vertex_coords_y = CCW_octagon_vertex_coords_y * np.ones((8,wall_is_clockwise.shape[1]))
+    CCW_octagon_vertex_coords_y = CCW_octagon_vertex_coords_y * np.ones((8,timepoints))
     
     
-    # # Verify the shape of wall_angular_direction
-    # print("wall_is_clockwise shape:", wall_is_clockwise.shape)
+    if debug:
+        # Verify the shape of wall_angular_direction
+        print("wall_is_clockwise shape:", wall_is_clockwise.shape)
     
-    # # Verify the shapes and contents of CW and CCW octagon vertex coordinates
-    # print("CW_octagon_vertex_coords_x shape:", CW_octagon_vertex_coords_x.shape)
-    # print("CCW_octagon_vertex_coords_x shape:", CCW_octagon_vertex_coords_x.shape)
-    # print("CW_octagon_vertex_coords contents:", CW_octagon_vertex_coords)
-    # print("CCW_octagon_vertex_coords contents:", CCW_octagon_vertex_coords)
+        # Verify the shapes and contents of CW and CCW octagon vertex coordinates
+        print("CW_octagon_vertex_coords_x shape:", CW_octagon_vertex_coords_x.shape)
+        print("CCW_octagon_vertex_coords_x shape:", CCW_octagon_vertex_coords_x.shape)
+        print("CW_octagon_vertex_coords contents:", CW_octagon_vertex_coords)
+        print("CCW_octagon_vertex_coords contents:", CCW_octagon_vertex_coords)
     
     
+    # where the wall is clockwise, use the clockwise coordinate, and where is counterclockwise
+    # use the counterclockwise coordinate
     wall_coords_cross_product_dependent[:,:,0] = np.where(wall_is_clockwise,
                                                           CW_octagon_vertex_coords_x,
                                                           CCW_octagon_vertex_coords_x)
@@ -273,31 +278,31 @@ def get_closest_wall_section_coords_trajectory(wall_is_clockwise, CW_octagon_ver
     return wall_coords_cross_product_dependent
 
 
-# In[23]:
+# In[ ]:
 
 
 def get_player_to_closest_wall_section_direction_vectors_for_trajectory(trajectory,
                                                                         wall_coords_cross_product_dependent,
                                                                         num_walls=8,
                                                                         debug=False):
-    ''' Calculate the direction vector between player and the angularly closest wall coordinate (of each wall)
-        Input requires the smoothed head angle vectors of the player for a full trajectory,
-        and the wall coordinates to use, dependent on the current head angle
+    ''' Calculate the direction vector between player location and the closest (angular) wall coordinate (of each wall)
+        Input requires the trajectory of the player,
+        and the wall coordinates to use, which will be dependent on the current head angle
         The first array must be shape 2*timepoints, the second array must be
         shaped wall_num*timepoints*2
         Returns a 3-dimensional array of shape 2*num_walls*trajectory.shape[1] '''
     
+    timepoints = wall_coords_cross_product_dependent.shape[1]
+
     # calculate the vector between the closest wall section point and current player location
-    vector_to_closest_wall_sections = np.zeros([2, num_walls, wall_coords_cross_product_dependent.shape[1]])
-    for time_index in range(wall_coords_cross_product_dependent.shape[1]): # for each timepoint in trajectory
-        player_x_loc = trajectory[0,time_index]
-        player_y_loc = trajectory[1,time_index]
-    
+    vector_to_closest_wall_sections = np.zeros([2, num_walls, timepoints])
+    for time_index in range(timepoints): # for each timepoint in trajectory
         for wall_num in range(num_walls): # for each wall
             vector_to_closest_wall_section = wall_coords_cross_product_dependent[wall_num, time_index, :] - trajectory[:, time_index]
             vector_to_closest_wall_sections[:,wall_num,time_index] = vector_to_closest_wall_section
-            if (time_index == 10 and wall_num == 0):
-                if debug:
+            
+            if debug:
+                if (time_index == 10 and wall_num == 0):
                     print("at 10, wall 0")
                     print("vector_to_closest_wall_section: ", vector_to_closest_wall_section)
                     print("wall_coords_cross_product_dependent[0, 10, :] - trajectory[:, 10]: ",
@@ -307,14 +312,15 @@ def get_player_to_closest_wall_section_direction_vectors_for_trajectory(trajecto
     return vector_to_closest_wall_sections
 
 
-# In[14]:
+# In[ ]:
 
 
-def wall_coords_cross_product_dependent(trial_list=None, trial_index=0, trial=None, player_id=0):
+# Umbrella function
+def get_wall_coords_cross_product_dependent(trial_list=None, trial_index=0, trial=None, player_id=0, window_size=5):
     ''' Umbrella function
-        Taking the clockwise and counterclockwise octagon vertex coordinates (i.e., the coordinates of the
+        Using the clockwise and counterclockwise octagon vertex coordinates (i.e., the coordinates of the
         vertices of each wall, 1-8, that would be seen first if rotating clockwise or counterclockwise)
-        Create an array of shape wall_angular_direction.shape*2 that records the x/y coordinates of the wall
+        Return an array of shape num_walls*timepoints*2 that records the x/y coordinates of the wall
         for all timepoints, being either CW or CCW coordinate dictated by np.where(wall_is_clockwise)
         Where wall_is_clockwise is true when the wall is clockwise of the current headangle vector '''
 
@@ -332,21 +338,18 @@ def wall_coords_cross_product_dependent(trial_list=None, trial_index=0, trial=No
     CW_octagon_vertex_coords, CCW_octagon_vertex_coords = get_CW_CCW_vertex_coords(octagon_vertex_coords)
 
     # get the headangles for this player, for this trial
-    trial_player_headangles = extract_trial_player_headangles(trial=trial, player_id=player_id)
+    trial_player_headangles = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
 
-    # get the smoothed headangles for this player, for this trial
-    smoothed_trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trajectory(trial_player_headangles,
-                                                                                                          window_size=10)
-    
+    # get the smoothed headangle vectors in 2D space for this player, for this trial
+    smoothed_head_angle_vectors = get_smoothed_player_head_angle_vectors_for_trial(trial_player_headangles, window_size=window_size)
     
     # get vectors from player to walls to identify whether a wall is CW or CCW of player headangle
     player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(trajectory)
     
     # find the cross product between the headangle vector and the vector to each wall to identify whether
     # each wall is CW or CCW at each timepoint (relative to player headangle vector)
-    cross_products_wall_headangle = calculate_cross_product(smoothed_trial_player_headangles, player_to_alcove_vectors)
+    cross_products_wall_headangle = calculate_cross_product(smoothed_head_angle_vectors, player_to_alcove_vectors)
 
-    
     # boolean array to record whether each wall is CW of the player's headangle vector (True) at each timepoint
     wall_is_clockwise = is_wall_clockwise_of_player(cross_products_wall_headangle)
 
@@ -361,64 +364,82 @@ def wall_coords_cross_product_dependent(trial_list=None, trial_index=0, trial=No
         
 
 
-# In[15]:
+# In[ ]:
 
 
 # Umbrella function for getting angle difference between FoV centre and angularly-closest section of wall for a player
 # (similar to head_angle_to_walls_throughout_trajectory, see above)
-def head_angle_to_closest_wall_section_throughout_trajectory(trajectory, head_angle_vector_array_trajectory,
-                                                             wall_coords_cross_product_dependent,
-                                                             window_size=10, num_walls=8):
+def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, trial_index=0, trial=None, player_id=0,
+                                                             window_size=10, num_walls=8, debug=False):
     ''' From a trajectory, calculate the angles between the player head angle vector and 
         the player-to-closest-wall-coordinate vectors for an entire trial
         Returns an array of shape num_walls*timepoints '''
 
-    # 1. find head angle unit vectors for a player at each timepoint, smoothed with a rolling window
-    smoothed_player_head_angles = get_smoothed_player_head_angle_vectors_for_trajectory(head_angle_vector_array_trajectory,
-                                                                                        window_size=10)
-    # print("smoothed_player_head_angles.shape: ", smoothed_player_head_angles.shape)
-    # print("smoothed_player_head_angles\n", smoothed_player_head_angles[:,110:120])
+    # access the dataframe for the trial
+    trial = extract_trial.extract_trial(trial, trial_list, trial_index)
 
-    # 2. find the player-to-closest-wall-coordinate vectors for each wall, for each timepoint
+    # get the trajectory for calculating direction vectors to alcoves
+    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+
+    # find head angle unit vectors for a player at each timepoint, smoothed with a rolling window
+    trial_player_headangles = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
+    smoothed_head_angle_vectors = get_smoothed_player_head_angle_vectors_for_trial(trial_player_headangles,
+                                                                         window_size=window_size)
+    
+    # if smoothed head angles are too short to analyse, return np.nan
+    if smoothed_head_angle_vectors.shape[1] < 20:
+        return np.nan
+    
+    if debug:
+        print("smoothed_player_head_angles.shape: ", smoothed_head_angle_vectors.shape)
+        print("smoothed_player_head_angles\n", smoothed_head_angle_vectors[:,40:50])
+
+    # find the closest (angular) wall coordinates for each wall and timepoint
+    wall_coords_cross_product_dependent = get_wall_coords_cross_product_dependent(trial=trial, player_id=player_id)
+
+    # find the player-to-closest-wall-coordinate vectors for each wall, for each timepoint
     player_to_closest_wall_section = get_player_to_closest_wall_section_direction_vectors_for_trajectory(trajectory,
                                                                                                      wall_coords_cross_product_dependent,    
                                                                                                      num_walls=num_walls)
     
-    # print("player_to_closest_wall_section.shape: ", player_to_closest_wall_section.shape)
-    # print("player_to_closest_wall_section\n", player_to_closest_wall_section[:,1,110:120])
-    # print("player_to_closest_wall_section at 10\n", player_to_closest_wall_section[:,0,10])
-    # 3. calculate the dot products between the two sets of vectors 
+    if debug:
+        print("player_to_closest_wall_section.shape: ", player_to_closest_wall_section.shape)
+        print("player_to_closest_wall_section\n", player_to_closest_wall_section[:,1,40:50])
+        print("player_to_closest_wall_section at 10\n", player_to_closest_wall_section[:,0,10])
+    
+    # calculate the dot products between the closest-wall-section and player-headangle vectors (for each wall, timepoint)
     dot_products_trajectory = trajectory_vectors.calculate_vector_dot_products_for_trajectory(player_to_closest_wall_section,
-                                                                                   smoothed_player_head_angles,
+                                                                                   smoothed_head_angle_vectors,
                                                                                    num_walls=num_walls)
 
-    # print("dot_products_trajectory.shape: ", dot_products_trajectory.shape)
-    # print("dot_products_trajectory\n", dot_products_trajectory[:,110:120]) 
+    if debug:
+        print("dot_products_trajectory.shape: ", dot_products_trajectory.shape)
+        print("dot_products_trajectory\n", dot_products_trajectory[:,110:120]) 
 
 
     
-    # 4. calculate the norms for the two sets of vectors
+    # calculate the norms for the closest-wall-section and player-headangle vectors (for each wall, timepoint)
     (head_angle_vector_norms_trajectory,
      player_to_closest_wall_section_vector_norms_trajectory) = trajectory_vectors.calculate_vector_norms_for_trajectory(player_to_closest_wall_section,
-                                                                                                   smoothed_player_head_angles,
+                                                                                                   smoothed_head_angle_vectors,
                                                                                                    num_walls=8)
+    if debug:
+        print("head_angle_vector_norms_trajectory\n", head_angle_vector_norms_trajectory[40:50])
+        print("player_to_closest_wall_section_vector_norms_trajectory\n", player_to_closest_wall_section_vector_norms_trajectory[:,40:50])
+        
+        print("head_angle_vector_norms_trajectory.shape: ", head_angle_vector_norms_trajectory.shape)
+        print("player_to_closest_wall_section_vector_norms_trajectory.shape: ", player_to_closest_wall_section_vector_norms_trajectory.shape)
 
-    # print("head_angle_vector_norms_trajectory\n", head_angle_vector_norms_trajectory[110:120])
-    # print("player_to_closest_wall_section_vector_norms_trajectory\n", player_to_closest_wall_section_vector_norms_trajectory[:,110:120])
-    
-    # print("head_angle_vector_norms_trajectory.shape: ", head_angle_vector_norms_trajectory.shape)
-    # print("player_to_closest_wall_section_vector_norms_trajectory.shape: ", player_to_closest_wall_section_vector_norms_trajectory.shape)
-
-    # 5. calculate cosine similarity for the head angle vector as compared to the vector from the player to each wall
-    # this is done for all timepoints in a trajectory
+    # calculate cosine similarity for the closest-wall-section and player-headangle vectors (for each wall, timepoint)
     cosine_similairities_trajectory = trajectory_vectors.calculate_cosine_similarity_for_trajectory(dot_products_trajectory,
                                                                                              head_angle_vector_norms_trajectory,
                                                                                              player_to_closest_wall_section_vector_norms_trajectory,
                                                                                              num_walls=8)
 
-    # print("cosine_similairities_trajectory.shape: ", cosine_similairities_trajectory.shape)
+    if debug:
+        print("cosine_similairities_trajectory.shape: ", cosine_similairities_trajectory.shape)
 
-    # 6. calculate angles between player head direction and player-to-alcove vectors for each wall
+    # calculate angles between player head direction and player-to-alcove vectors for each wall
     thetas = trajectory_vectors.calculate_thetas_for_trajectory(cosine_similairities_trajectory, num_walls=8)
 
     return thetas
@@ -431,19 +452,56 @@ def head_angle_to_closest_wall_section_throughout_trajectory(trajectory, head_an
 ## WALL VISIBILITY ANALYSIS
 
 
-# In[17]:
+# In[ ]:
+
+
+def get_wall_visible(trial_list, trial_index, player_id, current_fov=110.36, debug=False):
+    ''' Returns wall visibility array (boolean array of whether each wall is visible for
+        the player at each timepoint, shape num_walls*timepoints), for a chosen player and 
+        chosen trial '''
+    
+    trial = trial_list[trial_index]
+
+    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+    head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
+    trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
+
+    wall_coords_cross_product_dependent = get_wall_coords_cross_product_dependent(trial=trial, player_id=player_id)
+
+    # thetas = head_angle_to_closest_wall_section_throughout_trajectory(trajectory,
+    #                                                                   trial_player_headangles,
+    #                                                                   wall_coords_cross_product_dependent)
+
+    thetas = head_angle_to_closest_wall_section_throughout_trajectory(trial=trial, player_id=player_id)
+    if isinstance(thetas, float) and np.isnan(thetas):
+        if debug:
+            print(f"trial is too short to analyse. Returning np.nan instead of wall_visible array")
+        return np.nan
+    
+    thetas = np.rad2deg(thetas)
+
+    wall_visible = thetas < current_fov/2
+
+    return wall_visible
+
+
+# In[ ]:
 
 
 def wall_visibility_player_slice_onset(wall_visible, trial):
-    ''' Identify whether either of the relevant walls for this trial are visible at trial start '''
+    ''' Identify whether either of the relevant walls for this trial are visible at trial start
+        Takes a boolean array of shape num_walls*timepoints which is True when a wall falls within the FoV
+        range of the player
+        Also takes the trial
+        Returns 2 bools, reflecting wall visibility for wall 1 and wall 2 at trial start'''
 
     # local variables for logic
     wall1_visible = False
     wall2_visible = False
-    both_walls_visible = False
   
     # identify walls
     walls = get_indices.get_walls(trial=trial)
+    # take the wall index instead of the wall number, to index wall_visible
     wall1_index = walls[0] - 1
     wall2_index = walls[1] - 1
 
@@ -457,14 +515,16 @@ def wall_visibility_player_slice_onset(wall_visible, trial):
     return wall1_visible, wall2_visible
 
 
-# In[24]:
+# In[ ]:
 
 
-def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible, trial,
+# Eventually might want to change this function to include whether the second wall becomes visible
+def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
                                     debug=False):
     ''' Return the wall that becomes visible first
-        Input requires information about whether a wall starts as visible
-        which is retrieved from wall_visibility_player_slice_onset
+        Takes num_walls*timepoints boolean array of wall visibility, and bools for 
+        whether wall 1 and wall 2 are visible at trial start
+        Also takes the trial
         Returns 'wall1', 'wall2', 'both', or 'neither' '''
     
 
@@ -479,26 +539,28 @@ def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible,
     
     # get trial walls
     walls = get_indices.get_walls(trial=trial)
-    wall1_index = walls[0] - 1
+    wall1_index = walls[0] - 1 # index, not wall number
     wall2_index = walls[1] - 1
 
     # check to see if both walls are already visible
     if wall1_visible and wall2_visible:
         both_walls_initially_visible = True
+        if debug:
+            print("Both walls already visible")
+        return 'both'
     
     # for each wall, check which index of the trial the wall became visible on
     # Or, if the wall never became visible, keep wall_becomes_visible as False
-    if wall1_visible:
+    if wall1_visible: # wall immediately visible, so index is 0
         wall1_becomes_visible = True
         visible_index_wall1 = 0
         if debug:
             print("wall1_already visible")
     else:
-        # convert the boolean 'wall visible' array into an integer array, then use np.diff to compare
+        # convert the boolean wall visiblibilty array into an integer array, then use np.diff to compare
         # consecutive values for a difference.
         # If the array value ever changes from 0 to 1 there will be a diff of 1 at that timepoint
         # np.where then finds the index where this occurs
-        # NB: the index value for a wall is wall_number - 1
         wall_visibility_change_wall1 = np.where(np.diff(wall_visible[wall1_index,:].astype(int)) == 1)[0]
         if debug:
             print(f"wall_vis for wall 1: {wall_visible[wall1_index,:].astype(int)}")
@@ -507,7 +569,7 @@ def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible,
             wall1_becomes_visible = True
             if debug:
                 print("wall1_becomes_visible")
-            visible_index_wall1 = wall_visibility_change_wall1[0] + 1
+            visible_index_wall1 = wall_visibility_change_wall1[0] + 1 # account for diff value being 1 index early
     
     if wall2_visible:
         wall2_becomes_visible = True
@@ -523,7 +585,7 @@ def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible,
             wall2_becomes_visible = True
             if debug:
                 print("wall2_becomes_visible")
-            visible_index_wall2 = wall_visibility_change_wall2[0] + 1
+            visible_index_wall2 = wall_visibility_change_wall2[0] + 1 # account for diff value being 1 index early
     
     
     # check if both walls eventually become visible in the trial
@@ -545,6 +607,7 @@ def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible,
         else:
             if debug:
                 print("wall visible indices are equal, or a logical error")
+            return 'both'
     # if no more than one wall ever becomes visible, identify it as the first visible wall
     elif wall1_becomes_visible == True and wall2_becomes_visible == False:
         wall1_visible_first = True
@@ -566,37 +629,43 @@ def which_wall_becomes_visible_first(wall_visible, wall1_visible, wall2_visible,
     elif neither_wall_becomes_visible:
         return 'neither'
     elif both_walls_initially_visible:
+        if debug:
+            print("returning 'both'")
         return 'both'
+            
+
     else:
         raise ValueError("Function logic has failed.")
-        return None
         
 
 
-# In[19]:
+# In[ ]:
 
 
 def was_first_visible_wall_chosen_winner(wall, trial):
     ''' Identifies if the first visible wall for the winner was the wall chosen by the winner
         To be used in trials where one wall was visible to the player before the other
-        Wall input currently accepts 'wall1' or 'wall2' '''
+        Wall input currently accepts 'wall1' or 'wall2' 
+        Returns bool '''
 
     # local variables
     if wall == 'wall1':
-        df_wall_index = 'data.wall1'
+        df_wall = globals.WALL_1
     elif wall == 'wall2':
-        df_wall_index = 'data.wall2'
+        df_wall = globals.WALL_2
     else:
         raise ValueError("wall parameter must take one of the values listed in the function docstring")
 
-    # find the first wall visible
-    first_wall_visible_index = int(trial[df_wall_index].unique().item())
+    # find the wall number for the first wall visible
+    first_wall_visible = int(trial[df_wall].unique().item())
 
+    # find the wall that was triggered on this trial
+    # filter out nans that result from non-accepted triggers
     wall_triggered = trial[globals.WALL_TRIGGERED].unique()
     wall_triggered_filter_nans = wall_triggered[~np.isnan(wall_triggered)]
-    wall_chosen_index = wall_triggered_filter_nans.item()
+    wall_chosen = wall_triggered_filter_nans.item()
 
-    if first_wall_visible_index == wall_chosen_index:
+    if first_wall_visible == wall_chosen:
         print("first visible wall was the one chosen")
         first_visible_wall_chosen = True
     else:
@@ -618,15 +687,18 @@ def was_first_visible_wall_chosen_general(wall_num, trial):
         
 
 
-# In[20]:
+# In[ ]:
 
+
+# Note that this only takes the winners choices. Do I have a separate function for Loser's choice in losers_inferred_choice? check this.
 
 # umbrella function for identifying if there was a first visible wall, whether it was the one chosen,
 # and whether this was High or Low
 def was_first_visible_wall_chosen_player(wall_visible, trial):
     ''' Umbrella function that identifies whether one wall became visible before the other, whether this wall
         was High, and then whether this first visible wall was chosen
-        Returns bools first_visible_wall_chosen and first_visible_wall_high '''
+        Takes boolean wall_num*timepoints wall_visible array that is True where a wall falls within the player's FoV
+        Returns bools, first_visible_wall_chosen and first_visible_wall_high '''
     
     first_visible_wall = ''
     
@@ -653,12 +725,12 @@ def was_first_visible_wall_chosen_player(wall_visible, trial):
     
     # if no walls are visible, identify when and which wall was first visible
     if wall1_visible == False and wall2_visible == False:
-        first_visible_wall = which_wall_becomes_visible_first(wall1_visible, wall2_visible, trial)
+        first_visible_wall = get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial)
         # account for neither wall becoming visible, then not relevant for this analysis
         if first_visible_wall == 'neither':
             print("neither wall becomes visible")
             first_visible_wall_chosen = 777
-        # then run through was_first_visible_wall_chosen_winner
+        # if one wall does become visible, check whether this wall was the one chosen by the winner
         else:
             first_visible_wall_chosen = was_first_visible_wall_chosen_winner(first_visible_wall, trial)
 

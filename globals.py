@@ -5,6 +5,7 @@ NUM_WALLS = 8
 ## Unity project logging event strings
 SELECTED_TRIGGER_ACTIVATION = 'server-selected trigger activation'
 SLICE_ONSET = 'slice onset'
+TRIAL_START = 'trial start'
 TRIAL_END = 'trial end'
 
 ## trial epoch name strings
@@ -61,3 +62,5 @@ PLAYER_SCORE_DICT = {
                     } 
 
 XLOC = 'location.x'
+
+RECORDING_FREQUENCY = 50

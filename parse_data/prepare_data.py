@@ -21,15 +21,18 @@ import globals
 
 
 def prepare_single_session_data(data_folder, json_filename):
-    ''' Load and preprocess a single dataframe
-        Return the full dataframe and a list of trials '''
+    ''' Load and preprocess data from a single session
+        Returns: full dataframe, list of trials '''
     
     # Load JSON file into pandas df with collapsed data dictionary and adjustments based on date of recording 
+    # (parse_data/loading.py)
     df = loading.loading_pipeline(data_folder, json_filename)
 
     # Pre-process data 
+    # (parse_data/preprocess.py)
     df = preprocess.standard_preprocessing(df)
 
+    # (parse_data/split_session_by_trial.py)
     trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=True)
 
     return df, trial_list
@@ -40,30 +43,45 @@ def prepare_single_session_data(data_folder, json_filename):
 
 def prepare_combined_session_data(data_folder, json_filenames):
     ''' Load and preprocess multiple dataframes, and concatenate
-        Return the full dataframe and a list of trials '''
+        Returns: full dataframe, list of trials '''
 
+    # (parse_data/combine_sessions.py)
     df = combine_sessions.combine_sessions(data_folder, json_filenames)
-    
+
+    # (parse_data/split_session_by_trial.py)
     trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=False)
 
     return df, trial_list
 
 
-# In[12]:
+# In[ ]:
 
 
 # umbrella function
-def prepare_data(data_folder, json_filenames):
-    ''' Prepare a full dataframe and list of trial dataframe from either a single
-        or set of sessions, given as filepaths '''
+def prepare_data(data_folder, json_filenames, combined=False):
+    ''' Input: data folder and json_filename string or list of json_filename strings.
+        Returns: full dataframe, list of trials.
+        Adapts to: a single session, multiple sessions combined, multiple sessions kept separate in a list '''
     
-    if len(json_filenames) == 1:
-        # index the list for its only item
-        df, trial_list = prepare_single_session_data(data_folder, json_filenames[0])
-    elif len(json_filenames) > 1:
-        df, trial_list = prepare_combined_session_data(data_folder, json_filenames)
+    if isinstance(json_filenames, str):  # handle a single session
+
+        df, trial_list = prepare_single_session_data(data_folder, json_filenames)
+   
+    elif isinstance(json_filenames, list): # handle multiple sessions
+        
+        if combined: # keep sessions in one dataframe and one list
+            df, trial_list = prepare_combined_session_data(data_folder, json_filenames)
+        
+        else: # separate sessions in separate dfs and separate trial lists
+            df = []
+            trial_list = []
+            for filename in json_filenames:
+                this_df, this_trial_list = prepare_single_session_data(data_folder, filename)
+                df.append(this_df)
+                trial_list.append(this_trial_list)
+    
     else:
-        print("json_filenames must be a list of strings of len >= 1")
+        print("json_filenames must be a list of strings of len >= 1, or a string")
         return None
 
     return df, trial_list
