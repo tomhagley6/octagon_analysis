@@ -221,6 +221,7 @@ def probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists):
     ''' Returns an array of probabilities for the first wall being chosen when the first wall is low
         and an array of the number of times this ocurred.
         These are of shape num_sessions*num_players.
+        Inferred choice is used here (first_visible_wall_chosen_session).
         Takes a data folder path string, and a list of all json filenames (one for each session of data) '''
     
     num_sessions = len(trial_lists)

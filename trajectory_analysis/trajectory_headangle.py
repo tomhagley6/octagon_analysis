@@ -661,8 +661,9 @@ def was_first_visible_wall_chosen_winner(wall, trial):
 
     # find the wall that was triggered on this trial
     # filter out nans that result from non-accepted triggers
-    wall_triggered = trial[globals.WALL_TRIGGERED].unique()
+    wall_triggered = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION][globals.WALL_TRIGGERED].unique()
     wall_triggered_filter_nans = wall_triggered[~np.isnan(wall_triggered)]
+    print(f"{wall_triggered_filter_nans}")
     wall_chosen = wall_triggered_filter_nans.item()
 
     if first_wall_visible == wall_chosen:

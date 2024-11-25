@@ -76,7 +76,7 @@ def plot_trial_trajectory_colour_map(ax, trial_list=None, trial_index=0, cmap_wi
     
 
 
-# In[8]:
+# In[9]:
 
 
 def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c', colour_loser='m',
@@ -125,11 +125,11 @@ def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c',
     return ax
 
 
-# In[10]:
+# In[ ]:
 
 
 def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wall1='blue', colour_wall2='blueviolet',
-                                          trial=None, loser=False):
+                                          trial=None, loser=False, alpha=0.7):
     ''' Plot only the winning trajectory for a single trial, with optional flag to plot only the losing trajectories
         Separate colours for wall 1 and wall 2 '''
     
@@ -176,7 +176,7 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     colours = [colour_wall1, colour_wall2]
     x_coordinates = coordinate_arrays[coordinate_array_labels[0]]
     y_coordinates = coordinate_arrays[coordinate_array_labels[1]]
-    ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1])
+    ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1], alpha=alpha)
 
     # testing = x_coordinates[0], y_coordinates[0]
     # print(testing)
@@ -184,10 +184,10 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     return ax 
 
 
-# In[6]:
+# In[2]:
 
 
-def plot_session_trajectory(ax, df, colour_player_1='yellow', colour_player_2='turquoise', alpha=0.7, chosen_player=None):
+def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=0.7, chosen_player=None, slice_onset_markers=False):
     ''' Plot the continuous trajectory for an entire session for each player '''
 
     # find number of players to plot for
@@ -207,19 +207,40 @@ def plot_session_trajectory(ax, df, colour_player_1='yellow', colour_player_2='t
     colours = [colour_player_1, colour_player_2, 'g', 'r', 'b', 'y']
     for i in range(num_players):
         if chosen_player is None:
-            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[i], alpha=alpha, label=f'player {i}')
+            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[i], alpha=alpha, label=f'player {i+1}')
         else:
             if i != chosen_player:
                 pass
             else:
-                ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[i], alpha=alpha, label=f'player {i}')
+                ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[i], alpha=alpha, label=f'player {i+1}')
 
     # add title
     main_title = "Whole session trajectory" 
-    title_supp = f" for player {chosen_player}" if chosen_player is not None else ""
+    title_supp = f" for player {chosen_player+1}" if chosen_player is not None else ""
     title_string = main_title + title_supp
     ax.set_title(title_string)
         
+
+    return ax
+
+
+# In[ ]:
+
+
+def mark_session_slice_onsets(ax, df, chosen_player, s=10, color='k'):
+    ''' Plot markers overlaying a full session trajectory plot,
+        indicating position of slice onset'''
+
+    slice_onset_indices = df[df['eventDescription'] == globals.SLICE_ONSET].index
+    slice_onset_indices = np.array([i for i in slice_onset_indices])
+
+    # find x and y location values for slice onset indicies
+    x_loc_slice_onsets = df[globals.PLAYER_LOC_DICT[chosen_player]['xloc']].loc[slice_onset_indices]
+    y_loc_slice_onsets = df[globals.PLAYER_LOC_DICT[chosen_player]['yloc']].loc[slice_onset_indices]
+
+    # plot these locations as markers on an existing plot (expected to have a full session trajectory)
+    ax.scatter(x_loc_slice_onsets, y_loc_slice_onsets, color=color, s=s)
+
 
     return ax
 

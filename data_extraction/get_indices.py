@@ -91,8 +91,9 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
     
     trial_indices = []
     for i in range(len(trial_list)):
+                
         this_trial = trial_list[i]
-        
+
         this_trial_type = this_trial[globals.TRIAL_TYPE].unique()[0]
 
         if this_trial_type == trial_type:

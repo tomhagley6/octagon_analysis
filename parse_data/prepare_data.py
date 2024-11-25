@@ -58,7 +58,7 @@ def prepare_combined_session_data(data_folder, json_filenames):
 
 
 # umbrella function
-def prepare_data(data_folder, json_filenames, combined=False):
+def prepare_data(data_folder, json_filenames, combine=False):
     ''' Input: data folder and json_filename string or list of json_filename strings.
         Returns: full dataframe, list of trials.
         Adapts to: a single session, multiple sessions combined, multiple sessions kept separate in a list '''
@@ -69,7 +69,7 @@ def prepare_data(data_folder, json_filenames, combined=False):
    
     elif isinstance(json_filenames, list): # handle multiple sessions
         
-        if combined: # keep sessions in one dataframe and one list
+        if combine: # keep sessions in one dataframe and one list
             df, trial_list = prepare_combined_session_data(data_folder, json_filenames)
         
         else: # separate sessions in separate dfs and separate trial lists
