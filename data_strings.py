@@ -16,7 +16,11 @@ JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_Yan
                    r'fifth_experiments_241112\2024-11-12_13-31-14_KhadijaWendySocial.json',
                    r'sixth_experiments_241112\2024-11-12_15-23-24_FrancescaSenSzeSocial.json',
                    r'seventh_experiments_241113\2024-11-13_14-18-54_NasiaRyanSocial.json',
-                   r'eighth_experiments_241113\2024-11-13_15-28-07_YichuanHoiSocial.json']
+                   r'eighth_experiments_241113\2024-11-13_15-28-07_YichuanHoiSocial.json',
+                   r'ninth_experiments_241119\2024-11-19_14-24-49_AmyXinyuanSocial.json',
+                   r'tenth_experiments_241119\2024-11-19_15-22-56_SophiaHocineSocial.json',
+                   r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
+                   r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json']
 
 
 
@@ -59,7 +63,27 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'eighth_experiments_241113\2024-11-13_15-22-20_YichuanFirstSolo.json',
                   r'eighth_experiments_241113\2024-11-13_15-51-39_YichuanSecondSolo.json',
                   r'eighth_experiments_241113\2024-11-13_15-21-50_HoiFirstSolo.json',
-                  r'eighth_experiments_241113\2024-11-13_15-51-16_HoiSecondSolo.json',]
+                  r'eighth_experiments_241113\2024-11-13_15-51-16_HoiSecondSolo.json',
+                  
+                  r'ninth_experiments_241119\2024-11-19_14-18-18_AmyFirstSolo.json',
+                  r'ninth_experiments_241119\2024-11-19_14-44-00_AmySecondSolo.json',
+                  r'ninth_experiments_241119\2024-11-19_14-18-44_XinyuanFirstSolo.json',
+                  r'ninth_experiments_241119\2024-11-19_14-44-31_XinyuanSecondSolo.json',
+                  
+                  r'tenth_experiments_241119\2024-11-19_15-15-53_SophiaFirstSolo.json',
+                  r'tenth_experiments_241119\2024-11-19_15-47-53_SophiaSecondSolo.json',
+                  r'tenth_experiments_241119\2024-11-19_15-14-19_HocineFirstSolo.json',
+                  r'tenth_experiments_241119\2024-11-19_15-47-29_HocineSecondSolo.json',
+
+                  r'eleventh_experiments_241120\2024-11-20_14-12-06_JasonFirstSolo.json',
+                  r'eleventh_experiments_241120\2024-11-20_14-42-16_JasonSecondSolo.json',
+                  r'eleventh_experiments_241120\2024-11-20_14-12-33_RahulFirstSolo.json',
+                  r'eleventh_experiments_241120\2024-11-20_14-41-56_RahulSecondSolo.json',
+
+                  r'twelfth_experiments_241120\2024-11-20_15-10-00_SunnyFirstSolo.json',
+                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
+                  r'twelfth_experiments_241120\2024-11-20_15-10-17_VinceFirstSolo.json',
+                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json']
 
 # first four solos 
 JSON_FILENAMES_SOLO_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json',

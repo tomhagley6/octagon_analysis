@@ -63,13 +63,14 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
             color='k',  # Get color from colormap
             linestyle='-',  # Solid line
             marker='x',  # Marker for the endpoints
-            linewidth=1
+            linewidth=1,
+            alpha=0.4
         )
 
     # plt.title("Probability of Choosing First Wall Seen vs. First Wall Seen (Low)")
     plt.ylabel("P(Choose first wall seen)")
     plt.xlabel("")
-    plt.ylim(0.3, 1)  # Set y-axis limits for probabilities
+    plt.ylim(0.0, 1)  # Set y-axis limits for probabilities
     plt.gca().set_aspect(3)
 
     # Remove top and bottom spines
@@ -292,7 +293,7 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
         solo and social conditions. 
         Takes a num_sessions*num_players social array and a 1D solo array of the same size.
         Depending on how many solo arrays are passed, will plot combined or separated solo graphs.
-        Drops points if they are nan (subject to low n in probability calculation).'''
+        Drops points if they are nan (subject to low n in probability calculation). '''
     
     # convert social array to a single dimension for plotting
     social_p_choose_high = social_p_choose_high.ravel()
@@ -327,7 +328,7 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
                     marker='o', linestyle='-', color=colors[i], alpha=0.7)
 
         plt.plot([0,1], [np.nanmean(solo_p_choose_high), np.nanmean(social_p_choose_high)],
-                            marker='x', color='red', label='Average', linewidth=1, linestyle='--')
+                            marker='x', color='red', label='Average', linewidth=2, linestyle='--')
 
         plt.ylabel('P(Choose High)')
         plt.xticks([0, 1], [' Combined Solo', 'Social'])
@@ -359,7 +360,7 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
                     marker='o', linestyle='-', color=colors[i], alpha=0.7)
 
         plt.plot([0,1,2], [np.nanmean(solo_first_session_p_choose_high), np.nanmean(social_p_choose_high), np.nanmean(solo_second_session_p_choose_high)],
-                            marker='x', color='red', label='Average', linewidth=1, linestyle='--')
+                            marker='x', color='red', label='Average', linewidth=2, linestyle='--')
 
         plt.ylabel('P(Choose High)')
         plt.xticks([0, 1, 2], ['First Solo', 'Social', 'Second Solo'])
@@ -368,54 +369,6 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
         plt.gca().spines['right'].set_visible(False)
         plt.show()
 
-
-
-# In[32]:
-
-
-# helper function for plot_probability_choose_high_solo_social
-def get_probability_chose_high_social(data_folder, json_filename, trial_type=globals.HIGH_LOW, wall_sep=None):
-    ''' Find the probability that each player chose High in a social context.
-        Optionally specify the trial type and wall separation type to use.
-        This does not include inferred choices.'''
-
-    # get the dataframe for this session
-    _, trial_list = prepare_data.prepare_data(data_folder, json_filename)
-
-    # filter trial list to include HighLow trials only
-    if trial_type is not None:
-        trial_list_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
-        trial_list = [trial_list[i] for i in trial_list_indices]
-    # print(f"len trial list = {len(trial_list)}")
-
-    # filter trial list to include specific wall separation
-    if wall_sep is not None:
-        trial_list_indices =  get_indices.get_trials_with_wall_sep(trial_list, wall_sep=wall_sep)
-        trial_list = [trial_list[i] for i in trial_list_indices]
-
-    # find the high wall trials and the indices where each player won
-    high_wall_chosen = get_indices.was_high_wall_chosen(trial_list)
-    # print(f"high_wall_chosen = {high_wall_chosen}")
-    player0_win_indices = get_indices.get_player_win_indices(trial_list, player_id=0)
-    # print(f"player0_win_indices = {player0_win_indices}")
-    player1_win_indices = get_indices.get_player_win_indices(trial_list, player_id=1)
-    # print(f"player1_win_indices = {player1_win_indices}")
-
-    # create an array of size player_win_indices that is True where this win was a High wall choice 
-    player0_wins_high = np.zeros(player0_win_indices.size)
-    for i in range(player0_win_indices.size):
-        trial_idx = player0_win_indices[i]
-        player0_wins_high[i] = True if high_wall_chosen[trial_idx] else False
-
-    player1_wins_high = np.zeros(player1_win_indices.size)
-    for i in range(player1_win_indices.size):
-        trial_idx = player1_win_indices[i]
-        player1_wins_high[i] = True if high_wall_chosen[trial_idx] else False
-
-    probability_player0_choose_high = player0_wins_high[player0_wins_high == True].size/player0_wins_high.size
-    probability_player1_choose_high = player1_wins_high[player1_wins_high == True].size/player1_wins_high.size
-
-    return probability_player0_choose_high, probability_player1_choose_high
 
 
 # In[33]:
@@ -469,49 +422,12 @@ def get_probability_chose_high_social_df(trial_list, trial_type=globals.HIGH_LOW
 
 
 # helper function for plot_probability_choose_high_solo_social
-def get_probability_chose_high_solo(data_folder, json_filename, trial_type=globals.HIGH_LOW, wall_sep=None, cut_trials=10):
-    ''' Find the probability that the player chose High in a solo context
-        Takes a data folder string and JSON filename.
-        Optionally specify the trial and wall separation type to use '''
-
-    # get the dataframe for this session
-    df, trial_list = prepare_data.prepare_data(data_folder, json_filename)
-
-    # filter trial list to include HighLow trials only
-    if trial_type is not None:
-        trial_list_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
-        trial_list = [trial_list[i] for i in trial_list_indices]
-
-
-    # filter trial list to include specific wall separation
-    if wall_sep is not None:
-        trial_list_indices =  get_indices.get_trials_with_wall_sep(trial_list, wall_sep=wall_sep)
-        trial_list = [trial_list[i] for i in trial_list_indices]
-
-    
-
-    high_wall_chosen = get_indices.was_high_wall_chosen(trial_list)
-
-    # # cut first cut_trials trials (learning controls/associations)
-    # high_wall_chosen = high_wall_chosen[cut_trials:]
-    # trial_list_indices = trial_list_indices[cut_trials:]
-
-
-    probability_choose_high = high_wall_chosen[high_wall_chosen == True].size/trial_list_indices.size
-
-
-    return probability_choose_high
-
-
-# In[ ]:
-
-
-# helper function for plot_probability_choose_high_solo_social
 def get_probability_chose_high_solo_df(trial_list, trial_type=globals.HIGH_LOW, wall_sep=None, cut_trials=10, data_size_cutoff=4):
     ''' Find the probability that the player chose High in a solo context
         Takes a data folder string and JSON filename.
         Optionally specify the trial and wall separation type to use.
-        Cut the first cut_trials trials to reduce effect of learning controls/associations. '''
+        Cut the first cut_trials trials to reduce effect of learning controls/associations. 
+        Return np.nan if filtering and cut_trials leaves the trial list at size < dat_size_cutoff'''
     
     # cut first cut_trials trials (learning controls/associations)
     trial_list = trial_list[cut_trials:]
@@ -537,72 +453,18 @@ def get_probability_chose_high_solo_df(trial_list, trial_type=globals.HIGH_LOW, 
         return probability_choose_high
 
 
-# In[36]:
-
-
-# helper function for plot_probability_choose_high_solo_social
-def get_probability_chose_high_solo_social_all_sessions(data_folder, json_filenames_all_social, json_filenames_all_solo, wall_sep, trial_type=globals.HIGH_LOW):
-    
-    # 1. social
-    # loop through all social sessions
-    probability_choose_high_social_array = np.zeros((len(json_filenames_all_social), 2))
-    for json_filename_idx in range(len(json_filenames_all_social)):
-
-        # get the dataframe for this session
-        json_filename = json_filenames_all_social[json_filename_idx]
-
-        # find the probability of choosing high for each player
-        probability_player0_choose_high, probability_player1_choose_high = get_probability_chose_high_social(data_folder, json_filename,
-                                                                                                        trial_type=trial_type,
-                                                                                                        wall_sep=wall_sep)
-
-        # add this to the sessions array
-        probability_choose_high_social_array[json_filename_idx,:] = [probability_player0_choose_high, probability_player1_choose_high]
-    
-    # 2. solo combined
-    # loop through all solo sessions
-    # get solo choice data for combined pre- and post-
-    probability_choose_high_solo_array = np.zeros((int(len(json_filenames_all_solo)/2)))
-    for json_filename_idx in range(0, len(json_filenames_all_solo), 2):
-
-        # get the dataframe for this session
-        json_filenames = [json_filenames_all_solo[json_filename_idx], json_filenames_all_solo[json_filename_idx + 1]]
-
-        # find the probability of choosing high for each player
-        probability_choose_high = get_probability_chose_high_solo(data_folder, json_filenames, wall_sep=wall_sep)
-
-        # add this to the sessions array
-        probability_choose_high_solo_array[int(json_filename_idx/2)] = probability_choose_high
-
-    # 3. solo separated
-    # loop through all solo sessions
-    # get solo choice data for separated pre- and post
-    probability_choose_high_solo_array_separated_sessions = np.zeros(int(len(json_filenames_all_solo)))
-    for json_filename_idx in range(0, len(json_filenames_all_solo)):
-
-        # get the dataframe for this session
-        json_filenames = json_filenames_all_solo[json_filename_idx]
-
-        # find the probability of choosing high for each player
-        probability_choose_high = get_probability_chose_high_solo(data_folder, [json_filenames], wall_sep=wall_sep)
-
-        # add this to the sessions array
-        probability_choose_high_solo_array_separated_sessions[int(json_filename_idx)] = probability_choose_high
-
-    probability_choose_high_solo_array_first_session = probability_choose_high_solo_array_separated_sessions[0::2]
-    probability_choose_high_solo_array_second_session = probability_choose_high_solo_array_separated_sessions[1::2]
-
-    
-    return (probability_choose_high_social_array, probability_choose_high_solo_array,
-            probability_choose_high_solo_array_first_session, probability_choose_high_solo_array_second_session)
-
-
 # In[ ]:
 
 
 # helper function for plot_probability_choose_high_solo_social
-def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, trial_lists_social, wall_sep, trial_type=globals.HIGH_LOW, cut_solo_trials=10):
-    
+def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, trial_lists_social, wall_sep=None, trial_type=globals.HIGH_LOW, cut_solo_trials=10):
+    ''' Get probabilities of choosing the High wall for each participant for each session, and split by social and solo.
+        Takes a list of trial lists for solo sessions, and for social sessions.
+        Assumes the solo trial list is complete, and that second sessions follow directly from first sessions.
+        Returns 4 floats: P(choose High) in social, combined solo, first solo session, second solo session.
+        These floats may be np.nan if low n in the probability calculation.'''
+
+
     # 1. social
     # loop through all social sessions
     probability_choose_high_social_array = np.zeros((len(trial_lists_social), 2))
@@ -618,7 +480,6 @@ def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, tri
 
         # add this to the sessions array
         probability_choose_high_social_array[trial_list_idx,:] = [probability_player0_choose_high, probability_player1_choose_high]
-
     
     # 2. solo combined
     # loop through all solo sessions
@@ -634,7 +495,6 @@ def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, tri
 
         # add this to the sessions array
         probability_choose_high_solo_array[int(trial_list_idx/2)] = probability_choose_high
-
 
     # 3. solo separated
     # loop through all solo sessions
@@ -653,7 +513,6 @@ def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, tri
 
     probability_choose_high_solo_array_first_session = probability_choose_high_solo_array_separated_sessions[0::2]
     probability_choose_high_solo_array_second_session = probability_choose_high_solo_array_separated_sessions[1::2]
-
 
     
     return (probability_choose_high_social_array, probability_choose_high_solo_array,
