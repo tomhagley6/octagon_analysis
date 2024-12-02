@@ -91,9 +91,8 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
     
     trial_indices = []
     for i in range(len(trial_list)):
-                
         this_trial = trial_list[i]
-
+        
         this_trial_type = this_trial[globals.TRIAL_TYPE].unique()[0]
 
         if this_trial_type == trial_type:
@@ -102,7 +101,7 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
     return np.asarray(trial_indices)
 
 
-# In[6]:
+# In[ ]:
 
 
 def get_trials_chose_wall(trial_list, chosen_wall):
@@ -110,7 +109,6 @@ def get_trials_chose_wall(trial_list, chosen_wall):
 
     trial_indices = []
     for i in range(len(trial_list)):
-        this_trial = trial_list[i]
 
         # if the wallTriggered value aligns with the chosen_wall value, winner chose chosen_wall
         # find all non-nan values for wallTriggered
@@ -131,30 +129,25 @@ def get_trials_chose_wall(trial_list, chosen_wall):
     return np.asarray(trial_indices)
 
 
-# In[7]:
+# In[1]:
 
 
 def get_trigger_activators(trial_list):
     ''' Return a trial_num length array of the player which activated the trigger
         on each trial (starting from player 0) '''
 
-    trigger_activators = []
-    for i in range(len(trial_list)):
-        this_trial = trial_list[i]
+    trigger_activators = np.zeros(len(trial_list))
+    for i, trial in enumerate(trial_list):
 
-        trigger_event = this_trial[this_trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
-        trigger_activator = int(
-            trigger_event[globals.TRIGGER_CLIENT].item()
-        )
-
-        trigger_activators.append(trigger_activator)
+        trigger_event = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]
+        trigger_activators[i] = int(trigger_event[globals.TRIGGER_CLIENT].item())
 
 
     return np.asarray(trigger_activators)
         
 
 
-# In[8]:
+# In[ ]:
 
 
 def get_trigger_activator(trial):
@@ -164,6 +157,7 @@ def get_trigger_activator(trial):
     trigger_activator = int(
         trigger_event[globals.TRIGGER_CLIENT].item()
     )
+
 
     return trigger_activator
 
@@ -304,12 +298,12 @@ def get_chosen_walls(trial_list):
     return chosen_walls
 
 
-# In[16]:
+# In[ ]:
 
 
 def was_high_wall_chosen(trial_list):
     ''' Identify whether the chosen wall on each trial was High or Low
-        Returns an array of length num_trials '''
+        Returns a boolean array of length num_trials '''
 
     # initialise array
     high_wall_chosen = np.zeros(len(trial_list), dtype=np.bool)
