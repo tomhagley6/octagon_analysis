@@ -1,5 +1,6 @@
 # data folder
-DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # desktop home
+# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -20,7 +21,9 @@ JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_Yan
                    r'ninth_experiments_241119\2024-11-19_14-24-49_AmyXinyuanSocial.json',
                    r'tenth_experiments_241119\2024-11-19_15-22-56_SophiaHocineSocial.json',
                    r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
-                   r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json']
+                   r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json',
+                   r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
+                   r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json']
 
 
 
@@ -83,7 +86,18 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'twelfth_experiments_241120\2024-11-20_15-10-00_SunnyFirstSolo.json',
                   r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
                   r'twelfth_experiments_241120\2024-11-20_15-10-17_VinceFirstSolo.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json']
+                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
+                  
+                  r'241203_1\2024-12-03_14-20-13_PaulFirstSolo.json',
+                  r'241203_1\2024-12-03_14-52-05_PaulSecondSolo.json',
+                  r'241203_1\2024-12-03_14-19-21_NicoleFirstSolo.json',
+                  r'241203_1\2024-12-03_14-52-30_NicoleSecondSolo.json',
+  
+                  r'241203_2\2024-12-03_15-19-51_EstherFirstSolo.json',
+                  r'241203_2\2024-12-03_15-53-11_EstherSecondSolo.json',
+                  r'241203_2\2024-12-03_15-20-09_BowinFirstSolo.json',
+                  r'241203_2\2024-12-03_15-52-57_BowinSecondSolo.json'
+                  ]
 
 # first four solos 
 JSON_FILENAMES_SOLO_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json',

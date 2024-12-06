@@ -1,6 +1,10 @@
 setup.py
 analysis/__init__.py
+analysis/loser_inferred_choice.py
+analysis/player_scores.py
 analysis/response_times.py
+analysis/trajectory_efficiency.py
+analysis/wall_visibility_and_choice.py
 octagon_analysis.egg-info/PKG-INFO
 octagon_analysis.egg-info/SOURCES.txt
 octagon_analysis.egg-info/dependency_links.txt

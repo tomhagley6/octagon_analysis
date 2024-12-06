@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[24]:
+# In[2]:
 
 
 import numpy as np
@@ -13,6 +13,7 @@ import parse_data.prepare_data as prepare_data
 import analysis.wall_visibility_and_choice as wall_visibility_and_choice
 import globals
 import data_extraction.get_indices as get_indices
+from scipy.stats import pearsonr
 
 
 # ### Paired boxplots of probability of choosing a wall across any number of conditions
@@ -52,11 +53,11 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
 
     # Plot
     plt.figure(figsize=(4*num_datasets, 5))
-    sns.boxplot(x="Condition", y="Probability", data=df, palette="Paired")
+    sns.boxplot(x="Condition", y="Probability", data=df, palette="Paired", width=.8)
+    
     # Draw lines connecting paired data points
-        
     for i in range(dataset_size):
-        print(f"{len(wall_choice_labels)}, {len([dataset.ravel()[i] for dataset in wall_choice_probabilities])}")
+        # print(f"{len(wall_choice_labels)}, {len([dataset.ravel()[i] for dataset in wall_choice_probabilities])}")
         plt.plot(
             wall_choice_labels, # x-coordinates
             [dataset.ravel()[i] for dataset in wall_choice_probabilities], # y-coordinates
@@ -71,7 +72,8 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
     plt.ylabel("P(Choose first wall seen)")
     plt.xlabel("")
     plt.ylim(0.0, 1)  # Set y-axis limits for probabilities
-    plt.gca().set_aspect(3)
+    plt.gca().set_aspect(3)    
+    plt.tight_layout()
 
     # Remove top and bottom spines
     plt.gca().spines['top'].set_visible(False)
@@ -169,10 +171,10 @@ def plot_performance_against_probability_low_when_first_visible(data_folder, jso
     plt.gca().spines['right'].set_visible(False)
 
 
-# In[28]:
+# In[ ]:
 
 
-def plot_performance_against_probability_low_when_first_visible_df(trial_lists, correlation_line=True):
+def plot_performance_against_probability_low_when_first_visible_df(trial_lists, correlation_line=True, print_correlation=True):
     '''Plot the graph of session performance against session probability for players choosing low when it is first visible.
        One data point for each session to avoid replicating data from within a session.
        Data is taken as the ratio player0:player1 for proportion score and for probability of choice '''
@@ -203,6 +205,11 @@ def plot_performance_against_probability_low_when_first_visible_df(trial_lists, 
 
         # Plot the correlation line
         plt.plot(x, line, color='red', label=f'Fit line: y = {slope:.2f}x + {intercept:.2f}')
+
+    if print_correlation:
+        corr_coeff_pearsonr, pval_pearsonr = pearsonr(x,y)
+        print(f"Pearson correlation coefficient is: {corr_coeff_pearsonr}")
+        print(f"P-value is: {pval_pearsonr}")
 
     plt.title("Performance in session against the probability of choosing\n the Low wall when the Low wall is the first visible")
     plt.xlabel("Probability")
