@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[21]:
+# In[ ]:
 
 
 import parse_data.prepare_data as prepare_data
@@ -15,6 +15,7 @@ import data_extraction.extract_trial as extract_trial
 import math
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
 import data_extraction.get_indices as get_indices
+import time
 
 
 # In[2]:
@@ -455,13 +456,26 @@ def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, tr
 # In[ ]:
 
 
-def get_wall_visible(trial_list, trial_index, player_id, current_fov=110.36, debug=False):
+def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, current_fov=110.36, debug=False):
     ''' Returns wall visibility array (boolean array of whether each wall is visible for
         the player at each timepoint, shape num_walls*timepoints), for a chosen player and 
         chosen trial '''
     
-    trial = trial_list[trial_index]
+    if debug:
+        start_time = time.time()
+    
 
+
+    # access the dataframe for the trial
+    trial = extract_trial.extract_trial(trial, trial_list, trial_index)    
+
+    
+    if debug:
+        print(f"get_wall_visible trial is of type {type(trial)}")
+        if isinstance(trial, int):
+            print(f"get_wall_visible int trials is: {trial}")
+    assert(isinstance(trial, pd.DataFrame))
+    
     trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
     head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
     trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
@@ -481,6 +495,12 @@ def get_wall_visible(trial_list, trial_index, player_id, current_fov=110.36, deb
     thetas = np.rad2deg(thetas)
 
     wall_visible = thetas < current_fov/2
+
+    # output the time taken for this function
+    if debug:
+        end_time = time.time()
+        print(f"Time taken for get_wall_visible (one trial, one player) is {end_time-start_time:.2f}")
+
 
     return wall_visible
 
@@ -527,6 +547,8 @@ def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
         Also takes the trial
         Returns 'wall1', 'wall2', 'both', or 'neither' '''
     
+    if debug:
+        start_time = time.time()
 
     # local variables for logic
     both_walls_initially_visible = False
@@ -620,6 +642,12 @@ def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
     # also account for neither wall becoming visible
     elif wall1_becomes_visible == False and wall2_becomes_visible == False:
         neither_wall_becomes_visible = True
+
+    if debug:
+        # output the time taken for this function
+        if debug:
+            end_time = time.time()
+            print(f"Time taken for get_first_visible_wall (one trial, one player) is {end_time-start_time:.2f}")
     
     # now choose a return value: 'wall1' if wall1 becomes visible first, 'wall2' if wall2 becomes visible first, 'neither' if neither
     if wall1_visible_first:
@@ -663,7 +691,6 @@ def was_first_visible_wall_chosen_winner(wall, trial):
     # filter out nans that result from non-accepted triggers
     wall_triggered = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION][globals.WALL_TRIGGERED].unique()
     wall_triggered_filter_nans = wall_triggered[~np.isnan(wall_triggered)]
-    print(f"{wall_triggered_filter_nans}")
     wall_chosen = wall_triggered_filter_nans.item()
 
     if first_wall_visible == wall_chosen:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 import parse_data.prepare_data as prepare_data
@@ -16,6 +16,7 @@ import math
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
 import trajectory_analysis.trajectory_direction as trajectory_direction
 import data_extraction.get_indices as get_indices
+import time
 
 
 # In[ ]:
@@ -40,9 +41,10 @@ def extract_final_third_trajectory(trajectory):
 
 def average_most_aligned_wall_trajectory(cosine_similarity_trajectory):
     ''' Takes num_walls*timepoints cosine similarity array (to wall centres)
-        Return index of the most aligned (on average) wall to the trajectory '''
+        Return index of the most aligned (on average) wall to the trajectory.
+        NB: This is not the wall number itself '''
      
-    return np.argmax(np.nanmean(cosine_similarity_trajectory, axis=1))
+    return np.argmax(np.nanmean(cosine_similarity_trajectory, axis=1)) 
     
     
 
@@ -50,16 +52,16 @@ def average_most_aligned_wall_trajectory(cosine_similarity_trajectory):
 # In[ ]:
 
 
-def proportion_trajectory_aligned_with_average(cosine_similarity_trajectory, most_aligned_wall):
-    ''' Takes num_walls*timepoints array and scalar
-        Return the proportion of timepoints in which the most aligned wall is the same as the average
-        Currently unused '''
+def proportion_trajectory_aligned_with_average(cosine_similarity_trajectory, most_aligned_wall_index):
+    ''' Currently unused.
+        Takes num_walls*timepoints array and scalar.
+        Return the proportion of timepoints in which the most aligned wall is the same as the average. '''
     
     count_aligned = 0
     for i in range(cosine_similarity_trajectory.shape[1]):
         cosine_similarity_this_timepoint = cosine_similarity_trajectory[:,i]
-        most_aligned_wall_this_timepoint = np.argmax(cosine_similarity_this_timepoint)
-        if most_aligned_wall_this_timepoint == most_aligned_wall:
+        most_aligned_wall_index_this_timepoint = np.argmax(cosine_similarity_this_timepoint)
+        if most_aligned_wall_index_this_timepoint == most_aligned_wall_index:
             count_aligned += 1
 
     try:
@@ -76,9 +78,10 @@ def proportion_trajectory_aligned_with_average(cosine_similarity_trajectory, mos
 
 
 def difference_to_second_highest_alignment(cosine_similarity_trajectory):
-    ''' Takes num_walls*timepoints cosine similarity array (to wall centres)
+    ''' Currently unused.
+        Takes num_walls*timepoints cosine similarity array (to wall centres).
         Returns the difference between the average most aligned wall and average
-        second most aligned wall ''' 
+        second most aligned wall. ''' 
 
     # average cosine similarities across timepoints
     average_cosine_similarities = np.nanmean(cosine_similarity_trajectory, axis=1)
@@ -118,9 +121,9 @@ def final_distance_to_wall(trajectory, average_most_aligned_wall_index):
 def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
     ''' Given a trial list and index, and 1D array of loser id ints, find the most
         aligned wall for the loser in the latter part of their trajectory, and decide
-        whether this most aligned wall should be considered their choice
-        For a single trial
-        Returns: scalar wall most aligned with on average, boolean confidence of loser's choice '''
+        whether this most aligned wall should be considered their choice.
+        For a single trial.
+        Returns: scalar wall most aligned with on average, boolean confidence of loser's choice. '''
     
     # LVs 
     losers_choice_accepted = False
@@ -132,7 +135,7 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
     # get trajectory for loser
     trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=loser_id)
     
-    # ignore first half of trajectory
+    # ignore first part of trajectory
     trajectory_end = extract_final_third_trajectory(trajectory)
     
     # fine cosine similarities between trajectory direction vector and player-alcove vectors for each wall
@@ -160,6 +163,7 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
     #     losers_choice_accepted = True
 
     # decide whether to accept the loser's choice
+    # based on average alignment to wall and final distance to wall
     if highest_alignment_val > 0.875:
         losers_choice_accepted = True
     elif final_distance_most_aligned_wall < 4:
@@ -177,11 +181,11 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
 # umbrella function to extract loser's choice for all trials in a list
 def infer_loser_choice_session(trial_list):
     ''' Given a trial list find the most aligned wall for the loser 
-        in the second half of their trajectory, and decide
+        in the latter part of their trajectory, and decide
         whether this most aligned wall should be considered their choice,
-        for all trials 
+        for all trials. 
         Return an array of most aligned walls and a boolean array of confidence
-        (Both 1D of size len(trial_list)) '''
+        (Both 1D of size len(trial_list)). '''
 
     # initialise
     loser_inferred_choice = np.zeros(len(trial_list))
@@ -210,10 +214,13 @@ def infer_loser_choice_session(trial_list):
 # In[ ]:
 
 
-def player_wall_choice_win_or_loss(trials_list, player_id):
+def player_wall_choice_win_or_loss(trials_list, player_id, debug=False):
     ''' Logic for identifying the player's chosen wall whether they lost the trial or not
         Returns int array of size len(trials_list) of chosen wall numbers (or np.nan) '''
     
+    if debug:
+        start_time = time.time()
+
     winning_player = get_indices.get_trigger_activators(trials_list)
     chosen_walls = get_indices.get_chosen_walls(trials_list)
     loser_inferred_choices, loser_inferred_choice_confidences = infer_loser_choice_session(trials_list)
@@ -231,6 +238,11 @@ def player_wall_choice_win_or_loss(trials_list, player_id):
             wall_chosen = chosen_walls[trial_index]
     
         current_player_wall_choice[trial_index] = wall_chosen
+
+    # output the time taken for this function
+    if debug:
+        end_time = time.time()
+        print(f"Time taken for player_wall_choice_win_or_loss (one session for one player) is {end_time-start_time:.2f}")
 
     return current_player_wall_choice
 

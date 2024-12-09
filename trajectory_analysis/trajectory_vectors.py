@@ -36,11 +36,13 @@ def extract_trial_player_trajectory(trial_list=None, trial_index=0, trial=None, 
     
     if debug:
         print(f"Extracting trial with trial index {trial_index}")
+        print(f"Trial is of type {type(trial)}")
+        if isinstance(trial, int):
+            print(f"int trials is: {trial}")
     trial = extract_trial.extract_trial(trial, trial_list, trial_index)
     assert isinstance(trial, pd.DataFrame)
 
     if debug:
-        print(f"Trial is of type {type(trial)}")
         print(f"events are: {trial['eventDescription'].unique()}")
         print(f"Globals.sliceonset returns as {globals.SLICE_ONSET}")
 
@@ -178,9 +180,9 @@ def get_player_to_alcove_direction_vectors_for_trajectory(trajectory, num_walls=
     timepoints = trajectory.shape[1]
     vector_to_alcoves = np.zeros((2, num_walls, timepoints))
     for time_index in range(0, trajectory.shape[1]): # for each timepoint in trajectory
-        player_x_loc = trajectory[0,time_index]
-        player_y_loc = trajectory[1,time_index]
         if debug:
+            player_x_loc = trajectory[0,time_index]
+            player_y_loc = trajectory[1,time_index]
             print("player x/y loc for this timepoint: ", player_x_loc, player_y_loc)
 
     
