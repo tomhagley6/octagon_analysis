@@ -296,6 +296,7 @@ def first_visible_wall_chosen_session_remake(trial_list, player_id, current_fov=
         player_wall_choice = wall_choice.player_wall_choice_wins_only(trial_list, player_id, debug=debug)
     if debug:
         print(f"include loser's inferred choice status: {inferred_choice}")
+        print(f"player wall choices for this player: {player_wall_choice}")
     
     # for each trial, get the first visible wall number, whether it was high, and whether it was chosen
     for trial_idx, trial in enumerate(trial_list):
@@ -341,65 +342,65 @@ def probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, fir
         If both walls were initially visible, or never become visible, input array values are np.nan.
         Assumes data from a single player's session.'''
 
-    if debug:
-        print(f"Number of trials total is: {first_visible_wall_chosen.size}")
-
-    # set a switch between the first visible wall being high or being low
-    # if set to true, return values for first visible wall being high and chosen
-    if reverse:
-        zero_unless_reverse = 1.
-    else:
-        zero_unless_reverse = 0.
 
     if debug:
         print(f"Number of trials total is: {first_visible_wall_chosen.size}")
     
-    # remove nans from the analysis
-    first_visible_wall_chosen_not_nan = first_visible_wall_chosen[~np.isnan(first_visible_wall_chosen)]
-    first_visible_wall_high_not_nan = first_visible_wall_high[~np.isnan(first_visible_wall_high)]
-
+    # if we are reversed (analyse High, not Low), change the array into a boolean of the first visible wall being high
+    # instead of low
     if reverse:
-        first_visible_wall_low_not_nan = first_visible_wall_high_not_nan
+        first_visible_wall_condition = first_visible_wall_high
     else:
-        first_visible_wall_low_not_nan = (first_visible_wall_high_not_nan -1) * -1
-    
-    if debug:
-        print(f"Number of trials for this player that begin with one wall visible and end with a retrievable choice is: " +
-                f"{first_visible_wall_high_not_nan.size}")
+        first_visible_wall_condition = (first_visible_wall_high -1) * -1
 
-    # restrict data to the first visible wall being low, and also being chosen
+    # restrict data to the first visible wall being the condition, and also being chosen
     # both of these array will have nan values where there is no confident loser's choice data, or where there was not a first visible wall
-    first_visible_low_and_also_chosen= np.where(
-                    np.isnan(first_visible_wall_chosen) | np.isnan(first_visible_wall_high),   # If either element is nan
+    first_visible_condition_and_also_chosen= np.where(
+                    np.isnan(first_visible_wall_chosen) | np.isnan(first_visible_wall_condition),   # If either element is nan
                     np.nan,                                           # Set to np.nan
-                    np.where((first_visible_wall_chosen == 1.) & (first_visible_wall_high == zero_unless_reverse), 1., 0.)  # Else set to 1. or 0.
+                    np.where((first_visible_wall_chosen == 1.) & (first_visible_wall_condition == 1), 1., 0.)  # Else set to 1. or 0.
      )
-    # again, clear nans
-    first_visible_low_and_also_chosen_not_nan = first_visible_low_and_also_chosen[~np.isnan(first_visible_low_and_also_chosen)]
+
+
+
+    # remove nans from the analysis
+    first_visible_wall_condition_not_nan = first_visible_wall_condition[~np.isnan(first_visible_wall_condition)]
+    first_visible_wall_condition_and_also_chosen_not_nan = first_visible_condition_and_also_chosen[~np.isnan(first_visible_condition_and_also_chosen)]
+
+        
+    if debug:
+        print(f"Number of trials for this player that begin with one wall visible and a retrievable choice is: " +
+                f"{first_visible_wall_condition_and_also_chosen_not_nan.size}")
+        print(f"size first_visible_condition_and_also_chosen: {first_visible_condition_and_also_chosen.size}"
+              + f" size first_visible_wall_condition_and_also_chosen_not_nan: {first_visible_wall_condition_and_also_chosen_not_nan.size}")
+    
+    first_visible_wall_high_not_nan = first_visible_wall_high[~np.isnan(first_visible_wall_high)]
     
     if debug:
-        print(f"Number of trials for this player that begin with Low wall visible and end with a retrievable choice is: " +
-                f"{first_visible_wall_low_not_nan[first_visible_wall_low_not_nan ==1].size}")
-        print(f"Number of trials for this player that begin with Low wall visible and end with Low wall chosen is: " +
-                f"{first_visible_low_and_also_chosen_not_nan[first_visible_low_and_also_chosen_not_nan ==1].size}")
+        print(f"Number of trials for this player that begin with Condition wall visible and end with a retrievable choice is: " +
+                f"{first_visible_wall_condition_not_nan[first_visible_wall_condition_not_nan ==1].size}")
+        print(f"Number of trials for this player that begin with Condition wall visible and end with Condition wall chosen is: " +
+                f"{first_visible_wall_condition_and_also_chosen_not_nan[first_visible_wall_condition_and_also_chosen_not_nan ==1].size}")
         print(f"Number of trials for this player that begin with High wall visible and end with a retrievable choice is: " +
                 f"{first_visible_wall_high_not_nan[first_visible_wall_high_not_nan ==1].size}")
         
     # probability of first wall being chosen when the first wall is low
-    num_walls_first_visible_low_and_also_chosen_not_nan = first_visible_low_and_also_chosen[first_visible_low_and_also_chosen ==1].size
-    num_walls_first_visible_low_not_nan = first_visible_wall_low_not_nan[first_visible_wall_low_not_nan ==1].size
-    probability_first_wall_chosen_when_low = num_walls_first_visible_low_and_also_chosen_not_nan/num_walls_first_visible_low_not_nan
-
-    num_walls_first_visible_high_not_nan = first_visible_wall_low_not_nan[first_visible_wall_low_not_nan ==0].size
-    num_trials_first_visible_low_chose_high = num_walls_first_visible_low_not_nan - num_walls_first_visible_low_and_also_chosen_not_nan
+    num_trials_first_visible_condition_and_also_chosen_not_nan = first_visible_wall_condition_and_also_chosen_not_nan[first_visible_wall_condition_and_also_chosen_not_nan ==1].size
+    num_trials_first_visible_condition_not_nan = first_visible_wall_condition_not_nan[first_visible_wall_condition_not_nan ==1].size
+    try:
+        probability_first_wall_chosen_when_condition = num_trials_first_visible_condition_and_also_chosen_not_nan/num_trials_first_visible_condition_not_nan
+    except ZeroDivisionError:
+        print(f"num_trials_first_visible_condition_and_also_chosen_not_nan size: {num_trials_first_visible_condition_and_also_chosen_not_nan}," +
+              f"num_trials_first_visible_condition_not_nan: {num_trials_first_visible_condition_not_nan}")
+        probability_first_wall_chosen_when_condition = np.nan
     
     if debug:
-        print(f"num_walls_first_visible_low_and_also_chosen_not_nan = {num_walls_first_visible_low_and_also_chosen_not_nan}")
-        print(f"num_walls_first_visible_low_not_nan = {num_walls_first_visible_low_not_nan}")
-        print(f"Probability of first wall being chosen when the first wall is low: " + f"{probability_first_wall_chosen_when_low}")
-        print(f"trials where low was seen first but high was chosen: {num_trials_first_visible_low_chose_high}")
+        print(f"num_walls_first_visible_condition_and_also_chosen_not_nan = {num_trials_first_visible_condition_and_also_chosen_not_nan}")
+        print(f"num_walls_first_visible_condition_not_nan = {num_trials_first_visible_condition_not_nan}")
+        print(f"Probability of first wall being chosen when the first wall is condition: " + f"{probability_first_wall_chosen_when_condition}")
+        print(f"trials where condition was seen first and was chosen: {num_trials_first_visible_condition_and_also_chosen_not_nan}")
     
-    return probability_first_wall_chosen_when_low, num_trials_first_visible_low_chose_high
+    return probability_first_wall_chosen_when_condition, num_trials_first_visible_condition_and_also_chosen_not_nan
 
 
 # In[ ]:
@@ -414,13 +415,15 @@ def probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists, wall
     
     num_sessions = len(trial_lists)
     probability_first_wall_chosen_array = np.zeros((num_sessions,2))
-    probability_first_wall_chosen_when_low_array = np.zeros((num_sessions,2))
-    times_first_wall_chosen_when_low_array = np.zeros((num_sessions,2))
+    probability_first_wall_chosen_when_condition_array = np.zeros((num_sessions,2))
+    times_first_wall_chosen_when_condition_array = np.zeros((num_sessions,2))
 
     # for each session data file, identify probability of choosing first wall seen when that wall is Low
     for trial_list_idx in range(len(trial_lists)):
+        print(f"trial list index: {trial_list_idx}")
         this_trial_list = trial_lists[trial_list_idx]
         for player_id in range(2): # for each player
+            print(f"player num: {player_id}")
             first_visible_wall_chosen, first_visible_wall_high = first_visible_wall_chosen_session_remake(this_trial_list, player_id=player_id, wall_sep=wall_sep, trial_type=trial_type, inferred_choice=inferred_choice, debug=debug)
 
             # quick detour to get the probability of choosing the first visible wall
@@ -428,10 +431,10 @@ def probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists, wall
             num_first_visible_wall_chosen = first_visible_wall_chosen_not_nan[first_visible_wall_chosen_not_nan == 1].size # count the ones in nan-removed array
             probability_first_wall_chosen_array[trial_list_idx, player_id] = num_first_visible_wall_chosen/first_visible_wall_chosen_not_nan.size # count of 1s against count of 1s and 0s (nans removed)
 
-            # calculate probability choosing low        
-            probability_first_wall_chosen_when_low, times_first_wall_chosen_when_low = probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, first_visible_wall_high, reverse=reverse)
-            probability_first_wall_chosen_when_low_array[trial_list_idx, player_id] = probability_first_wall_chosen_when_low
-            times_first_wall_chosen_when_low_array[trial_list_idx, player_id] = times_first_wall_chosen_when_low 
+            # calculate probability choosing condition        
+            probability_first_wall_chosen_when_condition, times_first_wall_chosen_when_condition = probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, first_visible_wall_high, reverse=reverse)
+            probability_first_wall_chosen_when_condition_array[trial_list_idx, player_id] = probability_first_wall_chosen_when_condition
+            times_first_wall_chosen_when_condition_array[trial_list_idx, player_id] = times_first_wall_chosen_when_condition 
 
-    return probability_first_wall_chosen_when_low_array, times_first_wall_chosen_when_low_array, probability_first_wall_chosen_array
+    return probability_first_wall_chosen_when_condition_array, times_first_wall_chosen_when_condition_array, probability_first_wall_chosen_array
 
