@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import parse_data.prepare_data as prepare_data
@@ -15,6 +15,7 @@ import data_extraction.extract_trial as extract_trial
 import math
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
 import data_extraction.get_indices as get_indices
+import utils.get_ordered_indices as get_ordered_indices
 import time
 
 
@@ -665,6 +666,79 @@ def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
     else:
         raise ValueError("Function logic has failed.")
         
+
+
+# In[ ]:
+
+
+def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial, 
+                                    return_times=False, debug=False):
+    ''' Return when walls becomes visible.
+        Takes num_walls,timepoints boolean array of wall visibility,
+        and num_walls boolean array of whether walls are visible at trial start.
+        Also takes the trial.
+        Returns int index at which this wall became visible relative to other walls. '''
+    
+    
+    if debug:
+        start_time = time.time()
+
+    # get trial wall indices for the number of walls in the trial
+    walls = get_indices.get_walls(trial=trial)
+    wall_indices = np.empty(walls.size)
+    for i in range(walls.size):
+        wall_indices[i] = walls[i] - 1 # take index, not wall number
+
+    
+    # for each wall, find whether the wall becomes visible and on which time index of the trial
+    # this occurs
+    wall_becomes_visible_time = np.empty(walls.size)        # when does wall become visible
+    wall_becomes_visible = np.empty(walls.size, dtype=bool)  # does wall become visible
+
+    for wall_num in range(walls.size): # for each wall
+        wall_index = wall_indices[wall_num] # find position in space that this wall appeared in for the trial
+        
+        if wall_initial_visibility[wall_num]: # wall immediately visible, so index is 0
+            wall_becomes_visible_time[wall_num] = 0
+            wall_becomes_visible[wall_num] = True
+            if debug:
+                print(f"wall {wall_num} already visible. Assigning an index of 0")
+        
+        else: # current wall not visible at slice onset
+            # compare consecutive values of the wall visibility array for the time index at which this wall
+            # (first) becomes visible 
+            this_wall_visibility_change = np.where(
+                                                    np.diff(
+                                                             wall_visible[wall_index,:].astype(int)
+                                                            ) == 1
+                                                   )[0] 
+            if debug:
+                print(f"Wall visibility change wall {wall_num}: {this_wall_visibility_change}")
+
+            # if wall visibility ever changes from negative
+            if this_wall_visibility_change.size > 0:
+                wall_becomes_visible[wall_num] = True 
+                wall_becomes_visible_time[wall_num] = this_wall_visibility_change + 1 # np.diff value is one index early
+            else:
+                wall_becomes_visible[wall_num] = False 
+                wall_becomes_visible_time[wall_num] = np.nan # set index as nan if never visible
+
+
+    # identify the order in which walls became visible this trial
+    wall_becomes_visible_index = get_ordered_indices.get_ordered_indices(wall_becomes_visible_time)        
+        
+    if debug:
+        # output the time taken for this function
+        if debug:
+            end_time = time.time()
+            print(f"Time taken for get_wall_visibility (one trial, one player) is {end_time-start_time:.2f}")
+
+    if not return_times:
+        return wall_becomes_visible_index
+    else:
+        return wall_becomes_visible_index, wall_becomes_visible_time
+    
+            
 
 
 # In[ ]:
