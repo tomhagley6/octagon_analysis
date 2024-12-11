@@ -406,7 +406,7 @@ def probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, fir
 # In[ ]:
 
 
-def probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists, wall_sep=None, trial_type=globals.HIGH_LOW, reverse=False, inferred_choice=False, debug=False):
+def probability_first_wall_chosen_and_low_multiple_sessions_social(trial_lists, wall_sep=None, trial_type=globals.HIGH_LOW, reverse=False, inferred_choice=False, debug=False):
     ''' Returns an array of probabilities for the first wall being chosen when the first wall is low
         and an array of the number of times this ocurred.
         These are of shape num_sessions*num_players.
@@ -435,6 +435,52 @@ def probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists, wall
             probability_first_wall_chosen_when_condition, times_first_wall_chosen_when_condition = probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, first_visible_wall_high, reverse=reverse)
             probability_first_wall_chosen_when_condition_array[trial_list_idx, player_id] = probability_first_wall_chosen_when_condition
             times_first_wall_chosen_when_condition_array[trial_list_idx, player_id] = times_first_wall_chosen_when_condition 
+
+    return probability_first_wall_chosen_when_condition_array, times_first_wall_chosen_when_condition_array, probability_first_wall_chosen_array
+
+
+# In[ ]:
+
+
+def probability_first_wall_chosen_and_low_multiple_sessions_combined_solo(trial_lists, wall_sep=None, trial_type=globals.HIGH_LOW,
+                                                                           reverse=False, inferred_choice=False, cut_trials=5, debug=False):
+    ''' Returns an array of probabilities for the first wall being chosen when the first wall is low
+        and an array of the number of times this ocurred.
+        These are of shape num_sessions*num_players.
+        Inferred choice is used here (first_visible_wall_chosen_session).
+        Takes a data folder path string, and a list of all json filenames (one for each session of data) '''
+    
+    num_sessions = len(trial_lists)
+    probability_first_wall_chosen_array = np.zeros((num_sessions))
+    probability_first_wall_chosen_when_condition_array = np.zeros((num_sessions))
+    times_first_wall_chosen_when_condition_array = np.zeros((num_sessions))
+
+    # for each session data file, identify probability of choosing first wall seen when that wall is Low
+    for trial_list_idx in range(0,len(trial_lists),2):
+        print(f"trial list index: {trial_list_idx}")
+
+        # get the trial lists for both solo sessions
+        trial_list_first_solo = trial_lists[trial_list_idx]
+        trial_list_second_solo = trial_lists[trial_list_idx + 1]
+
+        # cut first cut_trials trials (learning controls/associations)
+        trial_list_first_solo = trial_list_first_solo[cut_trials:]
+        trial_list_second_solo = trial_list_second_solo[cut_trials:]
+
+        # combine trial lists from the first and second solo sessions (the current and consecutive index)
+        trial_list = trial_list_first_solo + trial_list_second_solo
+           
+        first_visible_wall_chosen, first_visible_wall_high = first_visible_wall_chosen_session_remake(trial_list, player_id=0, wall_sep=wall_sep, trial_type=trial_type, inferred_choice=inferred_choice, debug=debug)
+
+        # quick detour to get the probability of choosing the first visible wall
+        first_visible_wall_chosen_not_nan = first_visible_wall_chosen[~np.isnan(first_visible_wall_chosen)] # remove nan values
+        num_first_visible_wall_chosen = first_visible_wall_chosen_not_nan[first_visible_wall_chosen_not_nan == 1].size # count the ones in nan-removed array
+        probability_first_wall_chosen_array[trial_list_idx] = num_first_visible_wall_chosen/first_visible_wall_chosen_not_nan.size # count of 1s against count of 1s and 0s (nans removed)
+
+        # calculate probability choosing condition        
+        probability_first_wall_chosen_when_condition, times_first_wall_chosen_when_condition = probability_first_visible_wall_chosen_and_low(first_visible_wall_chosen, first_visible_wall_high, reverse=reverse)
+        probability_first_wall_chosen_when_condition_array[trial_list_idx] = probability_first_wall_chosen_when_condition
+        times_first_wall_chosen_when_condition_array[trial_list_idx] = times_first_wall_chosen_when_condition 
 
     return probability_first_wall_chosen_when_condition_array, times_first_wall_chosen_when_condition_array, probability_first_wall_chosen_array
 
