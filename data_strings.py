@@ -23,7 +23,9 @@ JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_Yan
                    r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
                    r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json',
                    r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
-                   r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json']
+                   r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json',
+                   r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
+                   r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json']
 
 
 
@@ -96,7 +98,17 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'241203_2\2024-12-03_15-19-51_EstherFirstSolo.json',
                   r'241203_2\2024-12-03_15-53-11_EstherSecondSolo.json',
                   r'241203_2\2024-12-03_15-20-09_BowinFirstSolo.json',
-                  r'241203_2\2024-12-03_15-52-57_BowinSecondSolo.json'
+                  r'241203_2\2024-12-03_15-52-57_BowinSecondSolo.json',
+
+                  r'241210_1\2024-12-10_14-13-47_TaqwaFirstSolo.json',
+                  r'241210_1\2024-12-10_14-45-41_TaqwaSecondSolo.json',
+                  r'241210_1\2024-12-10_14-12-58_TasFirstSolo.json',
+                  r'241210_1\2024-12-10_14-45-09_TasSecondSolo.json',
+                  
+                  r'241210_2\2024-12-10_15-12-18_RyanFirstSolo.json',
+                  r'241210_2\2024-12-10_15-42-27_RyanSecondSolo.json',
+                  r'241210_2\2024-12-10_15-11-46_RoseFirstSolo.json',
+                  r'241210_2\2024-12-10_15-41-53_RoseSecondSolo.json'
                   ]
 
 # first four solos 

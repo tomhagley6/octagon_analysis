@@ -21,7 +21,7 @@ from scipy.stats import pearsonr
 # In[ ]:
 
 
-def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels):
+def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels, ylabel):
     ''' Plotting function to plot wall choice probability paired data across any number
         of conditions.
         Assumes each datapoint in the pair is from a single subject's session data.
@@ -69,7 +69,7 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
         )
 
     # plt.title("Probability of Choosing First Wall Seen vs. First Wall Seen (Low)")
-    plt.ylabel("P(Choose first wall seen)")
+    plt.ylabel(ylabel)
     plt.xlabel("")
     plt.ylim(0.0, 1)  # Set y-axis limits for probabilities
     plt.gca().set_aspect(3)    
@@ -127,7 +127,7 @@ def plot_performance_against_probability_low_when_first_visible(data_folder, jso
     plt.gca().spines['right'].set_visible(False)
 
 
-# In[27]:
+# In[ ]:
 
 
 def plot_performance_against_probability_low_when_first_visible(data_folder, json_filenames_all, correlation_line=True):
@@ -137,7 +137,7 @@ def plot_performance_against_probability_low_when_first_visible(data_folder, jso
 
     # get probability of choosing the low wall when it is first visible, and the proportion of score within the session
     # these are both recorded per player and session, shape num_sessions*num_players
-    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions(data_folder, json_filenames_all)
+    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions_social(data_folder, json_filenames_all)
     proportion_scores_all_sessions = get_proportion_scores(data_folder, json_filenames_all)
 
     print(f"Probability low when first visible: \n {probability_low_when_first_visible}")
@@ -174,14 +174,14 @@ def plot_performance_against_probability_low_when_first_visible(data_folder, jso
 # In[ ]:
 
 
-def plot_performance_against_probability_low_when_first_visible_df(trial_lists, correlation_line=True, print_correlation=True):
+def plot_performance_against_probability_low_when_first_visible_df(trial_lists, inferred_choice=False, correlation_line=True, print_correlation=True):
     '''Plot the graph of session performance against session probability for players choosing low when it is first visible.
        One data point for each session to avoid replicating data from within a session.
-       Data is taken as the ratio player0:player1 for proportion score and for probability of choice '''
+       Data is taken as the ratio player0:player1 for probability of choice, and player0 value proportion score '''
 
     # get probability of choosing the low wall when it is first visible, and the proportion of score within the session
     # these are both recorded per player and session, shape num_sessions*num_players
-    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions_df(trial_lists)
+    probability_low_when_first_visible, _, _ = wall_visibility_and_choice.probability_first_wall_chosen_and_low_multiple_sessions_social(trial_lists, inferred_choice=inferred_choice)
     proportion_scores_all_sessions = get_proportion_scores_df(trial_lists)
 
     print(f"Probability low when first visible: \n {probability_low_when_first_visible}")

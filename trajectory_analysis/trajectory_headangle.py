@@ -685,17 +685,18 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
 
     # get trial wall indices for the number of walls in the trial
     walls = get_indices.get_walls(trial=trial)
-    wall_indices = np.empty(walls.size)
-    for i in range(walls.size):
+    num_walls = len(walls)
+    wall_indices = np.empty(num_walls, dtype=int)
+    for i in range(num_walls):
         wall_indices[i] = walls[i] - 1 # take index, not wall number
 
     
     # for each wall, find whether the wall becomes visible and on which time index of the trial
     # this occurs
-    wall_becomes_visible_time = np.empty(walls.size)        # when does wall become visible
-    wall_becomes_visible = np.empty(walls.size, dtype=bool)  # does wall become visible
+    wall_becomes_visible_time = np.empty(num_walls)        # when does wall become visible
+    wall_becomes_visible = np.empty(num_walls, dtype=bool)  # does wall become visible
 
-    for wall_num in range(walls.size): # for each wall
+    for wall_num in range(num_walls): # for each wall
         wall_index = wall_indices[wall_num] # find position in space that this wall appeared in for the trial
         
         if wall_initial_visibility[wall_num]: # wall immediately visible, so index is 0
@@ -718,13 +719,14 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
             # if wall visibility ever changes from negative
             if this_wall_visibility_change.size > 0:
                 wall_becomes_visible[wall_num] = True 
-                wall_becomes_visible_time[wall_num] = this_wall_visibility_change + 1 # np.diff value is one index early
+                wall_becomes_visible_time[wall_num] = this_wall_visibility_change[0] + 1 # np.diff value is one index early
             else:
                 wall_becomes_visible[wall_num] = False 
                 wall_becomes_visible_time[wall_num] = np.nan # set index as nan if never visible
 
 
     # identify the order in which walls became visible this trial
+    # nans will carry over to this array
     wall_becomes_visible_index = get_ordered_indices.get_ordered_indices(wall_becomes_visible_time)        
         
     if debug:
