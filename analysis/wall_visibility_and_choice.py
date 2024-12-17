@@ -258,7 +258,7 @@ def get_player_choice_trial(player_wall_choice, trial_idx, comparison_wall, debu
     return comparison_wall_chosen
 
 
-# In[9]:
+# In[ ]:
 
 
 # full logic for identfying first visible and chosen wall for a single player
@@ -285,8 +285,8 @@ def first_visible_wall_chosen_session(trial_list, player_id, current_fov=110, wa
         trial_list = [trial_list[i] for i in trial_indices]
     
     # we want to find whether the first visible wall was chosen (or 'inferred chosen'), and whether it was the High wall
-    first_visible_wall_chosen_session = np.ones(len(trial_list))*2
-    first_visible_wall_high_session = np.ones(len(trial_list))*2
+    first_visible_wall_chosen_session = np.full(len(trial_list), np.nan, dtype=float)
+    first_visible_wall_high_session = np.full(len(trial_list), np.nan, dtype=float)
     
     # decide whether to include loser's inferred choice based on function inputs
     if inferred_choice:
@@ -301,7 +301,7 @@ def first_visible_wall_chosen_session(trial_list, player_id, current_fov=110, wa
     # for each trial, get the first visible wall number, whether it was high, and whether it was chosen
     for trial_idx, trial in enumerate(trial_list):
         
-        # use wall visibility through the trial to identify which walls of the walls are seen first
+        # use wall visibility through the trial to identify which walls are seen first
         this_trial_first_visible_wall_high, this_player_this_trial_first_visible_wall_num = get_first_visible_wall_trial(trial, player_id, current_fov)
 
         # check against player choices to see if the first visible wall was chosen
@@ -492,7 +492,7 @@ def probability_first_wall_chosen_and_low_multiple_sessions_combined_solo(trial_
 # In[ ]:
 
 
-def given_wall_chosen_conditioned_on_visibility_multiple_sessions(trial_lists, given_wall_first_vis=True,
+def given_wall_chosen_conditioned_on_visibility_multiple_sessions_social(trial_lists, given_wall_first_vis=True,
                                                                   given_wall_index=0,
                                                                   wall_sep=None, trial_type=globals.HIGH_LOW,
                                                                  current_fov=110,
@@ -537,6 +537,73 @@ def given_wall_chosen_conditioned_on_visibility_multiple_sessions(trial_lists, g
             num_trials_with_condition_and_choice_data_array[trial_list_idx, player_id] = times_condition_fulfilled_with_choice_data
             num_trials_with_condition_and_given_wall_chosen_array[trial_list_idx, player_id] = times_given_wall_chosen_when_condition_fulfilled
             
+    return (probability_high_wall_chosen_when_condition_array, num_trials_with_condition_array, num_trials_with_condition_and_choice_data_array,
+             num_trials_with_condition_and_given_wall_chosen_array)
+        
+    
+
+
+# In[ ]:
+
+
+def given_wall_chosen_conditioned_on_visibility_multiple_sessions_solo(trial_lists, given_wall_first_vis=True,
+                                                                  given_wall_index=0,
+                                                                  wall_sep=None, trial_type=globals.HIGH_LOW,
+                                                                 current_fov=110, cut_trials=5,
+                                                                 inferred_choice=False, debug=False):
+    ''' Returns an array of probabilities of choosing High given the condition that High is
+        first visible (or second visible, if high_first_vis==False),
+        and the counts for trials with condition fulfilled, with condition fulfilled plus choice data,
+        and condition fulfilled plus given wall chosen.
+        
+        These are of shape num_sessions,num_players.
+        Inferred choice will be used if inferred_choice==True '''
+    
+    num_sessions = int(len(trial_lists)/2)
+    probability_high_wall_chosen_when_condition_array = np.zeros((num_sessions))
+    num_trials_with_condition_array = np.zeros((num_sessions))
+    num_trials_with_condition_and_choice_data_array = np.zeros((num_sessions))
+    num_trials_with_condition_and_given_wall_chosen_array = np.zeros((num_sessions))
+
+    array_index_counter = 0 # result arrays must be indexed differently to input data
+
+    # for each session data file, identify probability of choosing high wall seen when seen first or seen second
+    for trial_list_idx in range(0,len(trial_lists),2):
+        print(f"trial list index: {trial_list_idx}")
+
+        # get the trial lists for both solo sessions
+        trial_list_first_solo = trial_lists[trial_list_idx]
+        trial_list_second_solo = trial_lists[trial_list_idx + 1]
+
+        # cut first cut_trials trials (learning controls/associations) from the first solo
+        trial_list_first_solo = trial_list_first_solo[cut_trials:]
+
+        # combine trial lists from the first and second solo sessions (the current and consecutive index)
+        trial_list = trial_list_first_solo + trial_list_second_solo
+        
+        condition_fulfilled_session, player_chose_given_wall_session = given_wall_chosen_conditioned_on_visibility(trial_list, player_id=0,
+                                                                                                                given_wall_index=given_wall_index, 
+                                                                                                                given_wall_first_vis=given_wall_first_vis, 
+                                                                                                                current_fov=current_fov,
+                                                                                                                wall_sep=wall_sep, trial_type=trial_type,
+                                                                                                                inferred_choice=inferred_choice,
+                                                                                                                debug=debug)
+        
+        (probability_choose_high_given_condition,
+        times_conditioned_fulfilled,
+        times_condition_fulfilled_with_choice_data,
+        times_given_wall_chosen_when_condition_fulfilled) = probability_given_wall_chosen_given_condition(condition_fulfilled_session,
+                                                                                                            player_chose_given_wall_session,
+                                                                                                            return_counts=True)
+        
+        probability_high_wall_chosen_when_condition_array[array_index_counter] = probability_choose_high_given_condition
+        num_trials_with_condition_array[array_index_counter] = times_conditioned_fulfilled
+        num_trials_with_condition_and_choice_data_array[array_index_counter] = times_condition_fulfilled_with_choice_data
+        num_trials_with_condition_and_given_wall_chosen_array[array_index_counter] = times_given_wall_chosen_when_condition_fulfilled
+        
+        # increment array index counter, as this is not the same as trial list index
+        array_index_counter += 1 
+
     return (probability_high_wall_chosen_when_condition_array, num_trials_with_condition_array, num_trials_with_condition_and_choice_data_array,
              num_trials_with_condition_and_given_wall_chosen_array)
         
