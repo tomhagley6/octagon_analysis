@@ -21,7 +21,7 @@ from scipy.stats import pearsonr
 # In[ ]:
 
 
-def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels, ylabel):
+def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels, ylabel, ylim=(0.0,1), set_aspect=3):
     ''' Plotting function to plot wall choice probability paired data across any number
         of conditions.
         Assumes each datapoint in the pair is from a single subject's session data.
@@ -71,8 +71,8 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
     # plt.title("Probability of Choosing First Wall Seen vs. First Wall Seen (Low)")
     plt.ylabel(ylabel)
     plt.xlabel("")
-    plt.ylim(0.0, 1)  # Set y-axis limits for probabilities
-    plt.gca().set_aspect(3)    
+    plt.ylim(ylim)  # Set y-axis limits for probabilities
+    plt.gca().set_aspect(set_aspect)    
     plt.tight_layout()
 
     # Remove top and bottom spines
