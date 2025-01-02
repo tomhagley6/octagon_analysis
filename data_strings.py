@@ -1,6 +1,6 @@
 # data folder
-# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
-DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
+DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -25,7 +25,10 @@ JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_Yan
                    r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
                    r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json',
                    r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
-                   r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json']
+                   r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json',
+                   r'241219_1\2024-12-19_15-28-24_JingjingYeungSocial.json',
+                   r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json'
+                   ]
 
 
 
@@ -108,7 +111,18 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'241210_2\2024-12-10_15-12-18_RyanFirstSolo.json',
                   r'241210_2\2024-12-10_15-42-27_RyanSecondSolo.json',
                   r'241210_2\2024-12-10_15-11-46_RoseFirstSolo.json',
-                  r'241210_2\2024-12-10_15-41-53_RoseSecondSolo.json'
+                  r'241210_2\2024-12-10_15-41-53_RoseSecondSolo.json',
+
+                  r'241219_1\2024-12-19_15-20-18_JingjingFirstSolo.json',
+                  r'241219_1\2024-12-19_15-51-58_JingjingSecondSolo.json',
+                  r'241219_1\2024-12-19_15-22-13_YeungFirstSolo.json',
+                  r'241219_1\2024-12-19_15-51-33_YeungSecondSolo.json',
+                  
+                  r'241220_1\2024-12-20_17-36-27_KirtanFirstSolo.json',
+                  r'241220_1\2024-12-20_18-06-10_KirtanSecondSolo.json',
+                  r'241220_1\2024-12-20_17-36-54_ChristopherFirstSolo.json',
+                  r'241220_1\2024-12-20_18-06-44_ChristopherSecondSolo.json'
+
                   ]
 
 # first four solos 
