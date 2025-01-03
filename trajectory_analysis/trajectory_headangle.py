@@ -372,7 +372,7 @@ def get_wall_coords_cross_product_dependent(trial_list=None, trial_index=0, tria
 # Umbrella function for getting angle difference between FoV centre and angularly-closest section of wall for a player
 # (similar to head_angle_to_walls_throughout_trajectory, see above)
 def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, trial_index=0, trial=None, player_id=0,
-                                                             window_size=10, num_walls=8, debug=False):
+                                                             window_size=5, num_walls=8, debug=False):
     ''' From a trajectory, calculate the angles between the player head angle vector and 
         the player-to-closest-wall-coordinate vectors for an entire trial
         Returns an array of shape num_walls*timepoints '''

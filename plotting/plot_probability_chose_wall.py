@@ -419,8 +419,16 @@ def get_probability_chose_high_social_df(trial_list, trial_type=globals.HIGH_LOW
         trial_idx = player1_win_indices[i]
         player1_wins_high[i] = True if high_wall_chosen[trial_idx] else False
 
-    probability_player0_choose_high = player0_wins_high[player0_wins_high == True].size/player0_wins_high.size
-    probability_player1_choose_high = player1_wins_high[player1_wins_high == True].size/player1_wins_high.size
+    try:
+        probability_player0_choose_high = player0_wins_high[player0_wins_high == True].size/player0_wins_high.size
+    except ZeroDivisionError:
+        print("This trial list, player 0 has no wins at High")
+        probability_player0_choose_high = np.nan
+    try:
+        probability_player1_choose_high = player1_wins_high[player1_wins_high == True].size/player1_wins_high.size
+    except ZeroDivisionError:
+        print("This trial list, player 1 has no wins at High")
+        probability_player1_choose_high = np.nan
 
     return probability_player0_choose_high, probability_player1_choose_high
 
