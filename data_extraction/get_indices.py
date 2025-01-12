@@ -107,7 +107,7 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
 def get_trials_chose_wall(trial_list, chosen_wall):
     ''' Get indices of trials where the winner chose High '''
 
-    trial_indices = []
+    trial_indices = np.full(len(trial_list), np.nan)
     for i in range(len(trial_list)):
 
         # if the wallTriggered value aligns with the chosen_wall value, winner chose chosen_wall
@@ -129,7 +129,7 @@ def get_trials_chose_wall(trial_list, chosen_wall):
     return np.asarray(trial_indices)
 
 
-# In[1]:
+# In[ ]:
 
 
 def get_trigger_activators(trial_list):
@@ -305,17 +305,16 @@ def was_high_wall_chosen(trial_list):
     ''' Identify whether the chosen wall on each trial was High or Low
         Returns a boolean array of length num_trials '''
 
-    # initialise array
+    # initialise array, default to false (bool(0))
     high_wall_chosen = np.zeros(len(trial_list), dtype=np.bool)
     
     # get the chosen walls for each trial
     chosen_walls = get_chosen_walls(trial_list)
 
     # loop through trials, identify wall1, and compare it to chosen wall
-    for i in range(len(trial_list)):
-        this_trial = trial_list[i]
+    for i, trial in enumerate(trial_list):
         
-        walls = get_walls(this_trial)
+        walls = get_walls(trial)
         wall1 = walls[0]
 
         # print(f"chosen wall: {chosen_walls[i]}, wall1: {wall1}")
@@ -325,6 +324,37 @@ def was_high_wall_chosen(trial_list):
             high_wall_chosen[i] = True
 
     return high_wall_chosen
+
+    
+
+
+# In[ ]:
+
+
+def was_given_wall_chosen(trial_list, player_choice, given_wall_index):
+    ''' Identify whether the chosen wall on each trial agreed with given_wall_index
+        (e.g., wall1 or wall2). 
+        Compatible with loser's choice
+        Returns a boolean array of length num_trials '''
+
+    # initialise array, default to false (bool(0))
+    given_wall_chosen = np.zeros(len(trial_list), dtype=np.bool)
+    
+    # get the chosen walls for each trial
+    chosen_walls = player_choice
+
+    # loop through trials, identify wall wall_index, and compare it to chosen wall
+    for i, trial in enumerate(trial_list):
+        
+        walls = get_walls(trial)
+        given_wall = walls[given_wall_index]
+
+        # if chosen wall and wall given_wall_index are identical, set to True for this trial
+        # False will be by default
+        if given_wall == chosen_walls[i]:
+            given_wall_chosen[i] = True
+
+    return given_wall_chosen
 
     
 

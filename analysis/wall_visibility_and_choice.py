@@ -14,9 +14,143 @@ import data_extraction.get_indices as get_indices
 import analysis.loser_inferred_choice as loser_inferred_choice
 import time
 import analysis.wall_choice as wall_choice
+import data_extraction.extract_trial as extract_trial
 
 
 # ### Functions related to the analysis of player wall choice in the context of wall visibility
+
+# In[ ]:
+
+
+def get_wall_visibility_order_trial(player_id, trial=None, trial_list=None, trial_index=None, current_fov=110, debug=False):
+    ''' Find the order of visibility of walls for a player_id and single trial.
+        Note that looping this function will be slower than using a function which runs the entire session. '''
+
+    trial = extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
+
+    # get boolean array of wall visibility for each wall and timepoint
+    wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
+
+    if isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
+        return np.nan
+
+    # identify whether the relevant walls for this trial are visible at slice onset
+    (wall1_visible,
+    wall2_visible) = trajectory_headangle.wall_visibility_player_slice_onset(wall_visible_array_trial,
+                                                                                trial)
+    # combine them to feed into function to identify order of visibility of walls
+    wall_initial_visibility = np.array([wall1_visible, wall2_visible])
+
+    # get the order in which walls became visible, returned as a same-size array with ascending ints at the relevant wall indexes
+    wall_visibility_index_trial = trajectory_headangle.get_wall_visibility_order(wall_visible_array_trial, wall_initial_visibility, trial=trial)
+
+    if debug:
+        print(f"wall visibility index for this trial is {wall_visibility_index_trial}")
+
+    return wall_visibility_index_trial
+
+
+# In[ ]:
+
+
+def get_given_wall_first_vis_condition_fulfilled_trial(trial, wall_visibility_index_trial, given_wall_index,
+                                                       debug=False): 
+    ''' Identify whether trial fulfills the condition of given wall becoming visible first.
+        Given wall can be e.g. wall1 or wall2.
+        Also require that no other wall becomes visible at the same time.
+        Returns boolean. '''
+
+    walls = get_indices.get_walls(trial)
+    given_wall = walls[given_wall_index]
+
+    # condition of being wall becoming visible on the earliest 'wall-visible' frame,
+    # and this event not being joint with any other wall
+    if wall_visibility_index_trial[given_wall_index] == 0 and np.sum(wall_visibility_index_trial == 0) == 1:
+        trial_fulfills_condition = True
+        if debug:
+            print(f"This trial fulfills the condition, given_wall_first_vis")
+    else:
+        trial_fulfills_condition = False
+
+    return trial_fulfills_condition
+
+
+# In[ ]:
+
+
+def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
+                                  trial=None, trial_list=None, trial_index=None ): 
+    ''' Identify whether trial walls are visible at slice onset.
+        Returns boolean for each wall. '''
+
+    trial = extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
+
+    # get boolean array of wall visibility for each wall and timepoint
+    wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
+
+    if isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
+        return np.nan
+
+    # identify whether the relevant walls for this trial are visible at slice onset
+    (wall1_visible,
+    wall2_visible) = trajectory_headangle.wall_visibility_player_slice_onset(wall_visible_array_trial,
+                                                                                trial)
+    
+    return wall1_visible, wall2_visible
+
+
+# In[ ]:
+
+
+def get_walls_initial_visibility_session(trial_list, player_id, debug=False, current_fov=110):
+    ''' Loop through get_walls_initial_visibility_trial to produce arrays for a full session
+        for one player_id.'''
+
+    wall1_visible_session = np.full(len(trial_list), np.nan)
+    wall2_visible_session = np.full(len(trial_list), np.nan)
+
+    for i, trial in enumerate(trial_list):
+        wall1_visible, wall2_visible = get_walls_initial_visibility_trial(player_id=player_id,
+                                                                          debug=debug, current_fov=current_fov,
+                                                                          trial=trial)
+        
+        wall1_visible_session[i] = wall1_visible
+        wall2_visible_session[i] = wall2_visible
+
+    return wall1_visible_session, wall2_visible_session
+
+
+# In[ ]:
+
+
+def get_player_wall_choice(trial_list, player_id, inferred_choice=False, debug=False):
+    ''' Return int array of size len(trial_list) of the wall numbers chosen for
+        player player_id.
+        Can use inferred choice.'''
+
+    # decide whether to include loser's inferred choice based on function inputs
+    if inferred_choice:
+        # get the players choice, whether this is empirical, inferred, or nan
+        player_wall_choice = loser_inferred_choice.player_wall_choice_win_or_loss(trial_list, player_id, debug=debug)
+    else:
+        player_wall_choice = wall_choice.player_wall_choice_wins_only(trial_list, player_id, debug=debug)
+    if debug:
+        print(f"include loser's inferred choice status: {inferred_choice}")
+        print(f"player wall choices for this player: {player_wall_choice}")
+
+    return player_wall_choice
+
+
+# In[ ]:
+
+
+# def get_player_chose_given_wall(trial_list, player_id, inferred_choice=False, debug=False):
+#     ''' Return a len(trial_list) float array for whether the player player_id chose wall given_wall
+#         (the wall index value, e.g. wall1). 
+#         Uses inferred choice if specified. '''
+
+    # player_chose_given_wall = np.full(len(trial_list), np.nan)
+
 
 # In[ ]:
 
