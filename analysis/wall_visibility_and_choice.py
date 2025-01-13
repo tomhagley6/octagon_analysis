@@ -26,7 +26,7 @@ def get_wall_visibility_order_trial(player_id, trial=None, trial_list=None, tria
     ''' Find the order of visibility of walls for a player_id and single trial.
         Note that looping this function will be slower than using a function which runs the entire session. '''
 
-    trial = extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
+    trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
 
     # get boolean array of wall visibility for each wall and timepoint
     wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
@@ -83,7 +83,7 @@ def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
     ''' Identify whether trial walls are visible at slice onset.
         Returns boolean for each wall. '''
 
-    trial = extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
+    trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
 
     # get boolean array of wall visibility for each wall and timepoint
     wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
@@ -110,13 +110,19 @@ def get_walls_initial_visibility_session(trial_list, player_id, debug=False, cur
     wall2_visible_session = np.full(len(trial_list), np.nan)
 
     for i, trial in enumerate(trial_list):
-        wall1_visible, wall2_visible = get_walls_initial_visibility_trial(player_id=player_id,
-                                                                          debug=debug, current_fov=current_fov,
-                                                                          trial=trial)
+        try:
+            wall1_visible, wall2_visible = get_walls_initial_visibility_trial(player_id=player_id,
+                                                                            debug=debug, current_fov=current_fov,
+                                                                            trial=trial)
+            
+            wall1_visible_session[i] = wall1_visible
+            wall2_visible_session[i] = wall2_visible
         
-        wall1_visible_session[i] = wall1_visible
-        wall2_visible_session[i] = wall2_visible
+        except TypeError: # function returned np.nan
 
+            wall1_visible_session[i] = np.nan
+            wall2_visible_session[i] = np.nan
+        
     return wall1_visible_session, wall2_visible_session
 
 
