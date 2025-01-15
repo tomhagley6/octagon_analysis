@@ -338,7 +338,7 @@ def was_given_wall_chosen(trial_list, player_choice, given_wall_index):
         Returns a boolean array of length num_trials '''
 
     # initialise array, default to false (bool(0))
-    given_wall_chosen = np.zeros(len(trial_list), dtype=np.bool)
+    given_wall_chosen = np.full(len(trial_list), np.nan)
     
     # get the chosen walls for each trial
     chosen_walls = player_choice
@@ -353,6 +353,8 @@ def was_given_wall_chosen(trial_list, player_choice, given_wall_index):
         # False will be by default
         if given_wall == chosen_walls[i]:
             given_wall_chosen[i] = True
+        elif given_wall != chosen_walls[i] and chosen_walls[i] != np.nan:
+            given_wall_chosen[i] = False
 
     return given_wall_chosen
 
