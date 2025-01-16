@@ -346,11 +346,12 @@ def was_given_wall_chosen(trial_list, player_choice, given_wall_index):
     # loop through trials, identify wall wall_index, and compare it to chosen wall
     for i, trial in enumerate(trial_list):
         
+        # find the wall number that aligns with the given wall (0 for WALL_1, 1 for WALL_2, etc.)
         walls = get_walls(trial)
         given_wall = walls[given_wall_index]
 
         # if chosen wall and wall given_wall_index are identical, set to True for this trial
-        # False will be by default
+        # else, false, preserving np.nan (which represents no valid choice data)
         if given_wall == chosen_walls[i]:
             given_wall_chosen[i] = True
         elif given_wall != chosen_walls[i] and chosen_walls[i] != np.nan:
