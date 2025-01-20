@@ -12,8 +12,8 @@ import numpy as np
 
 def get_ordered_indices(values_array):
     ''' Takes an array with numeric or np.nan values.
-        Returns an array that with a value in each index relating to
-        the order of the numeric values in the input array.
+        Returns an array with a value in each index relating to
+        the size order of the numeric values in the input array.
         Where two indices have the same numeric value, the returned array
         will have the same order value.
         Np.nans will carry over. '''

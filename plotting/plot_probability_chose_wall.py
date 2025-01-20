@@ -25,7 +25,7 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
     ''' Plotting function to plot wall choice probability paired data across any number
         of conditions.
         Assumes each datapoint in the pair is from a single subject's session data.
-        Takes a list of probabilities (for wall choice) and a list of labels for plotting.
+        Takes a list of probabilities arrays (for wall choice) and a list of labels for plotting.
         List arrays must be of shape num_sessions*num_players. '''
 
 

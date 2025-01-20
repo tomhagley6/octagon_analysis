@@ -477,11 +477,11 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
             print(f"get_wall_visible int trials is: {trial}")
     assert(isinstance(trial, pd.DataFrame))
     
-    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+    # trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
     head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
-    trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
+    # trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
 
-    wall_coords_cross_product_dependent = get_wall_coords_cross_product_dependent(trial=trial, player_id=player_id)
+    # wall_coords_cross_product_dependent = get_wall_coords_cross_product_dependent(trial=trial, player_id=player_id)
 
     # thetas = head_angle_to_closest_wall_section_throughout_trajectory(trajectory,
     #                                                                   trial_player_headangles,
@@ -686,15 +686,15 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
     # get trial wall indices for the number of walls in the trial
     walls = get_indices.get_walls(trial=trial)
     num_walls = len(walls)
-    wall_indices = np.empty(num_walls, dtype=int)
+    wall_indices = np.full(num_walls, np.nan)
     for i in range(num_walls):
         wall_indices[i] = walls[i] - 1 # take index, not wall number
 
     
     # for each wall, find whether the wall becomes visible and on which time index of the trial
     # this occurs
-    wall_becomes_visible_time = np.empty(num_walls)        # when does wall become visible
-    wall_becomes_visible = np.empty(num_walls, dtype=bool)  # does wall become visible
+    wall_becomes_visible_time = np.full(num_walls, np.nan)        # when does wall become visible
+    wall_becomes_visible = np.full(num_walls, np.nan)  # does wall become visible
 
     for wall_num in range(num_walls): # for each wall
         wall_index = wall_indices[wall_num] # find position in space that this wall appeared in for the trial

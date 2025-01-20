@@ -22,6 +22,52 @@ import data_extraction.extract_trial as extract_trial
 # In[ ]:
 
 
+def get_given_wall_first_visible_session(trial_list, player_id, wall_index, current_fov, debug=True):
+    ''' Return a len(trial_list) truth array for whether the wall wall_index (e.g. wall_1 has an index value of 0)
+        became visible first on a trial for the player player_id. '''    
+
+    # get wall initial visibility for a full session
+    (wall1_initially_visible_session,
+    wall2_initially_visible_session) = get_walls_initial_visibility_session(trial_list,
+                                                                            player_id, current_fov,
+                                                                            debug=False)
+    wall_initial_visibility = np.vstack([wall1_initially_visible_session, wall2_initially_visible_session])
+    if debug:
+        print(f"wall initial visibility is: {wall_initial_visibility}")
+
+    # get the session truth array for whether the given wall was the first visible in the trial (to this player)
+    given_wall_first_visible_session = np.full(len(trial_list), np.nan)
+    for i, trial in enumerate(trial_list):
+        # get the wall visibility truth array for the entirety of each trial (each wall and timepoint)
+        wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial, player_id, current_fov)
+    
+        # get the order in which trial walls became visible to the player, taking into account initial visibility
+        wall_becomes_visible_index = trajectory_headangle.get_wall_visibility_order(wall_visible_array_trial, 
+                                                                                    wall_initial_visibility[i],
+                                                                                    trial, 
+                                                                                    return_times=False, debug=False)
+        if debug:
+            if i == 1:
+                print(f"wall_becomes_visible_index for trial 1 is {wall_becomes_visible_index}")
+
+        # identify whether the wall given by wall_index (i.e. 0 for wall1) is seen first and initially alone
+        if (wall_becomes_visible_index[wall_index] == 0) and (np.sum(wall_becomes_visible_index == 0) == 1):
+            given_wall_first_visible = 1
+        else:
+            given_wall_first_visible = 0
+
+        given_wall_first_visible_session[i] = given_wall_first_visible
+
+    if debug:
+        print(f"given_wall_first_visible for this session is: {given_wall_first_visible_session}")
+
+    return given_wall_first_visible_session
+    
+
+
+# In[ ]:
+
+
 def get_wall_visibility_order_trial(player_id, trial=None, trial_list=None, trial_index=None, current_fov=110, debug=False):
     ''' Find the order of visibility of walls for a player_id and single trial.
         Note that looping this function will be slower than using a function which runs the entire session. '''
