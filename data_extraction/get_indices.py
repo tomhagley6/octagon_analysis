@@ -136,7 +136,7 @@ def get_trigger_activators(trial_list):
     ''' Return a trial_num length array of the player which activated the trigger
         on each trial (starting from player 0) '''
 
-    trigger_activators = np.zeros(len(trial_list))
+    trigger_activators = np.full(len(trial_list), np.nan)
     for i, trial in enumerate(trial_list):
 
         trigger_event = trial[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION]

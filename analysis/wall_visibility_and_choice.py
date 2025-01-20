@@ -102,7 +102,7 @@ def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
 # In[ ]:
 
 
-def get_walls_initial_visibility_session(trial_list, player_id, debug=False, current_fov=110):
+def get_walls_initial_visibility_session(trial_list, player_id, current_fov, debug=False):
     ''' Loop through get_walls_initial_visibility_trial to produce arrays for a full session
         for one player_id.'''
 

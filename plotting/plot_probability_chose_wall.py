@@ -534,6 +534,209 @@ def get_probability_chose_high_solo_social_all_sessions_df(trial_lists_solo, tri
             probability_choose_high_solo_array_first_session, probability_choose_high_solo_array_second_session)
 
 
+# ### More recent attempt at getting P(Choose High) in social, using up-to-date method (250116)
+
+# In[ ]:
+
+
+def filter_trials_retrievable_choice(trial_list, player_id, inferred_choice=False):
+    ''' Return the filtered trial list and list of indices from the original trial list that
+        conform with player player_id having a recorded choice.
+        This is required for accurate probabilities, because we do cannot include trials (as negative)
+        where we do not know what the player's choice would have been. '''
+    
+    # get player choice (wall number) for each trial
+    # inferred choice can be used here
+    player_choice = wall_visibility_and_choice.get_player_wall_choice(trial_list, player_id,
+                                                                        inferred_choice, debug=False)
+    
+    print(f"player_choice, inferred status {inferred_choice} is:\n{player_choice}")
+    
+    # filter trials list to only include trials where this player had a recorded choice
+    player_recorded_choice_indices = np.where(~np.isnan(player_choice))
+
+    # index the tuple and allow list-compatible indexing
+    player_recorded_choice_indices = player_recorded_choice_indices[0].tolist()
+
+    # Use a list comprehension to index the trial list with the indices list
+    trial_list_filtered = [trial_list[i] for i in player_recorded_choice_indices]
+
+    return trial_list_filtered, player_recorded_choice_indices
+
+
+# In[ ]:
+
+
+def calculate_probability_choose_wall(trial_list, trial_list_choice_filtered):
+    ''' Given a trial list (pre-filtered, but not for choice), calculate the probability that 
+        a player will choose a given wall value as the proportion of trials from the trial
+        list in which the player chose the wall value.
+        More complex use of this function could involve e.g. filtering the trial list for 
+        trials where Low was first seen and the Opponent is visible, and then further filtering
+        for player choice being 'Low', to find probability of (choose Low | first visible) under the
+        condition of Other visibility at trial start. '''
+        
+    
+    # use the length of the trial list pre-choice filtering, and the length of the trial list post-choice
+    # filtering (e.g. with filter_trials_player_chose_given_wall) to calculate the proportion of 
+    # relevant trials that a player chose a specific wall
+    try:
+        probability_chose_wall = len(trial_list_choice_filtered)/len(trial_list)
+    except ZeroDivisionError:
+        probability_chose_wall = np.nan
+
+    return probability_chose_wall
+    
+    
+
+
+# In[ ]:
+
+
+def filter_trials_player_chose_given_wall(trial_list, player_id, given_wall_index, inferred_choice=False):
+    ''' Return a filtered trial list and list of indices from the original trial list 
+        where player choice (winner + loser, or just winner) aligned with
+        the given wall index (e.g., 0 for wall1) '''
+    
+    # get player choice (wall number) for each trial
+    # inferred choice can be used here
+    player_choice = wall_visibility_and_choice.get_player_wall_choice(trial_list, player_id,
+                                                                      inferred_choice, debug=False)
+    
+    print(f"player choice array:\n{player_choice}")
+
+    # get the truth array for whether the player choice wall aligns with the given wall parameter
+    # to this function (NB. this is NOT the wall that was eventually chosen in the trial)
+    given_wall_chosen_session = get_indices.was_given_wall_chosen(trial_list, player_choice,
+                                                                  given_wall_index)
+    
+    print(f"given wall chosen array:\n{given_wall_chosen_session}")
+    
+    # find the indices of the trials in trial_list where the given wall was chosen by player player_id.
+    # this will drop trials where the given wall was not chosen, and trials without retrievable choice information
+    given_wall_chosen_indices = np.where(given_wall_chosen_session == True)
+    print(f"given wall chosen true indices:\n{given_wall_chosen_indices}")
+    
+    # index the tuple and allow list-compatible indexing
+    given_wall_chosen_indices = given_wall_chosen_indices[0].tolist()
+
+    # use a list comprehension to index the trial list with the indices list
+    trial_list_filtered = [trial_list[i] for i in given_wall_chosen_indices]
+
+    # return filtered trial_list, and list of indices with which to index the original list
+    return trial_list_filtered, given_wall_chosen_indices
+    
+
+
+# In[1]:
+
+
+def get_probability_chose_high_social(trial_list, player_id,
+                                      given_wall_index=0):
+
+
+    # filter for player retrievable choice trials
+    (trial_list_filtered_choice_retrievable,
+     trial_indices_choice_retrievable) = filter_trials_retrievable_choice(trial_list,
+                                                                           player_id)
+    
+    # filter retrievable choice trials for trials where this player chose High
+    (trial_list_filtered_chose_high,
+    trial_indices_chose_high) = filter_trials_player_chose_given_wall(trial_list_filtered_choice_retrievable,
+                                                                       player_id,
+                                                                      given_wall_index)
+    
+    # calculate probability of choosing High in social for this player
+    probability_chose_high = calculate_probability_choose_wall(trial_list_filtered_choice_retrievable, trial_list_filtered_chose_high)
+
+    return probability_chose_high
+
+
+# In[ ]:
+
+
+def get_probability_chose_high_social_all_sessions(all_sessions, trial_type=globals.HIGH_LOW):
+
+    p_chose_high_all_sessions = np.full(len(all_sessions)*2, np.nan)
+
+    trial_list_index = 0
+    for i in range(0,len(all_sessions)*2, 2):
+
+        trial_list = all_sessions[trial_list_index]
+
+        # filter trial list for HighLow trialtype
+        trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type)
+        trial_list_filtered = [trial_list[i] for i in trial_indices]
+
+        # find probability of choosing High each for player 0 and player 1
+        probability_chose_high_0 = get_probability_chose_high_social(trial_list_filtered, player_id=0)
+        probability_chose_high_1 = get_probability_chose_high_social(trial_list_filtered, player_id=1)
+        
+        p_chose_high_all_sessions[i:i+2] = probability_chose_high_0, probability_chose_high_1
+
+        trial_list_index += 1
+
+    return p_chose_high_all_sessions
+    
+
+
+# ### More recent attempt at getting P(Choose High) in Solo combined, using up-to-date method (250116)
+
+# In[ ]:
+
+
+def get_probability_chose_high_solo(trial_list, data_size_cutoff, player_id=0, given_wall_index=0):
+    
+    # no need to filter trials that have a retrievable choice. Any completed trial in solo
+    # will have a retrievable choice
+    
+    # filter all trials for trials where this player chose High
+    (trial_list_filtered_chose_high,
+    trial_indices_chose_high) = filter_trials_player_chose_given_wall(trial_list, player_id,
+                                                                      given_wall_index)
+    
+    # calculate probability of choosing High in social for this player
+    probability_chose_high = calculate_probability_choose_wall(trial_list, trial_list_filtered_chose_high)
+
+    # if calling this function leaves too few relevant trials, return np.nan
+    if len(trial_indices_chose_high) <= data_size_cutoff:
+
+        return np.nan
+    else:
+        
+        return probability_chose_high
+
+
+# In[2]:
+
+
+def get_probability_chose_high_solo_all_sessions_combined(all_sessions, trial_type=globals.HIGH_LOW,
+                                                          cut_trials=5, data_size_cutoff=4):
+
+    # loop through all solo sessions
+    # get solo choice data for combined pre- and post-
+    probability_chose_high_all_sessions = np.full((int(len(all_sessions)/2)), np.nan)
+    for trial_list_idx in range(0, len(all_sessions), 2):
+
+        # concatenate the trial lists for the 2 solos of this session
+        trial_list_combined = all_sessions[trial_list_idx] + all_sessions[trial_list_idx + 1]
+
+        # remove the first cut_trials trials to account for learning controls/associations
+        trial_list_combined = trial_list_combined[cut_trials:]
+
+        # filter trial list for HighLow trialtype
+        trial_indices = get_indices.get_trials_trialtype(trial_list_combined, trial_type)
+        trial_list_combined_filtered = [trial_list_combined[i] for i in trial_indices]
+
+        # find the probability of choosing high for each player
+        probability_chose_high = get_probability_chose_high_solo(trial_list_combined_filtered, data_size_cutoff)
+
+        # add this to the sessions array
+        probability_chose_high_all_sessions[int(trial_list_idx/2)] = probability_chose_high
+    
+    return probability_chose_high_all_sessions
+
+
 # ### Sandbox
 
 # In[38]:
