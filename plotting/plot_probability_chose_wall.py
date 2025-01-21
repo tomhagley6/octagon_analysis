@@ -550,7 +550,7 @@ def filter_trials_retrievable_choice(trial_list, player_id, inferred_choice=Fals
     player_choice = wall_visibility_and_choice.get_player_wall_choice(trial_list, player_id,
                                                                         inferred_choice, debug=False)
     
-    print(f"player_choice, inferred status {inferred_choice} is:\n{player_choice}")
+    print(f"filter_trials_retrievable_choice - player_choice, inferred status {inferred_choice} is:\n{player_choice}")
     
     # filter trials list to only include trials where this player had a recorded choice
     player_recorded_choice_indices = np.where(~np.isnan(player_choice))
@@ -603,7 +603,7 @@ def filter_trials_player_chose_given_wall(trial_list, player_id, given_wall_inde
     player_choice = wall_visibility_and_choice.get_player_wall_choice(trial_list, player_id,
                                                                       inferred_choice, debug=False)
     
-    print(f"player choice array:\n{player_choice}")
+    print(f"filter_trials_player_chose_given_wall - initial player choice array:\n{player_choice}")
 
     # get the truth array for whether the player choice wall aligns with the given wall parameter
     # to this function (NB. this is NOT the wall that was eventually chosen in the trial)

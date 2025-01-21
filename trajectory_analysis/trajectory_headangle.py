@@ -697,7 +697,7 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
     wall_becomes_visible = np.full(num_walls, np.nan)  # does wall become visible
 
     for wall_num in range(num_walls): # for each wall
-        wall_index = wall_indices[wall_num] # find position in space that this wall appeared in for the trial
+        wall_index = int(wall_indices[wall_num]) # find position in space that this wall appeared in for the trial
         
         if wall_initial_visibility[wall_num]: # wall immediately visible, so index is 0
             wall_becomes_visible_time[wall_num] = 0

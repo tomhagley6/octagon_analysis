@@ -39,11 +39,13 @@ def get_given_wall_first_visible_session(trial_list, player_id, wall_index, curr
     given_wall_first_visible_session = np.full(len(trial_list), np.nan)
     for i, trial in enumerate(trial_list):
         # get the wall visibility truth array for the entirety of each trial (each wall and timepoint)
-        wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial, player_id, current_fov)
+        wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial,
+                                                                         player_id=player_id,
+                                                                         current_fov=current_fov)
     
         # get the order in which trial walls became visible to the player, taking into account initial visibility
         wall_becomes_visible_index = trajectory_headangle.get_wall_visibility_order(wall_visible_array_trial, 
-                                                                                    wall_initial_visibility[i],
+                                                                                    wall_initial_visibility[:,i],
                                                                                     trial, 
                                                                                     return_times=False, debug=False)
         if debug:
