@@ -81,7 +81,7 @@ def replace_with_altered_yaws(trial_list, trial_index, altered_yaw_values, playe
     if trial_list is not None and trial_index is not None:
         trial = trial_list[trial_index]
     else:
-        trial = trial_index  # Here, `trial_index` is assumed to be the actual trial
+        trial = trial_index 
 
     #trial = trial_list[trial_index]
     trial_copy = trial.copy()
@@ -92,8 +92,6 @@ def replace_with_altered_yaws(trial_list, trial_index, altered_yaw_values, playe
         raise ValueError(f"Length of altered yaw values ({len(player_yaw_values)})does not match the number of rows in the DataFrame ({len(trial_copy)})")
 
     trial_copy[globals.PLAYER_ROT_DICT[player_id]['yrot']] = player_yaw_values
-    #for player_id in range(num_players):
-        #trial_copy[globals.PLAYER_ROT_DICT[player_id]['yrot']] = player_yaw_values
 
     return trial_copy
 
@@ -108,7 +106,7 @@ def process_and_update_trials(trial_list, player_id):
     Returns new trial list with updated trials'''
     updated_trial_list = []
     
-    for i in range(len(trial_list)): #insert appropriate trial list, e.g., trial_list_0_45_HL
+    for i in range(len(trial_list)):
     
         #step 1: calculate rotation angle
         theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list=trial_list, trial_index=i)
@@ -139,61 +137,4 @@ def process_and_update_trials(trial_list, player_id):
     return updated_trial_list
 
 
-#discarded umbrella function
-def process_all_trials(trial_list, flip=True):
-    """
-    Flips and rotates the head angles for all trials in the trial list
-    and replaces the previous values with updated ones.
 
-    Args:
-        trial_list: List of trials to process.
-        theta: Rotation angle in radians.
-        flip: Whether to flip head angles if wall 1 is CCW of wall 0.
-    
-    Returns:
-        Updated trial list with altered head angles.
-    """
-    updated_trial_list = []
-
-    for trial_index in range(len(trial_list)):
-        # Get the correct rotation angle theta for this trial
-        theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list, trial_index)
-        
-        # Start with the current trial
-        trial = trial_list[trial_index]
-        num_players = preprocess.num_players(trial)
-
-        for player_id in range(num_players):
-            # Step 1: Flip and rotate head angles
-            altered_yaw_values = flip_rotate_trial_headangles(
-                trial_list=trial_list,
-                trial_index=trial_index,
-                player_id=player_id,
-                theta=theta,
-                flip=flip
-            )
-                
-            print(
-                f"Trial {trial_index}, Player {player_id}, Altered Yaw[0]: {altered_yaw_values[player_id]}"
-            )
-
-            # Step 2: Replace the original values with altered values
-            # Use the updated `trial` instead of fetching it again from `trial_list_0_45_HL`
-            trial = replace_with_altered_yaws(
-                trial_list=None,  # The trial is already being passed directly
-                trial_index=trial,  # Not needed since we're working with `trial`
-                #trial_list=trial_list,
-                #trial_index=trial_index,
-                altered_yaw_values=altered_yaw_values[player_id],
-                player_id=player_id
-            )
-
-            print(f"Trial {trial_index}, Player {player_id}, Updated Yaw: {trial[globals.PLAYER_ROT_DICT[player_id['yrot']].iloc[slice_onset_index:selected_trigger_activation_index]]}"
-            )
-
-        # Add the updated trial to the new list
-        updated_trial_list.append(trial)
-
-    return updated_trial_list    
-    
-    updated_trial_list = []
