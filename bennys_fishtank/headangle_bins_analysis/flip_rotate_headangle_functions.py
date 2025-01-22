@@ -83,10 +83,9 @@ def replace_with_altered_yaws(trial_list, trial_index, altered_yaw_values, playe
     else:
         trial = trial_index 
 
-    #trial = trial_list[trial_index]
     trial_copy = trial.copy()
 
-    player_yaw_values = altered_yaw_values#[player_id]
+    player_yaw_values = altered_yaw_values
     
     if len(player_yaw_values) != len(trial_copy):
         raise ValueError(f"Length of altered yaw values ({len(player_yaw_values)})does not match the number of rows in the DataFrame ({len(trial_copy)})")
