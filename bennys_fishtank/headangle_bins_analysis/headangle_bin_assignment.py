@@ -1,6 +1,7 @@
 import scipy
 import math
 import globals
+import numpy as np
 import plotting.plot_octagon as plot_octagon
 import trajectory_analysis.trajectory_headangle as trajectory_headangle
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
