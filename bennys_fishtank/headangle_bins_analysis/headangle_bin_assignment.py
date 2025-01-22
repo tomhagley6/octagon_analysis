@@ -48,7 +48,6 @@ def sort_head_angle_into_bin(trial_trajectory, head_angle_vector_array, num_wall
     Args:
         trial_trajectory: Player's trajectory for the trial (2D coordinates).
         head_angle_vector_array: Head angle vector array for the trial.
-        slice_onset_index: Timepoint of slice onset.
         num_walls: Number of walls (default 8).
         debug: Whether to print debug information.
 
@@ -65,7 +64,7 @@ def sort_head_angle_into_bin(trial_trajectory, head_angle_vector_array, num_wall
     )
 
     # Step 2: Extract head angles at slice onset
-    head_angle_at_slice_onset = thetas[:, 0] #replace 0 with slice_onset_index if appropriate
+    head_angle_at_slice_onset = thetas[:, 0] 
 
     # Step 3: Find the angle to the nearest wall
     min_angle_index = np.argmin(head_angle_at_slice_onset)  # Index of the closest wall
@@ -130,7 +129,6 @@ def assign_bins_to_all_trials(trial_list, player_id, num_walls=8, debug=False):
         
         bin_assignments.append(bin_index[0])
 
-        #bin_assignments.append(bin_index)
 
     return bin_assignments
 
