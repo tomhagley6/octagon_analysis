@@ -98,8 +98,7 @@ def assign_bins_to_all_trials(trial_list, player_id, num_walls=8, debug=False):
        list of bin indices corresponding to each trial
 
     Inputs: 
-       if using for altered haed angles, requires trials to have
-       updated trajectories and head angles
+       requires head angles in degrees
     """
 
     bin_assignments = [] #list to store bin indices for all trials
