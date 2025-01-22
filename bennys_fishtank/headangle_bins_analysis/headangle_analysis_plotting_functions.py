@@ -43,10 +43,10 @@ def plot_colored_octagon(ax, bin_ranges, ratios_list, radius=18):
     ratios_list_reversed = ratios_list[::-1]
 
     # Define the angular shift (to rotate by 3 segments counterclockwise)
-    angular_shift = 3 * np.pi / 4  # This corresponds to 3 octagon segments
+    angular_shift = 3 * np.pi / 4 
     
 
-    # Get the alcove center points (used later for positioning text)
+    # Get the alcove center points
     alcove_centers = plot_octagon.return_alcove_centre_points()
     
     # Iterate over each segment and plot it
@@ -60,7 +60,6 @@ def plot_colored_octagon(ax, bin_ranges, ratios_list, radius=18):
         start_angle = start_angle % (2 * np.pi)
         end_angle = end_angle % (2 * np.pi)
         
-        # Generate points for the straight segment (cone shape)
         # Define the boundary points on the octagon at the specified angles
         x1 = radius * np.cos(start_angle)
         y1 = radius * np.sin(start_angle)
