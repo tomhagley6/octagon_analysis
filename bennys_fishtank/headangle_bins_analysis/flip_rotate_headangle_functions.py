@@ -2,6 +2,7 @@ import json
 import numpy as np
 import pandas as pd
 import parse_data.prepare_data as prepare_data
+import parse_data.preprocess as preprocess
 import parse_data.flip_rotate_trajectories as flip_rotate_trajectories
 import data_extraction.get_indices as get_indices
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
@@ -28,7 +29,6 @@ def flip_rotate_trial_headangles(trial_list, trial_index, player_id, theta, flip
         
         y_rotation = trial[globals.PLAYER_ROT_DICT[player_id]['yrot']]
         head_angles = np.deg2rad(y_rotation)
-        #print(f"head angle for trial {trial_index}: {head_angles}")
         
         player_altered_yaw = []
         for yaw in head_angles:
@@ -50,7 +50,7 @@ def flip_rotate_trial_headangles(trial_list, trial_index, player_id, theta, flip
 
                 player_altered_yaw.append(new_yaw)
             
-        altered_yaw_values.append(player_altered_yaw)
+        altered_yaw_values.append(np.rad2deg(player_altered_yaw))
         
     return altered_yaw_values 
 
@@ -81,11 +81,11 @@ def replace_with_altered_yaws(trial_list, trial_index, altered_yaw_values, playe
     if trial_list is not None and trial_index is not None:
         trial = trial_list[trial_index]
     else:
-        trial = trial_index 
+        trial = trial_index
 
     trial_copy = trial.copy()
 
-    player_yaw_values = altered_yaw_values
+    player_yaw_values = altered_yaw_values#[player_id]
     
     if len(player_yaw_values) != len(trial_copy):
         raise ValueError(f"Length of altered yaw values ({len(player_yaw_values)})does not match the number of rows in the DataFrame ({len(trial_copy)})")
@@ -134,6 +134,3 @@ def process_and_update_trials(trial_list, player_id):
         updated_trial_list.append(trial_example)
 
     return updated_trial_list
-
-
-
