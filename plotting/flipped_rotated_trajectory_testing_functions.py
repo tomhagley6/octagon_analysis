@@ -4,8 +4,6 @@
 # In[1]:
 
 
-get_ipython().run_line_magic('load_ext', 'autoreload')
-get_ipython().run_line_magic('autoreload', '2')
 import data_extraction.get_indices as get_indices
 import parse_data.prepare_data as prepare_data
 import globals
@@ -27,21 +25,24 @@ import plotting.wall_visibility_order_testing_functions as wall_visibility_order
 import parse_data.flip_rotate_trajectories as flip_rotate_trajectories
 
 
-# In[2]:
+# In[1]:
 
 
-def get_trajectory_information_trial(trial_list, trial_index, chosen_walls_session, player_id=0):
+def get_trajectory_information_trial(chosen_walls_session, trial=None, trial_list=None, trial_index=None, player_id=0):
     '''Gather single trial data for trajectory rotation plots.
        Takes trial list, index, and chosen walls for the session
        Returns the trial df, rotation angle to be applied, rotated and flipped df,
        the walls for the trial, and the chosen wall for the trial.''' 
 
     # get trial
-    trial = extract_trial.extract_trial(trial_list=trial_list, trial_index=trial_index, trial=None)
+    trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
 
-    # trajectory 
-    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+   #  trajectory 
+   #  trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
 
+   
+    trial_list = [trial]
+    trial_index = 0
     # trial rotation angle
     rotation_angle_trial = flip_rotate_trajectories.find_rotation_angle_trial(trial_list, trial_index)
 
@@ -152,4 +153,25 @@ def plot_multiple_trials_flip_rotate_trajectories(trial_list, chosen_walls_sessi
 
     # show the plot
     plt.show()
+
+
+# In[ ]:
+
+
+def plot_player_start_positions(rotated_flipped_trial, chosen_player, label=False, axes=None):
+    ''' Plot two subplots of single trial trajectories, with separate winner and loser
+        colours.
+        Left subplot is without flipping and rotating, right subplot is with.
+        Takes the trial df, and the rotated and flipped trial df.'''
+        
+    ax = plot_octagon.plot_octagon(ax=axes)
+
+    ax = plot_trajectory.plot_trial_slice_onset_positions(ax, chosen_player, trial=rotated_flipped_trial, label=label)
+
+    # change plot params
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+        ax.tick_params(left=False, bottom=False)  # Turn off major ticks
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
 

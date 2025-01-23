@@ -244,3 +244,49 @@ def mark_session_slice_onsets(ax, df, chosen_player, s=10, color='k'):
 
     return ax
 
+
+# In[ ]:
+
+
+def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=None, trial_index=None, s=36, colours=['b', 'g'],
+                                      label=None):
+
+    ''' Plot the trajectories of each player for a single trial, with separate colours for winner and loser '''
+
+    
+    # isolate trial
+    this_trial = extract_trial(trial, trial_list, trial_index)
+    
+    # isolate trigger event and activating client
+    slice_onset_event = this_trial[this_trial['eventDescription'] == globals.SLICE_ONSET]
+    
+    # find index of slice onset normalised to this trial
+    slice_onset_idx = slice_onset_event.index[0]
+    slice_onset_idx = int(slice_onset_idx - this_trial.index[0])
+
+    # find number of players to plot for
+    num_players = preprocess.num_players(this_trial)
+
+    # create an array of (df column) labels to index the dataframe for each player's trajectory
+    coordinate_array_labels = []
+    for i in range(num_players):
+        coordinate_array_labels.extend((globals.PLAYER_LOC_DICT[i]['xloc'], globals.PLAYER_LOC_DICT[i]['yloc'])) 
+    coordinate_arrays = {label : this_trial[label].values[slice_onset_idx] for label in coordinate_array_labels}
+
+    # scatter each players trajectory, with a unique colour map for the winning player
+    # colours = [colour_winner, colour_loser]
+    labels = ['Self', 'Other']
+    for i in range(num_players):
+        colour_index = 0 if i == chosen_player else 1
+        if label: # include some labels for the legend
+            ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=s,
+                    color=colours[colour_index], label=labels[colour_index])
+        else:
+            ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=s,
+                    color=colours[colour_index])
+
+    # plt.legend()
+
+
+    return ax
+
