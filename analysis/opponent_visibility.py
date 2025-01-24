@@ -172,7 +172,7 @@ def filter_trials_other_visible(trial_list, other_visible_session, inverse=False
         If inverse=True, return only trials where Other is not visible '''
     
     # if no original indices supplied, assume this is the original trial list
-    if not original_indices:
+    if original_indices is None:
         original_indices = np.arange(len(trial_list))
     
     if not inverse:
@@ -196,7 +196,7 @@ def filter_trials_retrievable_choice(trial_list, player_id, inferred_choice, ori
         where we do not know what the player's choice would have been. '''
     
     # if no original indices supplied, assume this is the original trial list
-    if not original_indices:
+    if original_indices is None:
         original_indices = np.arange(len(trial_list))
     
     # get player choice (wall number) for each trial
@@ -224,8 +224,8 @@ def filter_trials_one_wall_initially_visible(trial_list, player_id, wall_index, 
         conferred by wall_index (e.g. 0 or 1 for wall1 or wall2) '''
     
     # if no original indices supplied, assume this is the original trial list
-    if not original_indices:
-        original_indices = np.array(range(len(trial_list)))
+    if original_indices is None:
+        original_indices = np.arange(len(trial_list))
     
     # find wall visibility (at the trial start timepoint) for the full session
     (wall1_visible_session,
@@ -251,6 +251,10 @@ def filter_trials_both_walls_initially_visible(trial_list, player_id, current_fo
     ''' Return a filtered trial list and list of indices from the original trial list that
         conform to both trial walls being visible to player player_id at trial start. '''
     
+    # if no original indices supplied, assume this is the original trial list
+    if original_indices is None:
+        original_indices = np.arange(len(trial_list))
+    
     # find wall visibility for the full session
     (wall1_visible_session,
     wall2_visible_session) = wall_visibility_and_choice.get_walls_initial_visibility_session(trial_list,
@@ -274,24 +278,30 @@ def filter_trials_player_chose_given_wall(trial_list, player_id, inferred_choice
         where player choice (winner + loser, or just winner) aligned with
         the given wall index (e.g., 0 for wall1) '''
     
+    # if no original indices supplied, assume this is the original trial list
+    if original_indices is None:
+        original_indices = np.arange(len(trial_list))
+    
     # get player choice (wall number) for each trial
     # inferred choice can be used here
     player_choice = wall_visibility_and_choice.get_player_wall_choice(trial_list, player_id,
                                                                         inferred_choice, debug=False)
-    
-    print(f"player choice array:\n{player_choice}")
+    if debug:
+        print(f"player choice array:\n{player_choice}")
 
     # get the truth array for whether the player choice wall aligns with the given wall parameter
     # to this function (NB. this is NOT the wall that was eventually chosen in the trial)
     given_wall_chosen_session = get_indices.was_given_wall_chosen(trial_list, player_choice,
                                                                   given_wall_index)
-    
-    print(f"given wall chosen array:\n{given_wall_chosen_session}")
+    if debug:
+        print(f"given wall chosen array:\n{given_wall_chosen_session}")
     
     # find the indices of the trials in trial_list where the given wall was chosen by player player_id.
     # this will drop trials where the given wall was not chosen, and trials without retrievable choice information
     given_wall_chosen_mask = given_wall_chosen_session == True
-    print(f"given wall chosen true indices:\n{ np.flatnonzero(given_wall_chosen_mask)}")
+    
+    if debug:
+        print(f"given wall chosen true indices:\n{ np.flatnonzero(given_wall_chosen_mask)}")
     
     # filter original indices and current trial list based on the mask
     trial_list_filtered = [trial_list[i] for i in np.flatnonzero(given_wall_chosen_mask)]
@@ -305,6 +315,10 @@ def filter_trials_player_chose_given_wall(trial_list, player_id, inferred_choice
 def filter_trials_player_won(trial_list, player_id, original_indices=None):
     ''' Return a filtered trial list and list of indices from the original trial list 
         where player player_id won. '''
+    
+    # if no original indices supplied, assume this is the original trial list
+    if original_indices is None:
+        original_indices = np.arange(len(trial_list))
     
     # get trigger activators for this session
     trigger_activators = get_indices.get_trigger_activators(trial_list)
@@ -343,7 +357,7 @@ def calculate_probability_choose_wall(trial_list, trial_list_choice_filtered):
     
     
 
-def probability_trial_outcome_given_conditions(trial_list, other_visible_session, player_id, 
+def probability_trial_outcome_given_conditions(trial_list, player_id, 
                                                visible_wall_index, chosen_wall_index,
                                                inferred_choice, current_fov, inverse_other_visible=False,
                                                return_trial_indices=False, debug=False):
@@ -362,21 +376,29 @@ def probability_trial_outcome_given_conditions(trial_list, other_visible_session
       print(f"Next session, player_id {player_id}")
 
     # keep a list of indices relative to the original trial list
-    original_indices = list(range(len(trial_list)))
+    original_indices = np.arange(len(trial_list))
 
     # filter trials with a retrievable choice for this player (trials only valid for analysis if we 
-    # have a recorded choice for the player)
-    (trial_list_filtered,
-    original_indices) = filter_trials_retrievable_choice(trial_list, original_indices, player_id,
-                                                          inferred_choice, original_indices=original_indices)
+    # have a recorded choice for the player) if a chosen_wall_index is specified
+    if chosen_wall_index is not None:
+      (trial_list_filtered,
+      original_indices) = filter_trials_retrievable_choice(trial_list, player_id,
+                                                            inferred_choice, original_indices=original_indices)
 
-    if debug:
-      print(f"Len 'player choice exists' indices: {len(original_indices)}")
+      if debug:
+        print(f"Len 'player choice exists' indices: {len(original_indices)}")
+
+    else:
+       trial_list_filtered = trial_list
 
     
+    
+    # get Other visibility status for this session and player_id
+    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
     # filter Other initially visible
     (trial_list_filtered,
-    original_indices) = filter_trials_other_visible(trial_list, other_visible_session,
+    original_indices) = filter_trials_other_visible(trial_list_filtered, other_visible_session,
                                                     inverse=inverse_other_visible,
                                                     original_indices=original_indices)
     
@@ -390,8 +412,8 @@ def probability_trial_outcome_given_conditions(trial_list, other_visible_session
         original_indices) = filter_trials_one_wall_initially_visible(trial_list_filtered, player_id,
                                                                      wall_index=visible_wall_index, current_fov=current_fov,
                                                                      original_indices=original_indices)
-    if debug:
-      print(f"Len '{visible_wall_index} seen initially, alone': {len(original_indices)}")
+        if debug:
+          print(f"Len '{visible_wall_index} seen initially, alone': {len(original_indices)}")
 
     # filter based on chosen wall if requested
     if chosen_wall_index is not None:
@@ -406,8 +428,8 @@ def probability_trial_outcome_given_conditions(trial_list, other_visible_session
         original_indices_choice) = filter_trials_player_won(trial_list_filtered, player_id,
                                                             original_indices=original_indices)
        
-    if debug:
-      print(f"Len '{chosen_wall_index} index wall chosen by player {player_id}': {len(original_indices_choice)}")
+        if debug:
+          print(f"Len '{chosen_wall_index} index wall chosen by player {player_id}': {len(original_indices_choice)}")
 
     
     # find the probability of the player choosing the given wall index, considering only trials that are filtered
@@ -564,185 +586,185 @@ def probability_win_trial_conditioned_on_other_visibility(trial_list, other_visi
 
     return probability_chose_wall 
 
-# P(H | H first visible; Other visible) 
-# combined player_ids 1 and 0, for all sessions
+# # P(H | H first visible; Other visible) 
+# # combined player_ids 1 and 0, for all sessions
 
-a = np.full(len(trial_list_all)*2, np.nan)
-b = np.full(len(trial_list_all)*2, np.nan)
-filtered_trail_list_a_list = []
-filtered_trial_list_choice_a_list = []
-filtered_trail_list_b_list = []
-filtered_trial_list_choice_b_list = []
-trial_list_index = 0
-inferred_choice=True
-debug=True
-visible_wall_index = 0
-chosen_wall_index = 0
-current_fov = 110
+# a = np.full(len(trial_list_all)*2, np.nan)
+# b = np.full(len(trial_list_all)*2, np.nan)
+# filtered_trail_list_a_list = []
+# filtered_trial_list_choice_a_list = []
+# filtered_trail_list_b_list = []
+# filtered_trial_list_choice_b_list = []
+# trial_list_index = 0
+# inferred_choice=True
+# debug=True
+# visible_wall_index = 0
+# chosen_wall_index = 0
+# current_fov = 110
 
-for i in range(0,len(trial_list_all)*2, 2):
+# for i in range(0,len(trial_list_all)*2, 2):
 
-    trial_list = trial_list_all[trial_list_index]
+#     trial_list = trial_list_all[trial_list_index]
 
-    # filter trial list for HighLow trialtype
-    trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
-    trial_list_filtered = [trial_list[i] for i in trial_indices]
+#     # filter trial list for HighLow trialtype
+#     trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
+#     trial_list_filtered = [trial_list[i] for i in trial_indices]
 
-    player_id = 0
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+#     player_id = 0
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
     
-    (a[i],
-    filtered_trial_indices_a,
-    filtered_trial_choice_indices_a) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
-                                                                           player_id, visible_wall_index, chosen_wall_index,
-                                                                           inferred_choice, current_fov,
-                                                                           inverse_other_visible=False,
-                                                                            return_trial_indices=True, debug=debug)
-    (b[i],
-    filtered_trial_indices_b,
-    filtered_trial_choice_indices_b)  = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
-                                                                           player_id, visible_wall_index, chosen_wall_index,
-                                                                           inferred_choice, current_fov,
-                                                                           inverse_other_visible=True,
-                                                                            return_trial_indices=True, debug=debug)
+#     (a[i],
+#     filtered_trial_indices_a,
+#     filtered_trial_choice_indices_a) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                            player_id, visible_wall_index, chosen_wall_index,
+#                                                                            inferred_choice, current_fov,
+#                                                                            inverse_other_visible=False,
+#                                                                             return_trial_indices=True, debug=debug)
+#     (b[i],
+#     filtered_trial_indices_b,
+#     filtered_trial_choice_indices_b)  = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                            player_id, visible_wall_index, chosen_wall_index,
+#                                                                            inferred_choice, current_fov,
+#                                                                            inverse_other_visible=True,
+#                                                                             return_trial_indices=True, debug=debug)
     
-    filtered_trail_list_a_list.append(filtered_trial_indices_a)
-    filtered_trial_list_choice_a_list.append(filtered_trial_choice_indices_a)
-    filtered_trail_list_b_list.append(filtered_trial_indices_b)
-    filtered_trial_list_choice_b_list.append(filtered_trial_choice_indices_b)
+#     filtered_trail_list_a_list.append(filtered_trial_indices_a)
+#     filtered_trial_list_choice_a_list.append(filtered_trial_choice_indices_a)
+#     filtered_trail_list_b_list.append(filtered_trial_indices_b)
+#     filtered_trial_list_choice_b_list.append(filtered_trial_choice_indices_b)
     
-    player_id = 1
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+#     player_id = 1
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
     
-    (a[i+1],
-    filtered_trial_indices_a,
-    filtered_trial_choice_indices_a) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
-                                                                             player_id, visible_wall_index, chosen_wall_index,
-                                                                             inferred_choice, current_fov,
-                                                                             inverse_other_visible=False,
-                                                                              return_trial_indices=True, debug=debug)
-    (b[i+1],
-    filtered_trial_indices_b,
-    filtered_trial_choice_indices_b) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
-                                                                             player_id, visible_wall_index, chosen_wall_index,
-                                                                             inferred_choice, current_fov,
-                                                                             inverse_other_visible=True,
-                                                                              return_trial_indices=True, debug=debug)
+#     (a[i+1],
+#     filtered_trial_indices_a,
+#     filtered_trial_choice_indices_a) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                              player_id, visible_wall_index, chosen_wall_index,
+#                                                                              inferred_choice, current_fov,
+#                                                                              inverse_other_visible=False,
+#                                                                               return_trial_indices=True, debug=debug)
+#     (b[i+1],
+#     filtered_trial_indices_b,
+#     filtered_trial_choice_indices_b) = probability_chose_wall_conditioned_on_wall_and_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                              player_id, visible_wall_index, chosen_wall_index,
+#                                                                              inferred_choice, current_fov,
+#                                                                              inverse_other_visible=True,
+#                                                                               return_trial_indices=True, debug=debug)
     
 
-    filtered_trail_list_a_list.append(filtered_trial_indices_a)
-    filtered_trial_list_choice_a_list.append(filtered_trial_choice_indices_a)
-    filtered_trail_list_b_list.append(filtered_trial_indices_b)
-    filtered_trial_list_choice_b_list.append(filtered_trial_choice_indices_b)
+#     filtered_trail_list_a_list.append(filtered_trial_indices_a)
+#     filtered_trial_list_choice_a_list.append(filtered_trial_choice_indices_a)
+#     filtered_trail_list_b_list.append(filtered_trial_indices_b)
+#     filtered_trial_list_choice_b_list.append(filtered_trial_choice_indices_b)
     
-    trial_list_index += 1
+#     trial_list_index += 1
     
     
-wall_choice_probabilities = [a,b]
+# wall_choice_probabilities = [a,b]
 
-# P(H | Other visible)
-# combined player_ids 1 and 0, for all sessions
+# # P(H | Other visible)
+# # combined player_ids 1 and 0, for all sessions
 
-c = np.full(len(trial_list_all)*2, np.nan)
-d = np.full(len(trial_list_all)*2, np.nan)
-trial_list_index = 0
-inferred_choice=True
-debug=True
-chosen_wall_index = 0
-current_fov=110
+# c = np.full(len(trial_list_all)*2, np.nan)
+# d = np.full(len(trial_list_all)*2, np.nan)
+# trial_list_index = 0
+# inferred_choice=True
+# debug=True
+# chosen_wall_index = 0
+# current_fov=110
 
-for i in range(0,len(trial_list_all)*2, 2):
+# for i in range(0,len(trial_list_all)*2, 2):
 
-    trial_list = trial_list_all[trial_list_index]
+#     trial_list = trial_list_all[trial_list_index]
 
-    # filter trial list for HighLow trialtype
-    trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
-    trial_list_filtered = [trial_list[i] for i in trial_indices]
+#     # filter trial list for HighLow trialtype
+#     trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
+#     trial_list_filtered = [trial_list[i] for i in trial_indices]
 
-    player_id = 0
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+#     player_id = 0
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
     
-    c[i] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                  player_id, chosen_wall_index,
-                                                                  inferred_choice,
-                                                                  inverse_other_visible=False, debug=debug)
-    d[i] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                  player_id, chosen_wall_index,
-                                                                  inferred_choice,
-                                                                  inverse_other_visible=True, debug=debug)
+#     c[i] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                   player_id, chosen_wall_index,
+#                                                                   inferred_choice,
+#                                                                   inverse_other_visible=False, debug=debug)
+#     d[i] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                   player_id, chosen_wall_index,
+#                                                                   inferred_choice,
+#                                                                   inverse_other_visible=True, debug=debug)
     
-    player_id = 1
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+#     player_id = 1
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
     
-    c[i+1] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                    player_id, chosen_wall_index,
-                                                                    inferred_choice,
-                                                                    inverse_other_visible=False, debug=debug)
-    d[i+1] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                    player_id, chosen_wall_index,
-                                                                    inferred_choice,
-                                                                    inverse_other_visible=True, debug=debug)
+#     c[i+1] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                     player_id, chosen_wall_index,
+#                                                                     inferred_choice,
+#                                                                     inverse_other_visible=False, debug=debug)
+#     d[i+1] = probability_chose_wall_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                     player_id, chosen_wall_index,
+#                                                                     inferred_choice,
+#                                                                     inverse_other_visible=True, debug=debug)
     
-    trial_list_index += 1
-    
-    
-wall_choice_probabilities2 = [c,d]
-
-
-# P(Win | Other visible)
-# combined player_ids 1 and 0, for all sessions
-
-e = np.full(len(trial_list_all)*2, np.nan)
-f = np.full(len(trial_list_all)*2, np.nan)
-trial_list_index = 0
-inferred_choice=False
-debug=True
-current_fov = 110
-
-for i in range(0,len(trial_list_all)*2, 2):
-
-    trial_list = trial_list_all[trial_list_index]
-
-    # filter trial list for HighLow trialtype
-    trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
-    trial_list_filtered = [trial_list[i] for i in trial_indices]
-
-    player_id = 0
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
-    
-    e[i] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                 player_id,
-                                                                 inverse_other_visible=False, debug=debug)
-    f[i] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                 player_id,
-                                                                 inverse_other_visible=True, debug=debug)
-    
-    player_id = 1
-    # get Other visibility for this trial list
-    orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-    other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
-    
-    e[i+1] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                   player_id,
-                                                                   inverse_other_visible=False, debug=debug)
-    f[i+1] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
-                                                                   player_id,
-                                                                   inverse_other_visible=True, debug=debug)
-    
-    trial_list_index += 1
+#     trial_list_index += 1
     
     
-wall_choice_probabilities3 = [e,f]
+# wall_choice_probabilities2 = [c,d]
+
+
+# # P(Win | Other visible)
+# # combined player_ids 1 and 0, for all sessions
+
+# e = np.full(len(trial_list_all)*2, np.nan)
+# f = np.full(len(trial_list_all)*2, np.nan)
+# trial_list_index = 0
+# inferred_choice=False
+# debug=True
+# current_fov = 110
+
+# for i in range(0,len(trial_list_all)*2, 2):
+
+#     trial_list = trial_list_all[trial_list_index]
+
+#     # filter trial list for HighLow trialtype
+#     trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
+#     trial_list_filtered = [trial_list[i] for i in trial_indices]
+
+#     player_id = 0
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+    
+#     e[i] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                  player_id,
+#                                                                  inverse_other_visible=False, debug=debug)
+#     f[i] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                  player_id,
+#                                                                  inverse_other_visible=True, debug=debug)
+    
+#     player_id = 1
+#     # get Other visibility for this trial list
+#     orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+#     other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+    
+#     e[i+1] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                    player_id,
+#                                                                    inverse_other_visible=False, debug=debug)
+#     f[i+1] = probability_win_trial_conditioned_on_other_visibility(trial_list_filtered, other_visible_session,
+#                                                                    player_id,
+#                                                                    inverse_other_visible=True, debug=debug)
+    
+#     trial_list_index += 1
+    
+    
+# wall_choice_probabilities3 = [e,f]
 
 
 def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferred_choice, current_fov,
@@ -782,24 +804,24 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
 
         # iterate over both player IDs (0 and 1)
         for player_id in [0,1]:
-            # get Other visibility status for this session and player_id
-            orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-            other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
+            # # get Other visibility status for this session and player_id
+            # orientation_angle_to_other_session = get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
+            # other_visible_session = get_other_visible_session(orientation_angle_to_other_session, current_fov)
             
             
             # calculate probabilities and filtered indices for both visibility conditions (Other visible, Other not visible)
             (prob_visible,
             filtered_indices_visible,
-            filtered_choice_indices_visible) = probability_trial_outcome_given_conditions(trial_list, other_visible_session, player_id, 
+            filtered_choice_indices_visible) = probability_trial_outcome_given_conditions(trial_list_filtered, player_id, 
                                                 visible_wall_index, chosen_wall_index,
                                                 inferred_choice, current_fov, inverse_other_visible=False,
-                                                return_trial_indices=False, debug=False)
+                                                return_trial_indices=True, debug=False)
             (prob_not_visible,
             filtered_indices_not_visible,
-            filtered_choice_indices_not_visible) = probability_trial_outcome_given_conditions(trial_list, other_visible_session, player_id, 
+            filtered_choice_indices_not_visible) = probability_trial_outcome_given_conditions(trial_list_filtered, player_id, 
                                                     visible_wall_index, chosen_wall_index,
                                                     inferred_choice, current_fov, inverse_other_visible=True,
-                                                    return_trial_indices=False, debug=False)
+                                                    return_trial_indices=True, debug=False)
             
             # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)
             probabilities['other_visible'][trial_list_index, player_id] = prob_visible
@@ -821,39 +843,39 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
     
     return wall_choice_probabilities, trial_data
 
-# plot trial start positions for self and other, combining both players in a session, 
-# only for trials with Other visible and H visible at trial start
-# TODO rewrite cleanly to avoid 
-# TODO repeat for the list of trials where Other is NOT visible
-# TODO see 250123 octagon meeting notes for how to polish these plots and best use them
+# # plot trial start positions for self and other, combining both players in a session, 
+# # only for trials with Other visible and H visible at trial start
+# # TODO rewrite cleanly to avoid 
+# # TODO repeat for the list of trials where Other is NOT visible
+# # TODO see 250123 octagon meeting notes for how to polish these plots and best use them
 
-chosen_walls_session = np.zeros(len(filtered_trail_list_a_list[0]))  # unused for this analysis
+# chosen_walls_session = np.zeros(len(filtered_trail_list_a_list[0]))  # unused for this analysis
 
-# trial lists
-filtered_trail_list_a_list          # all trials with Other and High visible
-filtered_trial_list_choice_a_list   # all trials with Other not viisble and High visible
+# # trial lists
+# filtered_trail_list_a_list          # all trials with Other and High visible
+# filtered_trial_list_choice_a_list   # all trials with Other not viisble and High visible
 
-# starting with player 0, the first index 
-player_id = 0
+# # starting with player 0, the first index 
+# player_id = 0
 
-# Run the first trial out of the loop to generate the plotted octagon axes
-trial = filtered_trail_list_a_list[12][0]
-(_, _, 
-rotated_flipped_trial, _,
-chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=0)
-ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=None)
+# # Run the first trial out of the loop to generate the plotted octagon axes
+# trial = filtered_trail_list_a_list[12][0]
+# (_, _, 
+# rotated_flipped_trial, _,
+# chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=0)
+# ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=None)
 
-# now loop the rest of player_id 0 trials
-for i, trial in enumerate(filtered_trail_list_a_list[12][1:]):
-    (_, _, 
-    rotated_flipped_trial, _,
-    chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=player_id)
-    ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=ax)
-# now loop all player_id 1 trials
-player_id = 1
-for i, trial in enumerate(filtered_trail_list_a_list[13]):
-    (_, _, 
-    rotated_flipped_trial, _,
-    chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=player_id)
-    ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=ax)
+# # now loop the rest of player_id 0 trials
+# for i, trial in enumerate(filtered_trail_list_a_list[12][1:]):
+#     (_, _, 
+#     rotated_flipped_trial, _,
+#     chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=player_id)
+#     ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=ax)
+# # now loop all player_id 1 trials
+# player_id = 1
+# for i, trial in enumerate(filtered_trail_list_a_list[13]):
+#     (_, _, 
+#     rotated_flipped_trial, _,
+#     chosen_wall) = fr_funcs.get_trajectory_information_trial(chosen_walls_session, trial=trial, player_id=player_id)
+#     ax = fr_funcs.plot_player_start_positions(rotated_flipped_trial, chosen_player=player_id, label=False, axes=ax)
 
