@@ -478,7 +478,7 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
     assert(isinstance(trial, pd.DataFrame))
     
     # trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
-    head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
+    # head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
     # trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
 
     # wall_coords_cross_product_dependent = get_wall_coords_cross_product_dependent(trial=trial, player_id=player_id)

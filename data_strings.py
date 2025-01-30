@@ -27,7 +27,9 @@ JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_Yan
                    r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
                    r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json',
                    r'241219_1\2024-12-19_15-28-24_JingjingYeungSocial.json',
-                   r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json'
+                #    r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json' # removed because of strategy difference
+                   r'250115_1\2025-01-15_15-21-27_YixuanMarcoSocial.json',
+                   r'250115_2\2025-01-15_16-27-23_YuChunRuiqingSocial.json'
                    ]
 
 
@@ -118,10 +120,20 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'241219_1\2024-12-19_15-22-13_YeungFirstSolo.json',
                   r'241219_1\2024-12-19_15-51-33_YeungSecondSolo.json',
                   
-                  r'241220_1\2024-12-20_17-36-27_KirtanFirstSolo.json',
-                  r'241220_1\2024-12-20_18-06-10_KirtanSecondSolo.json',
-                  r'241220_1\2024-12-20_17-36-54_ChristopherFirstSolo.json',
-                  r'241220_1\2024-12-20_18-06-44_ChristopherSecondSolo.json'
+                #   r'241220_1\2024-12-20_17-36-27_KirtanFirstSolo.json',      # removed b/c strategy difference
+                #   r'241220_1\2024-12-20_18-06-10_KirtanSecondSolo.json',
+                #   r'241220_1\2024-12-20_17-36-54_ChristopherFirstSolo.json',
+                #   r'241220_1\2024-12-20_18-06-44_ChristopherSecondSolo.json'
+
+                  r'240115_1\2025-01-15_15-12-13_YixuanFirstSolo.json',
+                  r'240115_1\2025-01-15_15-47-11_YixuanSecondSolo.json',
+                  r'240115_1\2025-01-15_15-12-39_MarcoFirstSolo.json',
+                  r'240115_1\2025-01-15_15-46-04_MarcoSecondSolo.json',
+
+                  r'240115_2\2025-01-15_16-14-40_YuChunFirstSolo.json',
+                  r'240115_2\2025-01-15_16-50-13_YuChunSecondSocial.json',
+                  r'240115_2\2025-01-15_16-14-58_RuiqingFirstSolo.json',
+                  r'240115_2\2025-01-15_16-50-37_RuiqingSecondSolo.json'
 
                   ]
 
