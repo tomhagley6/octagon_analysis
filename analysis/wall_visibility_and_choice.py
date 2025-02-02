@@ -42,8 +42,9 @@ def get_given_wall_first_visible_session(trial_list, player_id, wall_index, curr
         wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial,
                                                                          player_id=player_id,
                                                                          current_fov=current_fov)
-        
-        print("In wall_visibility_and_choice/get_given_wall_first_visible_session, wall_visible_array returns as np.nan\n too short to analyse")
+        if debug:
+            if  isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
+                print("In wall_visibility_and_choice/get_given_wall_first_visible_session, wall_visible_array returns as np.nan\n too short to analyse")
     
         # get the order in which trial walls became visible to the player, taking into account initial visibility
         wall_becomes_visible_index = trajectory_headangle.get_wall_visibility_order(wall_visible_array_trial, 

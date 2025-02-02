@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import math
 import data_extraction.get_indices as get_indices
+import data_extraction.extract_trial as extract_trial
 
 
 # In[339]:
@@ -28,11 +29,10 @@ import data_extraction.get_indices as get_indices
 # In[1]:
 
 
-def find_rotation_angle_trial(trial_list, trial_index):
+def find_rotation_angle_trial(trial):
     """ Find CCW angle of rotation for vector to 
     rotate arena s.t. high wall is at wall 1"""
 
-    trial = trial_list[trial_index]
     # print(f"Trial in find_rotation_angle_trial is: {type(trial)}")
     
     # identify trial walls
@@ -52,7 +52,7 @@ def find_rotation_angle_trial(trial_list, trial_index):
 # In[2]:
 
 
-def flip_rotate_trial(trial_list, trial_index, theta, flip=True):
+def flip_rotate_trial(trial, theta, flip=True):
     """ Rotate x-y coordinates by theta 
         Flip x coordinates of vector if wall 1 CCW of wall 0
         Return altered vector """
@@ -60,7 +60,6 @@ def flip_rotate_trial(trial_list, trial_index, theta, flip=True):
     num_walls = globals.NUM_WALLS
     
     altered_coordinates = []
-    trial = trial_list[trial_index]
     num_players = preprocess.num_players(trial)
     
     trial_copy = trial.copy()
@@ -122,13 +121,12 @@ def flip_trajectories(altered_coordinates):
 # In[344]:
 
 
-def replace_with_altered_coordinates(trial_list, trial_index, altered_coordinates):
+def replace_with_altered_coordinates(trial, altered_coordinates):
     ''' Replace (in copy) the location coordinates for each player with the altered
         coordinates (rotated and/or flipped)
         Altered coordinates expects a list of np arrays which have a row for x coordinates
         and a row for y coordinates '''
     
-    trial = trial_list[trial_index]
     trial_copy = trial.copy()
 
     # overwrite the x location and y location columns in a copy of the dataframe for this trial
@@ -144,13 +142,15 @@ def replace_with_altered_coordinates(trial_list, trial_index, altered_coordinate
 
 
 # umbrella function
-def flip_rotate_trajectories(trial_list, trial_index=0):
+def flip_rotate_trajectories(trial=None, trial_list=None, trial_index=None):
     ''' Pipeline for flipping and rotating trajectories for a single trial
         Return a copy of that trial '''
     
-    theta = find_rotation_angle_trial(trial_list, trial_index)
-    altered_coords = flip_rotate_trial(trial_list, trial_index, theta)
-    trial_copy = replace_with_altered_coordinates(trial_list, trial_index, altered_coords)
+    trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
+    
+    theta = find_rotation_angle_trial(trial)
+    altered_coords = flip_rotate_trial(trial, theta)
+    trial_copy = replace_with_altered_coordinates(trial, altered_coords)
     
     return trial_copy
 

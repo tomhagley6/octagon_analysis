@@ -40,13 +40,10 @@ def get_trajectory_information_trial(chosen_walls_session, trial=None, trial_lis
    #  trajectory 
    #  trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
 
-   
-    trial_list = [trial]
-    trial_index = 0
     # trial rotation angle
-    rotation_angle_trial = flip_rotate_trajectories.find_rotation_angle_trial(trial_list, trial_index)
+    rotation_angle_trial = flip_rotate_trajectories.find_rotation_angle_trial(trial)
 
-    rotated_flipped_trial = flip_rotate_trajectories.flip_rotate_trajectories(trial_list, trial_index)
+    rotated_flipped_trial = flip_rotate_trajectories.flip_rotate_trajectories(trial)
 
     # trial walls
     walls = get_indices.get_walls(trial_list=trial_list, trial_index=trial_index)
@@ -92,8 +89,10 @@ def plot_single_trial_flip_rotate_trajectories(trial_list, chosen_walls_session,
     fig, axes = plt.subplots(1,2)
 
     # get trajectory information
-    (trial, rotation_angle_trial, rotated_flipped_trial, walls, chosen_wall) = get_trajectory_information_trial(trial_list, trial_index,
-                                                                                                                 chosen_walls_session, player_id=player_id)
+    (trial, rotation_angle_trial, rotated_flipped_trial, walls, chosen_wall) = get_trajectory_information_trial(trial_list=trial_list,
+                                                                                                                 trial_index=trial_index,
+                                                                                                                 chosen_walls_session=chosen_walls_session,
+                                                                                                                   player_id=player_id)
 
     # plot trajectories for this trial
     axes = plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=axes)
@@ -128,7 +127,7 @@ def plot_multiple_trials_flip_rotate_trajectories(trial_list, chosen_walls_sessi
             try:
                 # get trajectory information
                 (trial, rotation_angle_trial, rotated_flipped_trial, walls,
-                    chosen_wall) = get_trajectory_information_trial(trial_list, trial_index=trial_index,
+                    chosen_wall) = get_trajectory_information_trial(trial_list=trial_list, trial_index=trial_index,
                                                                                         chosen_walls_session=chosen_walls_session,
                                                                                             player_id=player_id)
 

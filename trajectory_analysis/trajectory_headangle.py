@@ -683,6 +683,10 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
     if debug:
         start_time = time.time()
 
+    if debug:
+        if isinstance(wall_visible, float) and np.isnan(wall_visible):
+            print(f"wall_visible input to get_wall_visibility order is np.nan on this trial")
+
     # get trial wall indices for the number of walls in the trial
     walls = get_indices.get_walls(trial=trial)
     num_walls = len(walls)
