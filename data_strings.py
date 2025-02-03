@@ -125,15 +125,15 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                 #   r'241220_1\2024-12-20_17-36-54_ChristopherFirstSolo.json',
                 #   r'241220_1\2024-12-20_18-06-44_ChristopherSecondSolo.json'
 
-                  r'240115_1\2025-01-15_15-12-13_YixuanFirstSolo.json',
-                  r'240115_1\2025-01-15_15-47-11_YixuanSecondSolo.json',
-                  r'240115_1\2025-01-15_15-12-39_MarcoFirstSolo.json',
-                  r'240115_1\2025-01-15_15-46-04_MarcoSecondSolo.json',
+                  r'250115_1\2025-01-15_15-12-13_YixuanFirstSolo.json',
+                  r'250115_1\2025-01-15_15-47-11_YixuanSecondSolo.json',
+                  r'250115_1\2025-01-15_15-12-39_MarcoFirstSolo.json',
+                  r'250115_1\2025-01-15_15-46-04_MarcoSecondSolo.json',
 
-                  r'240115_2\2025-01-15_16-14-40_YuChunFirstSolo.json',
-                  r'240115_2\2025-01-15_16-50-13_YuChunSecondSocial.json',
-                  r'240115_2\2025-01-15_16-14-58_RuiqingFirstSolo.json',
-                  r'240115_2\2025-01-15_16-50-37_RuiqingSecondSolo.json'
+                  r'250115_2\2025-01-15_16-14-40_YuChunFirstSolo.json',
+                  r'250115_2\2025-01-15_16-50-13_YuChunSecondSocial.json',
+                  r'250115_2\2025-01-15_16-14-58_RuiqingFirstSolo.json',
+                  r'250115_2\2025-01-15_16-50-37_RuiqingSecondSolo.json'
 
                   ]
 

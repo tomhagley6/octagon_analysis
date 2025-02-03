@@ -26,14 +26,14 @@ def get_given_wall_first_visible_session(trial_list, player_id, wall_index, curr
     ''' Return a len(trial_list) truth array for whether the wall wall_index (e.g. wall_1 has an index value of 0)
         became visible first on a trial for the player player_id. '''    
 
-    # get wall initial visibility for a full session
-    (wall1_initially_visible_session,
-    wall2_initially_visible_session) = get_walls_initial_visibility_session(trial_list,
-                                                                            player_id, current_fov,
-                                                                            debug=False)
-    wall_initial_visibility = np.vstack([wall1_initially_visible_session, wall2_initially_visible_session])
-    if debug:
-        print(f"wall initial visibility is: {wall_initial_visibility}")
+    # # get wall initial visibility for a full session
+    # (wall1_initially_visible_session,
+    # wall2_initially_visible_session) = get_walls_initial_visibility_session(trial_list,
+    #                                                                         player_id, current_fov,
+    #                                                                         debug=False)
+    # wall_initial_visibility = np.vstack([wall1_initially_visible_session, wall2_initially_visible_session])
+    # if debug:
+    #     print(f"wall initial visibility is: {wall_initial_visibility}")
 
     # get the session truth array for whether the given wall was the first visible in the trial (to this player)
     given_wall_first_visible_session = np.full(len(trial_list), np.nan)
@@ -42,13 +42,23 @@ def get_given_wall_first_visible_session(trial_list, player_id, wall_index, curr
         wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial,
                                                                          player_id=player_id,
                                                                          current_fov=current_fov)
+        
+        (wall1_initially_visible,
+        wall2_initially_visible) = get_walls_initial_visibility_trial(player_id=player_id, current_fov=current_fov,
+                                                                    trial=trial, wall_visible_array_trial=wall_visible_array_trial,
+                                                                    debug=False)
+        wall_initial_visibility = np.vstack([wall1_initially_visible, wall2_initially_visible])
+        if debug:
+            print(f"wall initial visibility is: {wall_initial_visibility}")
+
+        
         if debug:
             if  isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
                 print("In wall_visibility_and_choice/get_given_wall_first_visible_session, wall_visible_array returns as np.nan\n too short to analyse")
     
         # get the order in which trial walls became visible to the player, taking into account initial visibility
         wall_becomes_visible_index = trajectory_headangle.get_wall_visibility_order(wall_visible_array_trial, 
-                                                                                    wall_initial_visibility[:,i],
+                                                                                    wall_initial_visibility,
                                                                                     trial, 
                                                                                     return_times=False, debug=False)
         if debug:
@@ -130,17 +140,19 @@ def get_given_wall_first_vis_condition_fulfilled_trial(trial, wall_visibility_in
 
 
 def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
-                                  trial=None, trial_list=None, trial_index=None ): 
+                                  trial=None, trial_list=None, trial_index=None,
+                                   wall_visible_array_trial=None ): 
     ''' Identify whether trial walls are visible at slice onset.
         Returns boolean for each wall. '''
 
     trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
 
-    # get boolean array of wall visibility for each wall and timepoint
-    wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
+    if wall_visible_array_trial is None:
+        # get boolean array of wall visibility for each wall and timepoint
+        wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
 
     if isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
-        return np.nan
+        return np.nan, np.nan
 
     # identify whether the relevant walls for this trial are visible at slice onset
     (wall1_visible,
