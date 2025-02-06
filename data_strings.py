@@ -91,7 +91,7 @@ JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_Yansu
                   r'eleventh_experiments_241120\2024-11-20_14-41-56_RahulSecondSolo.json',
 
                   r'twelfth_experiments_241120\2024-11-20_15-10-00_SunnyFirstSolo.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
+                  r'twelfth_experiments_241120\2024-11-20_15-40-08_SunnySecondSolo.json',
                   r'twelfth_experiments_241120\2024-11-20_15-10-17_VinceFirstSolo.json',
                   r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
                   

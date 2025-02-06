@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[1]:
 
 
 import numpy as np
@@ -14,6 +14,7 @@ import analysis.wall_visibility_and_choice as wall_visibility_and_choice
 import globals
 import data_extraction.get_indices as get_indices
 from scipy.stats import pearsonr
+import data_extraction.trial_list_filters as trial_list_filters
 
 
 # ### Paired boxplots of probability of choosing a wall across any number of conditions
@@ -628,23 +629,26 @@ def filter_trials_player_chose_given_wall(trial_list, player_id, given_wall_inde
     
 
 
-# In[1]:
+# In[2]:
 
 
 def get_probability_chose_high_social(trial_list, player_id,
+                                      inferred_choice=True,
                                       given_wall_index=0):
 
 
     # filter for player retrievable choice trials
     (trial_list_filtered_choice_retrievable,
-     trial_indices_choice_retrievable) = filter_trials_retrievable_choice(trial_list,
-                                                                           player_id)
+     trial_indices_choice_retrievable) = trial_list_filters.filter_trials_retrievable_choice(trial_list,
+                                                                           player_id, inferred_choice)
     
     # filter retrievable choice trials for trials where this player chose High
     (trial_list_filtered_chose_high,
-    trial_indices_chose_high) = filter_trials_player_chose_given_wall(trial_list_filtered_choice_retrievable,
+    trial_indices_chose_high) = trial_list_filters.filter_trials_player_chose_given_wall(trial_list_filtered_choice_retrievable,
                                                                        player_id,
-                                                                      given_wall_index)
+                                                                       inferred_choice,
+                                                                       given_wall_index,
+                                                                       original_indices=trial_indices_choice_retrievable)
     
     # calculate probability of choosing High in social for this player
     probability_chose_high = calculate_probability_choose_wall(trial_list_filtered_choice_retrievable, trial_list_filtered_chose_high)
@@ -655,7 +659,11 @@ def get_probability_chose_high_social(trial_list, player_id,
 # In[ ]:
 
 
-def get_probability_chose_high_social_all_sessions(all_sessions, trial_type=globals.HIGH_LOW):
+def get_probability_chose_high_social_all_sessions(all_sessions, inferred_choice=True,
+                                                    trial_type=globals.HIGH_LOW):
+    ''' Umbrella function for summary P(choose High) value for each player in social sessions.
+        Uses inferred_choice=True by default.
+        Returns a 1D array of len(num_sessions*num_players)'''
 
     p_chose_high_all_sessions = np.full(len(all_sessions)*2, np.nan)
 
@@ -669,8 +677,10 @@ def get_probability_chose_high_social_all_sessions(all_sessions, trial_type=glob
         trial_list_filtered = [trial_list[i] for i in trial_indices]
 
         # find probability of choosing High each for player 0 and player 1
-        probability_chose_high_0 = get_probability_chose_high_social(trial_list_filtered, player_id=0)
-        probability_chose_high_1 = get_probability_chose_high_social(trial_list_filtered, player_id=1)
+        probability_chose_high_0 = get_probability_chose_high_social(trial_list_filtered, player_id=0,
+                                                                        inferred_choice=inferred_choice)
+        probability_chose_high_1 = get_probability_chose_high_social(trial_list_filtered, player_id=1,
+                                                                     inferred_choice=inferred_choice)
         
         p_chose_high_all_sessions[i:i+2] = probability_chose_high_0, probability_chose_high_1
 
@@ -692,8 +702,9 @@ def get_probability_chose_high_solo(trial_list, data_size_cutoff, player_id=0, g
     
     # filter all trials for trials where this player chose High
     (trial_list_filtered_chose_high,
-    trial_indices_chose_high) = filter_trials_player_chose_given_wall(trial_list, player_id,
-                                                                      given_wall_index)
+    trial_indices_chose_high) = trial_list_filters.filter_trials_player_chose_given_wall(trial_list, player_id,
+                                                                      inferred_choice=False,
+                                                                      given_wall_index=given_wall_index)
     
     # calculate probability of choosing High in social for this player
     probability_chose_high = calculate_probability_choose_wall(trial_list, trial_list_filtered_chose_high)

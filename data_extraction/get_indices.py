@@ -352,9 +352,11 @@ def was_given_wall_chosen(trial_list, player_choice, given_wall_index):
 
         # if chosen wall and wall given_wall_index are identical, set to True for this trial
         # else, false, preserving np.nan (which represents no valid choice data)
-        if given_wall == chosen_walls[i]:
+        if np.isnan(chosen_walls[i]): # if no valid choice, keep NaN
+            continue
+        elif given_wall == chosen_walls[i]:
             given_wall_chosen[i] = True
-        elif given_wall != chosen_walls[i] and chosen_walls[i] != np.nan:
+        else:
             given_wall_chosen[i] = False
 
     return given_wall_chosen
