@@ -29,6 +29,9 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
 
     # keep a list of indices relative to the original trial list
     original_indices = np.arange(len(trial_list))
+    
+    if debug:
+      print(f"initial original indices are: {original_indices}")
 
     # filter trials with a retrievable choice for this player (trials only valid for analysis if we 
     # have a recorded choice for the player) if a chosen_wall_index is specified
@@ -108,6 +111,9 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
 
     if debug:
       print(f"Probability player chose wall given these conditions: {probability_chose_wall}")
+
+    if debug:
+       print(f"Final original indices are: {original_indices}")
 
     if not return_trial_indices:
       return probability_chose_wall

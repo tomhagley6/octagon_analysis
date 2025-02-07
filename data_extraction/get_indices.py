@@ -38,7 +38,7 @@ def get_walls(trial=None, trial_list=None, trial_index=None, num_walls=2):
     return walls
 
 
-# In[3]:
+# In[ ]:
 
 
 def get_wall_difference(trial=None, trial_list=None, trial_index=None, num_walls=2):
@@ -47,8 +47,8 @@ def get_wall_difference(trial=None, trial_list=None, trial_index=None, num_walls
     
     max_val = globals.NUM_WALLS
 
-    this_trial = plot_trajectory.extract_trial(trial, trial_list, trial_index)
-    walls = get_walls(trial=trial, trial_list=trial_list, trial_index=trial_index)
+    walls = get_walls(trial, trial_list, trial_index,
+                      num_walls=2)
 
     direct_difference = abs(walls[0] - walls[1])
 
@@ -62,19 +62,19 @@ def get_wall_difference(trial=None, trial_list=None, trial_index=None, num_walls
     
 
 
-# In[4]:
+# In[ ]:
 
 
 def get_trials_with_wall_sep(trial_list, wall_sep=1):
     ''' Get the indices of trials with a specified wall separation (default 1)
         Assuming 2 walls in the trial '''
-    max_val = globals.NUM_WALLS
+    # max_val = globals.NUM_WALLS
     
     trial_indices = []
     for i in range(len(trial_list)):
         this_trial = trial_list[i]
         
-        walls = get_walls(trial_list=trial_list, trial_index=i)
+        # walls = get_walls(trial_list=trial_list, trial_index=i)
         difference = get_wall_difference(trial=this_trial)
 
         if difference == wall_sep:
@@ -107,13 +107,13 @@ def get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW):
 def get_trials_chose_wall(trial_list, chosen_wall):
     ''' Get indices of trials where the winner chose High '''
 
-    trial_indices = np.full(len(trial_list), np.nan)
-    for i in range(len(trial_list)):
+    trial_indices = []
+    for i,trial in enumerate(trial_list):
 
         # if the wallTriggered value aligns with the chosen_wall value, winner chose chosen_wall
         # find all non-nan values for wallTriggered
-        this_trial_triggers = trial_list[i][
-                        ~np.isnan(trial_list[i]['data.wallTriggered'])
+        this_trial_triggers = trial[
+                        ~np.isnan(trial['data.wallTriggered'])
                         ]
         # identify which of these was selected by the Server
         this_trial_selected_trigger = this_trial_triggers[
@@ -121,7 +121,7 @@ def get_trials_chose_wall(trial_list, chosen_wall):
                                                           ]['data.wallTriggered'].item()
 
         # identify whether this matches the High wall
-        chose_wall = this_trial_selected_trigger == trial_list[i][chosen_wall].unique().item()
+        chose_wall = this_trial_selected_trigger == trial[chosen_wall].unique().item()
 
         if chose_wall:
             trial_indices.append(i)

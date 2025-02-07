@@ -152,7 +152,7 @@ def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
         wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
 
     if isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
-        return np.nan, np.nan
+        return np.nan
 
     # identify whether the relevant walls for this trial are visible at slice onset
     (wall1_visible,
