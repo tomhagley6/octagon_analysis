@@ -64,6 +64,8 @@ def sort_head_angle_into_bin(trial_trajectory, head_angle_vector_array, num_wall
         num_walls=num_walls,
         debug=debug
     )
+    
+    print(f"Shape of thetas: {thetas.shape}")
 
     #step 2: extract head angles at slice onset
     head_angle_at_slice_onset = thetas[:, 0]
@@ -113,12 +115,11 @@ def assign_bins_to_all_trials(trial_list, player_id, num_walls=8, debug=False):
         trajectory = trajectory_vectors.extract_trial_player_trajectory(
             trial_list=trial_list, trial_index=trial_index, trial=trial, player_id=player_id
         )
-        print(f"Trajectory: {trajectory}")
-
+        print(trial_index)
+    
         headangle_array = trajectory_vectors.extract_trial_player_headangles(
             trial_list=trial_list, trial_index=trial_index, trial=trial, player_id=player_id
         )
-        print(f"Head Angles: {headangle_array}")
 
 
         #assign bin for the trial
@@ -133,4 +134,49 @@ def assign_bins_to_all_trials(trial_list, player_id, num_walls=8, debug=False):
     return bin_assignments
 
 
+
+def assign_bins_to_all_trials(trial_list, player_id, num_walls=8, debug=False):
+    """
+    Assign bins to the head angle at slice onset for all trials in trial list
+
+    Args:
+       trial_list: list of trial dataframes
+       num_walls: number of walls (default 8)
+       debug: whether to print debug information
+
+    Returns:
+       list of bin indices corresponding to each trial
+
+    Inputs: 
+       Requires headangles in degrees
+    """
+
+    bin_assignments = [] #list to store bin indices for all trials
+
+    for trial_index, trial in enumerate(trial_list):
+        if debug:
+            print(f"Processing trial {trial_index + 1}/{len(trial_list)}")
+
+        #extract trial trajectory and head angle vector array
         
+        trajectory = trajectory_vectors.extract_trial_player_trajectory(
+            trial_list=trial_list, trial_index=trial_index, trial=trial, player_id=player_id
+        )
+        print(trial_index)
+    
+        headangle_array = trajectory_vectors.extract_trial_player_headangles(
+            trial_list=trial_list, trial_index=trial_index, trial=trial, player_id=player_id
+        )
+
+
+        #assign bin for the trial
+        
+        bin_index = sort_head_angle_into_bin(
+            trial_trajectory=trajectory, head_angle_vector_array=headangle_array, num_walls=num_walls, 
+            debug=debug
+        )
+        
+        bin_assignments.append(bin_index[0])
+
+    return bin_assignments
+

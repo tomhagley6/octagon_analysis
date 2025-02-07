@@ -37,7 +37,7 @@ def plot_colored_octagon(ax, bin_ranges, ratios_list, radius=18):
     
     #normalize the ratios to [0, 1] for colormap
     norm = plt.Normalize(vmin=min(ratios_list), vmax=max(ratios_list))
-    colormap = cm.RdBu  # Use Red-Blue colormap
+    colormap = cm.plasma  # Use Red-Blue colormap
 
     #reverse the ratios list to match clockwise order
     ratios_list_reversed = ratios_list[::-1]
