@@ -14,10 +14,11 @@ import math
 
 
 
-def flip_rotate_trial_headangles(trial_list, trial_index, player_id, theta, flip=True):
+
+def flip_rotate_trial_headangles(trial_list, trial_index, theta, flip=True):
     '''Rotate yaw by theta
        Flip yaw if wall 1 CCW of wall 0
-       Return altered yaw, single chosen player, whole trial'''
+       Return altered yaw array of length 2 (1 array of altered yaws for each player)'''
 
     num_walls = globals.NUM_WALLS
 
@@ -95,13 +96,30 @@ def replace_with_altered_yaws(trial_list, trial_index, altered_yaw_values, playe
     return trial_copy
 
 
+def replace_both_players_with_altered_yaws(trial_list, trial_index, altered_yaw_values):
+    '''Replaces all y rotation values
+    with altered yaw values from flip-rotate function
+    Input: altered_yaw_values being an array of two arrays, one for each player'''
+    
+    if trial_list is not None and trial_index is not None:
+        trial = trial_list[trial_index]
+    else:
+        trial = trial_index
+        
+    num_players = preprocess.num_players(trial)
+    
+    trial_copy = trial.copy()
 
+    for player_id in range(num_players):
+        
+        trial_copy[globals.PLAYER_ROT_DICT[player_id]['yrot']] = altered_yaw_values[player_id]
 
+    return trial_copy
 
 
 #umbrella function
-def process_and_update_trials(trial_list, player_id):
-    '''Changes yaw values and coordinates for each player in each trial in trial list 
+def process_and_update_trials_both_players(trial_list):
+    '''Changes yaw values and coordinates for given player in each trial in trial list 
     Returns new trial list with updated trials'''
     updated_trial_list = []
     
@@ -111,7 +129,45 @@ def process_and_update_trials(trial_list, player_id):
         theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list=trial_list, trial_index=i)
     
         #step 2: change yaw values 
-        altered_yaw_values = flip_rotate_trial_headangles(trial_list=trial_list, trial_index=i, player_id=player_id, theta=theta)
+        altered_yaw_values = flip_rotate_trial_headangles(trial_list=trial_list, trial_index=i, theta=theta)
+
+        #step 3: create trial copy with new yaw values
+        trial_copy = replace_both_players_with_altered_yaws(trial_list=trial_list, trial_index=i, altered_yaw_values=altered_yaw_values)
+    
+        #step 4: change coordinates
+        altered_coords = flip_rotate_trajectories.flip_rotate_trial(trial_list=trial_list, trial_index=i, theta=theta, flip=True)
+        altered_coords = np.array(altered_coords)
+    
+        #step 5: create trial copy with new coordinates
+        trial_copy_coords = flip_rotate_trajectories.replace_with_altered_coordinates(trial_list=trial_list, trial_index=i, altered_coordinates=altered_coords)
+
+        #step 6: combine all new values in a single trial copy
+        trial_example = trial_copy
+        for j in range(len(altered_coords)):
+            trial_example[globals.PLAYER_LOC_DICT[j]['xloc']] = altered_coords[j][0] # x coordinates
+            trial_example[globals.PLAYER_LOC_DICT[j]['yloc']] = altered_coords[j][1] # y coordinates
+
+        #add the updated trial to the new trial list
+        updated_trial_list.append(trial_example)
+
+    return updated_trial_list
+
+
+
+#umbrella function
+def process_and_update_trials(trial_list, player_id):
+    '''Changes yaw values and coordinates for given player in each trial in trial list 
+    Returns new trial list with updated trials'''
+    updated_trial_list = []
+    
+    for i in range(len(trial_list)):
+    
+        #step 1: calculate rotation angle
+        theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list=trial_list, trial_index=i)
+    
+        #step 2: change yaw values 
+        #altered_yaw_values = flip_rotate_trial_headangles(trial_list=trial_list, trial_index=i, player_id=player_id, theta=theta)
+        altered_yaw_values = flip_rotate_trial_headangles(trial_list=trial_list, trial_index=i, theta=theta)
         player_altered_yaw = np.array(altered_yaw_values[player_id])
 
         #step 3: create trial copy with new yaw values
