@@ -22,7 +22,7 @@ import data_extraction.extract_trial as extract_trial
 # In[ ]:
 
 
-def get_given_wall_first_visible_session(trial_list, player_id, wall_index, current_fov, debug=True):
+def get_given_wall_first_visible_session(trial_list, player_id, wall_index, current_fov, debug=False):
     ''' Return a len(trial_list) truth array for whether the wall wall_index (e.g. wall_1 has an index value of 0)
         became visible first on a trial for the player player_id. '''    
 
@@ -152,7 +152,7 @@ def get_walls_initial_visibility_trial(player_id, debug=False, current_fov=110,
         wall_visible_array_trial = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=current_fov)
 
     if isinstance(wall_visible_array_trial, float) and np.isnan(wall_visible_array_trial):
-        return np.nan
+        return np.nan, np.nan
 
     # identify whether the relevant walls for this trial are visible at slice onset
     (wall1_visible,

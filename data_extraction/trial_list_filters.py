@@ -1,15 +1,22 @@
-import parse_data.prepare_data as prepare_data
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import globals
-import data_strings
-import data_extraction.extract_trial as extract_trial
-import utils.cosine_similarity as cosine_similarity
 import analysis.wall_visibility_and_choice as wall_visibility_and_choice
 import data_extraction.get_indices as get_indices
-import plotting.plot_probability_chose_wall as plot_probability_chose_wall
-import plotting.flipped_rotated_trajectory_testing_functions as fr_funcs
+import globals
+
+def filter_trials_high_low_trial_type(trial_list, original_indices=None):
+    ''' Return a filtered trial list and list of indices from the original trial list that
+        conform to only trials with a High and Low wall option. '''
+    
+    # if no original indices supplied, assume this is the original trial list
+    if original_indices is None:
+        original_indices = np.arange(len(trial_list))
+
+    high_low_trial_indices = get_indices.get_trials_trialtype(trial_list, globals.HIGH_LOW)
+
+    trial_list_filtered = [trial_list[i] for i in high_low_trial_indices]
+    original_indices = original_indices[high_low_trial_indices] # pretty sure this should work
+
+    return trial_list_filtered, original_indices
 
 def filter_trials_other_visible(trial_list, other_visible_session, inverse=False, original_indices=None):
     ''' Return a filtered trial list and list of indices from the original trial list that
