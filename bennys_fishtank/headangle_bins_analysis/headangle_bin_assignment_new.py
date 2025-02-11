@@ -73,6 +73,11 @@ def sort_head_angle_into_bin(trial_list, trial_index, debug=False):
             num_walls=num_walls,
             debug=debug
         )
+        
+        if thetas.size == 0 or thetas.shape[1] == 0:
+            print("Thetas empty, skipping trial")
+            return None
+
 
         #step 2.2: extract head angles at slice onset 
         head_angle_at_slice_onset = thetas[:, 0]
@@ -111,11 +116,15 @@ def assign_bins_to_all_trials(trial_list, debug=False):
         #assign bin for the trial
         
         bins = sort_head_angle_into_bin(trial_list, trial_index, debug=False)
+
+        if bins is None or len(bins) == 0:
+            print(f"Skipping bin assignment for trial {trial_index}, empty bin")
+            continue
         
         bin_assignments_player0.append(bins[0])
 
         if len(bins) > 1:
-            return bin_assignments_player1.append(bins[1])
+            bin_assignments_player1.append(bins[1])
 
     if not bin_assignments_player1:
         return bin_assignments_player0

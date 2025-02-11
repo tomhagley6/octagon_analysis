@@ -124,9 +124,12 @@ def process_and_update_trials_both_players(trial_list):
     updated_trial_list = []
     
     for i in range(len(trial_list)):
+
+        trial = trial_list[i]
     
         #step 1: calculate rotation angle
-        theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list=trial_list, trial_index=i)
+        #theta = flip_rotate_trajectories.find_rotation_angle_trial(trial_list=trial_list, trial_index=i)
+        theta = flip_rotate_trajectories.find_rotation_angle_trial(trial=trial)
     
         #step 2: change yaw values 
         altered_yaw_values = flip_rotate_trial_headangles(trial_list=trial_list, trial_index=i, theta=theta)
@@ -135,11 +138,11 @@ def process_and_update_trials_both_players(trial_list):
         trial_copy = replace_both_players_with_altered_yaws(trial_list=trial_list, trial_index=i, altered_yaw_values=altered_yaw_values)
     
         #step 4: change coordinates
-        altered_coords = flip_rotate_trajectories.flip_rotate_trial(trial_list=trial_list, trial_index=i, theta=theta, flip=True)
+        altered_coords = flip_rotate_trajectories.flip_rotate_trial(trial=trial, theta=theta, flip=True)
         altered_coords = np.array(altered_coords)
     
         #step 5: create trial copy with new coordinates
-        trial_copy_coords = flip_rotate_trajectories.replace_with_altered_coordinates(trial_list=trial_list, trial_index=i, altered_coordinates=altered_coords)
+        trial_copy_coords = flip_rotate_trajectories.replace_with_altered_coordinates(trial=trial, altered_coordinates=altered_coords)
 
         #step 6: combine all new values in a single trial copy
         trial_example = trial_copy
