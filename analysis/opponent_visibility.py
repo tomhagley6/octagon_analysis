@@ -255,14 +255,16 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
             filtered_choice_indices_visible) = conditioned_player_choice.probability_trial_outcome_given_conditions(
                                                 trial_list_filtered, player_id, 
                                                 visible_wall_index, chosen_wall_index,
-                                                inferred_choice, current_fov, inverse_other_visible=False,
+                                                other_visible=True, wall_initial_vis_only=True,
+                                                inferred_choice=inferred_choice, current_fov=current_fov, inverse_other_visible=False,
                                                 return_trial_indices=True, debug=False)
             (prob_not_visible,
             filtered_indices_not_visible,
             filtered_choice_indices_not_visible) = conditioned_player_choice.probability_trial_outcome_given_conditions(
                                                     trial_list_filtered, player_id, 
                                                     visible_wall_index, chosen_wall_index,
-                                                    inferred_choice, current_fov, inverse_other_visible=True,
+                                                    other_visible=True, wall_initial_vis_only=True,
+                                                    inferred_choice=inferred_choice, current_fov=current_fov, inverse_other_visible=True,
                                                     return_trial_indices=True, debug=False)
             
             # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)
