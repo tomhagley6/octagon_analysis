@@ -91,6 +91,7 @@ def get_change_indices_smoothed_windows(headangles_array, steps):
         
     change_index_list = []
     index_list = []
+    angle_list = []
     
     for index in range(steps, len(headangles_array), steps):
         delta_yrot = headangles_array[index]-headangles_array[index-steps]
@@ -104,6 +105,7 @@ def get_change_indices_smoothed_windows(headangles_array, steps):
             
         change_index_list.append(change_index)
         index_list.append(index)
+        angle_list.append(delta_yrot)
 
     if not index_list:  #double-checking in case all values were skipped
         return np.zeros((2, 0), dtype=int)
@@ -112,7 +114,7 @@ def get_change_indices_smoothed_windows(headangles_array, steps):
     change_indices[0] = index_list
     change_indices[1] = change_index_list
     
-    return change_indices
+    return change_indices, angle_list
 
 
 
@@ -352,13 +354,13 @@ def sort_trials_by_CW_and_CCW_smoothed_window(trial_list, player_id, steps=10):
         else:
             change_indices = get_change_indices_smoothed_windows(headangles_array, steps)
 
-        first_50_timepoints = change_indices[1][:5]
+        first_50_changes = change_indices[0][:5]
 
-        if len(first_50_timepoints)==0:
+        if len(first_50_changes)==0:
             print(f"Skipping trial {trial_index}, no valid change indices found.")
             continue
 
-        count = Counter(first_50_timepoints)
+        count = Counter(first_50_changes)
         prominent_change = max(count, key=count.get)
         
         if prominent_change == -1:
@@ -369,6 +371,55 @@ def sort_trials_by_CW_and_CCW_smoothed_window(trial_list, player_id, steps=10):
             print(f"Unexpected values in first 50 change indices: {first_50_changes}")
             
     return CCW_trials, CW_trials
+
+                
+
+
+def sort_trials_angle_and_smoothed_window(trial_list, player_id, steps=10):
+    ''' Smooths change indices over ten time points. Computes the angle travelled for each
+    change indice and the total angle travelled within the first 50 time points. Sums angles
+    travelled for cw and ccw windows, respectively, and assigns trial cw/ccw accordingly. Note:
+    if the trial head angles are less than 10 a smaller window is taken, however,
+    first_50_changes assumes change indices are smoothed over 10 time points
+    '''
+
+    CCW_trials = []
+    CW_trials = []
+    equal_trials = []
+    
+    
+    for trial_index, trial in enumerate(trial_list):
+        
+        headangles_array = np.array(trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id))
+
+        if len(headangles_array) <= 1:
+            print(f"Trial number {trial_index} is empty")
+            continue
+            
+        elif len(headangles_array) < steps:
+            print(f"Taking less steps for {trial_index}, headangles length: {len(headangles_array)}, steps: {len(headangles_array)//2}")
+            steps = len(headangles_array) // 2
+            
+        change_indices, angle_list = get_change_indices_smoothed_windows(headangles_array, steps)
+
+        if change_indices.size == 0:  # No valid indices
+            print(f"Warning: No valid changes detected in trial {trial_index}, skipping...")
+            continue
+
+        first_5_smoothed_angle_differences = np.array(angle_list[:5])
+        first_5_assignments = change_indices[1][:5]
+
+        sum_squared_cw = np.sum((first_5_smoothed_angle_differences[first_5_assignments == 1]) ** 2)
+        sum_squared_ccw = np.sum((first_5_smoothed_angle_differences[first_5_assignments == -1]) ** 2)
+        if sum_squared_cw > sum_squared_ccw:
+            CW_trials.append(trial)
+        elif sum_squared_ccw > sum_squared_cw:
+            CCW_trials.append(trial)
+        else: 
+            print("equal angular displacement")
+            equal_trials.append(trial)
+   
+    return CCW_trials, CW_trials, equal_trials
 
                 
 
