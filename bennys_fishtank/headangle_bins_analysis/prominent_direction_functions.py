@@ -330,7 +330,7 @@ from collections import Counter
 def sort_trials_by_CW_and_CCW_smoothed_window(trial_list, player_id, steps=10):
     ''' Currently: smooths change indices over ten time points and determines assignment (cw/ccw) based on the most
     prominent direction in the first 50 10-time-point windows (approx. 1 sec). Note: if the trial head angles are less
-    than 10 a smaller window is taken
+    than 10 a smaller window is taken, however, first_50_changes assumes change indices are smoothed over 10 time points
     '''
 
     CCW_trials = []
@@ -352,13 +352,13 @@ def sort_trials_by_CW_and_CCW_smoothed_window(trial_list, player_id, steps=10):
         else:
             change_indices = get_change_indices_smoothed_windows(headangles_array, steps)
 
-        first_50_changes = change_indices[1][:50]
+        first_50_timepoints = change_indices[1][:5]
 
-        if len(first_50_changes)==0:
+        if len(first_50_timepoints)==0:
             print(f"Skipping trial {trial_index}, no valid change indices found.")
             continue
 
-        count = Counter(first_50_changes)
+        count = Counter(first_50_timepoints)
         prominent_change = max(count, key=count.get)
         
         if prominent_change == -1:
