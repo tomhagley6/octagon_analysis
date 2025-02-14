@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -17,7 +17,7 @@ import analysis.conditioned_player_choice as conditioned_player_choice
 
 # ### Get positions and headangles
 
-# In[ ]:
+# In[2]:
 
 
 def get_player_position_slice_onset(player_id, trial=None, trial_list=None, trial_index=None):
@@ -41,7 +41,7 @@ def get_player_position_slice_onset(player_id, trial=None, trial_list=None, tria
     return player_position_coordinates
 
 
-# In[ ]:
+# In[3]:
 
 
 def get_player_headangle_vector_slice_onset(player_id, trial=None, trial_list=None, trial_index=None):
@@ -68,7 +68,7 @@ def get_player_headangle_vector_slice_onset(player_id, trial=None, trial_list=No
 
 
 
-# In[ ]:
+# In[4]:
 
 
 def calculate_vector_norms_for_timepoint(self_other_vector, self_head_angle_vector):
@@ -84,7 +84,7 @@ def calculate_vector_norms_for_timepoint(self_other_vector, self_head_angle_vect
     return head_angle_vector_norm, self_to_other_vector_norm
 
 
-# In[ ]:
+# In[5]:
 
 
 def calculate_angle_to_opponent_from_positions_and_headangle(self_position, other_position,
@@ -118,7 +118,7 @@ def calculate_angle_to_opponent_from_positions_and_headangle(self_position, othe
 
 
 
-# In[ ]:
+# In[6]:
 
 
 def get_two_player_positions_slice_onset(player_id, trial=None, trial_list=None, trial_index=None):
@@ -133,7 +133,7 @@ def get_two_player_positions_slice_onset(player_id, trial=None, trial_list=None,
     return self_position, other_position
 
 
-# In[ ]:
+# In[7]:
 
 
 # Umbrella function to find trial start angle-to-opponent for a single player for one trial
@@ -161,7 +161,7 @@ def get_angle_of_opponent_from_player_trial(player_id, trial=None, trial_list=No
     
 
 
-# In[ ]:
+# In[8]:
 
 
 # MAIN Umbrella function to repeat trial start angle identification for a single player for one session
@@ -181,7 +181,7 @@ def get_angle_of_opponent_from_player_session(player_id, trial_list):
     
 
 
-# In[ ]:
+# In[9]:
 
 
 def get_other_visible_session(orientation_angle_to_other_session, current_fov):
@@ -242,9 +242,9 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
         trial_list_filtered = [trial_list[i] for i in trial_indices]
 
         # also filter trial list by specific wall separation if specified
-        if wall_sep:
-            trial_indices = get_indices.get_trials_with_wall_sep(trial_list_filtered, trial_type=trial_type)
-            trial_list_filtered = [trial_list[i] for i in trial_indices]
+        if wall_sep is not None:
+            trial_indices = get_indices.get_trials_with_wall_sep(trial_list_filtered, wall_sep=wall_sep)
+            trial_list_filtered = [trial_list_filtered[i] for i in trial_indices]
 
 
         # iterate over both player IDs (0 and 1)
@@ -256,7 +256,8 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                 trial_list_filtered, player_id, 
                                                 visible_wall_index, chosen_wall_index,
                                                 other_visible=True, wall_initial_vis_only=True,
-                                                inferred_choice=inferred_choice, current_fov=current_fov, inverse_other_visible=False,
+                                                inferred_choice=inferred_choice, current_fov=current_fov,
+                                                inverse_other_visible=False,
                                                 return_trial_indices=True, debug=False)
             (prob_not_visible,
             filtered_indices_not_visible,
@@ -264,7 +265,8 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                     trial_list_filtered, player_id, 
                                                     visible_wall_index, chosen_wall_index,
                                                     other_visible=True, wall_initial_vis_only=True,
-                                                    inferred_choice=inferred_choice, current_fov=current_fov, inverse_other_visible=True,
+                                                    inferred_choice=inferred_choice, current_fov=current_fov,
+                                                    inverse_other_visible=True,
                                                     return_trial_indices=True, debug=False)
             
             # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)

@@ -47,7 +47,7 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
        trial_list_filtered = trial_list
 
     
-    if other_visible is not None:
+    if other_visible:
       # get Other visibility status for this session and player_id
       orientation_angle_to_other_session = opponent_visibility.get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
       other_visible_session = opponent_visibility.get_other_visible_session(orientation_angle_to_other_session, current_fov)
