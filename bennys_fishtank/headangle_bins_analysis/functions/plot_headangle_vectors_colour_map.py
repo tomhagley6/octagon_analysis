@@ -74,9 +74,11 @@ def plot_trial_headangle_vectors_colour_map(ax, trial_list=None, trial_index=0, 
     wall2_index = walls[1] - 1
 
     # scatter wall points
-    plt.scatter(alcove_coordinates[0,wall1_index], alcove_coordinates[1,wall1_index], c='r', s=15)
-    plt.scatter(alcove_coordinates[0,wall2_index], alcove_coordinates[1,wall2_index], c='b', s=15)
-
+    #plt.scatter(alcove_coordinates[0,wall1_index], alcove_coordinates[1,wall1_index], c='r', s=50)
+    #plt.scatter(alcove_coordinates[0,wall2_index], alcove_coordinates[1,wall2_index], c='b', s=50)
+    # Use ax.scatter() to plot walls on the correct axis
+    ax.scatter(alcove_coordinates[0, wall1_index], alcove_coordinates[1, wall1_index], c='r', s=50, zorder=5)
+    ax.scatter(alcove_coordinates[0, wall2_index], alcove_coordinates[1, wall2_index], c='b', s=50, zorder=5)
 
     # hide spines and ticks
     for spine in ax.spines.values():
@@ -86,7 +88,7 @@ def plot_trial_headangle_vectors_colour_map(ax, trial_list=None, trial_index=0, 
     ax.set_yticklabels([])
 
     # ddd colorbar
-    cbar = plt.colorbar(color_map, ax=ax, orientation="vertical")
-    cbar.set_label("Time Index")
+    #cbar = plt.colorbar(color_map, ax=ax, orientation="vertical")
+    #cbar.set_label("Time Index")
 
     return ax
