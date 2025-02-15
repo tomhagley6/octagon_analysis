@@ -1,6 +1,6 @@
 # data folder
-DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
-# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
+# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -9,28 +9,28 @@ JSON_FILENAMES_SOCIAL_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-3
                    r'third_experiments_2410\241017\2024-10-17_14-28-40_ShamirAbigailSocial.json',
                    r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json']
 
-# all socials
+  # all socials
 JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_YansuJerrySocial.json',
-                   r'second_experiments_2409\240927\2024-09-27_14-25-20_SaraEmilySocial.json',
-                   r'third_experiments_2410\241017\2024-10-17_14-28-40_ShamirAbigailSocial.json',
-                   r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json',
-                   r'fifth_experiments_241112\2024-11-12_13-31-14_KhadijaWendySocial.json',
-                   r'sixth_experiments_241112\2024-11-12_15-23-24_FrancescaSenSzeSocial.json',
-                   r'seventh_experiments_241113\2024-11-13_14-18-54_NasiaRyanSocial.json',
-                   r'eighth_experiments_241113\2024-11-13_15-28-07_YichuanHoiSocial.json',
-                   r'ninth_experiments_241119\2024-11-19_14-24-49_AmyXinyuanSocial.json',
-                   r'tenth_experiments_241119\2024-11-19_15-22-56_SophiaHocineSocial.json',
-                   r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
-                   r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json',
-                   r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
-                   r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json',
-                   r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
-                   r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json',
-                   r'241219_1\2024-12-19_15-28-24_JingjingYeungSocial.json',
-                #    r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json' # removed because of strategy difference
-                   r'250115_1\2025-01-15_15-21-27_YixuanMarcoSocial.json',
-                   r'250115_2\2025-01-15_16-27-23_YuChunRuiqingSocial.json'
-                   ]
+                  r'second_experiments_2409\240927\2024-09-27_14-25-20_SaraEmilySocial.json',
+                  r'third_experiments_2410\241017\2024-10-17_14-28-40_ShamirAbigailSocial.json',
+                  r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json',
+                  r'fifth_experiments_241112\2024-11-12_13-31-14_KhadijaWendySocial.json',
+                  r'sixth_experiments_241112\2024-11-12_15-23-24_FrancescaSenSzeSocial.json',
+                  r'seventh_experiments_241113\2024-11-13_14-18-54_NasiaRyanSocial.json',
+                  r'eighth_experiments_241113\2024-11-13_15-28-07_YichuanHoiSocial.json',
+                  r'ninth_experiments_241119\2024-11-19_14-24-49_AmyXinyuanSocial.json',
+                  r'tenth_experiments_241119\2024-11-19_15-22-56_SophiaHocineSocial.json',
+                  r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
+                  r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json',
+                  r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
+                  r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json',
+                  r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
+                  r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json',
+                  r'241219_1\2024-12-19_15-28-24_JingjingYeungSocial.json',
+              #    r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json' # removed because of strategy difference
+                  r'250115_1\2025-01-15_15-21-27_YixuanMarcoSocial.json',
+                  r'250115_2\2025-01-15_16-27-23_YuChunRuiqingSocial.json'
+                  ]
 
 
 
