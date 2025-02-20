@@ -38,10 +38,10 @@ def prepare_single_session_data(data_folder, json_filename):
     return df, trial_list
 
 
-# In[11]:
+# In[ ]:
 
 
-def prepare_combined_session_data(data_folder, json_filenames):
+def prepare_combined_session_data(data_folder, json_filenames, drop_trial_zero=True):
     ''' Load and preprocess multiple dataframes, and concatenate
         Returns: full dataframe, list of trials '''
 
@@ -49,7 +49,7 @@ def prepare_combined_session_data(data_folder, json_filenames):
     df = combine_sessions.combine_sessions(data_folder, json_filenames)
 
     # (parse_data/split_session_by_trial.py)
-    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=False)
+    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=drop_trial_zero)
 
     return df, trial_list
 

@@ -124,7 +124,8 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                             chosen_wall_index=None, visible_wall_index=None,
                                                             other_visible=None, wall_initial_vis_only=False,
                                                              solo=False, wall_sep=None, inverse_other_visible=False,
-                                                            trial_type=globals.HIGH_LOW, debug=True):
+                                                            trial_type=globals.HIGH_LOW,
+                                                             data_size_cutoff=4, debug=True):
     
     ''' Returns two dictionaries: probabilities and trial_data.
         probabilities contains the probability of trial outcome given conditions for each session and player.
@@ -180,7 +181,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
             filtered_choice_indices_visible) = probability_trial_outcome_given_conditions(trial_list_filtered, player_id, 
                                                 visible_wall_index, chosen_wall_index, other_visible, wall_initial_vis_only,
                                                 inferred_choice, current_fov, inverse_other_visible,
-                                                return_trial_indices=True, debug=debug)
+                                                return_trial_indices=True, data_size_cutoff=data_size_cutoff, debug=debug)
 
             if not solo:
               # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)

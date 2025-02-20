@@ -22,7 +22,8 @@ import data_extraction.trial_list_filters as trial_list_filters
 # In[ ]:
 
 
-def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels, ylabel, ylim=(0.0,1), set_aspect=3):
+def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_labels, ylabel, xlabel="",
+                                     ylim=(0.0,1), set_aspect=3, fontsize=16):
     ''' Plotting function to plot wall choice probability paired data across any number
         of conditions.
         Assumes each datapoint in the pair is from a single subject's session data.
@@ -49,13 +50,15 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
         "Condition": labels
     })
 
+
     # # Generate distinct colors for each individual
-    # colors = plt.cm.viridis(np.linspace(0, 1, (first_wall_seen).size))
+    paired = sns.color_palette("Paired")
+    custom_palette = [paired[0], paired[1], paired[2]]
 
     # Plot
     plt.figure(figsize=(4*num_datasets, 5))
-    sns.boxplot(x="Condition", y="Probability", data=df, palette="Paired", width=.8)
-    
+    sns.boxplot(x="Condition", y="Probability", data=df, palette=custom_palette, width=.8)
+
     # Draw lines connecting paired data points
     for i in range(dataset_size):
         # print(f"{len(wall_choice_labels)}, {len([dataset.ravel()[i] for dataset in wall_choice_probabilities])}")
@@ -70,8 +73,11 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
         )
 
     # plt.title("Probability of Choosing First Wall Seen vs. First Wall Seen (Low)")
-    plt.ylabel(ylabel)
-    plt.xlabel("")
+    plt.ylabel(ylabel, fontsize=fontsize)
+    plt.xlabel(xlabel, fontsize=fontsize)
+
+    plt.xticks(fontsize=fontsize - 4)
+
     plt.ylim(ylim)  # Set y-axis limits for probabilities
     plt.gca().set_aspect(set_aspect)    
     plt.tight_layout()
@@ -80,7 +86,7 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
 
-    plt.show()
+    return plt.gca()
 
 
 # ### Plot ratio of player performance against the ratio of probability of players choosing Low when first visible 

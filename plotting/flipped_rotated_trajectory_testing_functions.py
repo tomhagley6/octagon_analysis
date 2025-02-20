@@ -25,10 +25,10 @@ import plotting.wall_visibility_order_testing_functions as wall_visibility_order
 import parse_data.flip_rotate_trajectories as flip_rotate_trajectories
 
 
-# In[1]:
+# In[ ]:
 
 
-def get_trajectory_information_trial(chosen_walls_session, trial=None, trial_list=None, trial_index=None, player_id=0):
+def get_trajectory_information_trial(chosen_walls_session, trial=None, trial_list=None, trial_index=None, flip=True):
     '''Gather single trial data for trajectory rotation plots.
        Takes trial list, index, and chosen walls for the session
        Returns the trial df, rotation angle to be applied, rotated and flipped df,
@@ -43,20 +43,20 @@ def get_trajectory_information_trial(chosen_walls_session, trial=None, trial_lis
     # trial rotation angle
     rotation_angle_trial = flip_rotate_trajectories.find_rotation_angle_trial(trial)
 
-    rotated_flipped_trial = flip_rotate_trajectories.flip_rotate_trajectories(trial)
+    rotated_flipped_trial = flip_rotate_trajectories.flip_rotate_trajectories(trial, flip=flip)
 
     # trial walls
-    walls = get_indices.get_walls(trial_list=trial_list, trial_index=trial_index)
+    walls = get_indices.get_walls(trial=trial, trial_list=trial_list, trial_index=trial_index)
     chosen_wall = chosen_walls_session[trial_index]
 
 
     return (trial, rotation_angle_trial, rotated_flipped_trial, walls, chosen_wall)
 
 
-# In[3]:
+# In[ ]:
 
 
-def plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=None):
+def plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=None, scatter=False):
     ''' Plot two subplots of single trial trajectories, with separate winner and loser
         colours.
         Left subplot is without flipping and rotating, right subplot is with.
@@ -65,8 +65,8 @@ def plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=No
     axes[0] = plot_octagon.plot_octagon(ax=axes[0])
     axes[1] = plot_octagon.plot_octagon(ax=axes[1])
 
-    axes[0] = plot_trajectory.plot_trial_trajectory(axes[0], trial=trial, label=label)
-    axes[1] = plot_trajectory.plot_trial_trajectory(axes[1], trial=rotated_flipped_trial, label=label)
+    axes[0] = plot_trajectory.plot_trial_trajectory(axes[0], trial=trial, label=label, scatter=scatter)
+    axes[1] = plot_trajectory.plot_trial_trajectory(axes[1], trial=rotated_flipped_trial, label=label, scatter=scatter)
 
     # change plot params
     for ax in axes:
@@ -81,21 +81,21 @@ def plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=No
 # In[ ]:
 
 
-def plot_single_trial_flip_rotate_trajectories(trial_list, chosen_walls_session, trial_index, player_id=0):
+def plot_single_trial_flip_rotate_trajectories(trial_list, chosen_walls_session, trial_index, flip=True, scatter=False):
     ''' Umbrella function to plot trajectories for a single trial, pre- and post- flip/rotating respectively.
         Takes a list of trials, the chosen walls for a session, and the trial index.
         Returns High wall val, Low wall val, and the chosen wall val.'''
 
-    fig, axes = plt.subplots(1,2)
+    fig, axes = plt.subplots(1,2, figsize=(12,24))
 
     # get trajectory information
     (trial, rotation_angle_trial, rotated_flipped_trial, walls, chosen_wall) = get_trajectory_information_trial(trial_list=trial_list,
                                                                                                                  trial_index=trial_index,
                                                                                                                  chosen_walls_session=chosen_walls_session,
-                                                                                                                   player_id=player_id)
+                                                                                                                   flip=flip)
 
     # plot trajectories for this trial
-    axes = plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=axes)
+    axes = plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=axes, scatter=scatter)
 
     # show the plot
     plt.show()
@@ -107,7 +107,7 @@ def plot_single_trial_flip_rotate_trajectories(trial_list, chosen_walls_session,
 # In[ ]:
 
 
-def plot_multiple_trials_flip_rotate_trajectories(trial_list, chosen_walls_session, rows=12, cols=12, trial_num_offset=0, player_id=0,
+def plot_multiple_trials_flip_rotate_trajectories(trial_list, chosen_walls_session, rows=12, cols=12, trial_num_offset=0, flip=True,
                                                vector_length=20, wall_index=None, start_index=0):
     ''' Display a rows,cols figure of subplots showing the flipped and rotated trajectories for both players in single trials.
         Plots are in pairs, with the first plotted being pre-flip and the second being post-flip.
@@ -121,31 +121,34 @@ def plot_multiple_trials_flip_rotate_trajectories(trial_list, chosen_walls_sessi
     # loop through each trial index
     for i in range(rows):
         # loop through -1 as we plot 2 subplots per loop
-        for j in range(0,cols,2):
-            trial_index = i*rows + j + trial_num_offset
+        for j in range(int(cols/2)):
+            trial_index = i*(int(cols/2)) + j + trial_num_offset
 
             try:
                 # get trajectory information
                 (trial, rotation_angle_trial, rotated_flipped_trial, walls,
                     chosen_wall) = get_trajectory_information_trial(trial_list=trial_list, trial_index=trial_index,
                                                                                         chosen_walls_session=chosen_walls_session,
-                                                                                            player_id=player_id)
+                                                                                            flip=flip)
 
                     
             except Exception as e:
                 index_out_of_range_flag = True
                 exception_text = e
-                axes[i, j].axis('off')
-                axes[i, j+1].axis('off')
+                axes[i, j*2].axis('off')
+                axes[i, j*2+1].axis('off')
                 continue
             
             
             # plot visualisation vectors for this trial
-            axes[i,j:j+2] = plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=axes[i,j:j+2])
+            axes[i,j*2:j*2+2] = plot_octagon_trajectories(trial, rotated_flipped_trial, label=False, axes=axes[i,j*2:j*2+2])
 
             
     if index_out_of_range_flag:
         print(f"Exception: {exception_text}, no trials left?")
+
+    final_trial_num = min((rows*(int(cols/2)) + trial_num_offset), len(trial_list))
+    print(f"Plotting up to trial number: {final_trial_num}")
     
     # adjust layout to prevent overlap
     plt.tight_layout()
@@ -163,14 +166,17 @@ def plot_player_start_positions(rotated_flipped_trial, chosen_player, label=Fals
         Left subplot is without flipping and rotating, right subplot is with.
         Takes the trial df, and the rotated and flipped trial df.'''
         
-    ax = plot_octagon.plot_octagon(ax=axes)
+    if axes is None:    
+        axes = plot_octagon.plot_octagon()
 
-    ax = plot_trajectory.plot_trial_slice_onset_positions(ax, chosen_player, trial=rotated_flipped_trial, label=label)
+    axes = plot_trajectory.plot_trial_slice_onset_positions(axes, chosen_player, trial=rotated_flipped_trial, label=label)
 
     # change plot params
-    for spine in ax.spines.values():
+    for spine in axes.spines.values():
         spine.set_visible(False)
-        ax.tick_params(left=False, bottom=False)  # Turn off major ticks
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
+        axes.tick_params(left=False, bottom=False)  # Turn off major ticks
+        axes.set_xticklabels([])
+        axes.set_yticklabels([])
+
+    return axes
 

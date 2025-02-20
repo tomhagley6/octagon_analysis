@@ -76,11 +76,11 @@ def plot_trial_trajectory_colour_map(ax, trial_list=None, trial_index=0, cmap_wi
     
 
 
-# In[9]:
+# In[ ]:
 
 
 def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c', colour_loser='m',
-                   s=0.5, trial=None, label=False):
+                   s=1, linewidth=2, trial=None, label=False, scatter=False):
     ''' Plot the trajectories of each player for a single trial, with separate colours for winner and loser '''
 
     
@@ -112,13 +112,22 @@ def plot_trial_trajectory(ax, trial_list=None, trial_index=0, colour_winner='c',
     labels = ['winner', 'loser']
     for i in range(num_players):
         colour_index = 0 if i == trigger_activating_client else 1
-        if label: # include some labels for the legend
-            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1,
-                    color=colours[colour_index], label=labels[colour_index])
+        x = coordinate_arrays[coordinate_array_labels[2*i]]
+        y = coordinate_arrays[coordinate_array_labels[2*i+1]]
+        
+        if not scatter:
+            if label: # include some labels for the legend
+                ax.plot(x,y, markersize=2, linewidth=linewidth,
+                        color=colours[colour_index], label=labels[colour_index])
+            else:
+                ax.plot(x,y, markersize=2, linewidth=linewidth,
+                        color=colours[colour_index])
         else:
-            ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1,
-                    color=colours[colour_index])
+            c = np.arange(len(x))
+            ax.scatter(x[::3],y[::3], s=s, c=c[::3], cmap='viridis')
 
+    
+    
     # plt.legend()
 
 
@@ -176,7 +185,9 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     colours = [colour_wall1, colour_wall2]
     x_coordinates = coordinate_arrays[coordinate_array_labels[0]]
     y_coordinates = coordinate_arrays[coordinate_array_labels[1]]
-    ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1], alpha=alpha)
+    c = np.arange(len(x_coordinates))
+    # ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1], alpha=alpha)
+    ax.scatter(x_coordinates[::2], y_coordinates[::2], s=1., c=c[::2], cmap='viridis', alpha=alpha)
 
     # testing = x_coordinates[0], y_coordinates[0]
     # print(testing)
@@ -184,10 +195,11 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     return ax 
 
 
-# In[2]:
+# In[ ]:
 
 
-def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=0.7, chosen_player=None, slice_onset_markers=False):
+def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=0.9, chosen_player=None,
+                             slice_onset_markers=False, titles=True):
     ''' Plot the continuous trajectory for an entire session for each player '''
 
     # find number of players to plot for
@@ -215,10 +227,11 @@ def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='
                 ax.plot(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], markersize=1, color=colours[i], alpha=alpha, label=f'player {i+1}')
 
     # add title
-    main_title = "Whole session trajectory" 
-    title_supp = f" for player {chosen_player+1}" if chosen_player is not None else ""
-    title_string = main_title + title_supp
-    ax.set_title(title_string)
+    if titles:
+        main_title = "Whole session trajectory" 
+        title_supp = f" for player {chosen_player+1}" if chosen_player is not None else ""
+        title_string = main_title + title_supp
+        ax.set_title(title_string)
         
 
     return ax
@@ -232,14 +245,14 @@ def mark_session_slice_onsets(ax, df, chosen_player, s=10, color='k'):
         indicating position of slice onset'''
 
     slice_onset_indices = df[df['eventDescription'] == globals.SLICE_ONSET].index
-    slice_onset_indices = np.array([i for i in slice_onset_indices])
+    slice_onset_indices = np.array(slice_onset_indices)
 
     # find x and y location values for slice onset indicies
     x_loc_slice_onsets = df[globals.PLAYER_LOC_DICT[chosen_player]['xloc']].loc[slice_onset_indices]
     y_loc_slice_onsets = df[globals.PLAYER_LOC_DICT[chosen_player]['yloc']].loc[slice_onset_indices]
 
     # plot these locations as markers on an existing plot (expected to have a full session trajectory)
-    ax.scatter(x_loc_slice_onsets, y_loc_slice_onsets, color=color, s=s)
+    ax.scatter(x_loc_slice_onsets, y_loc_slice_onsets, color=color, s=s, zorder=9001)
 
 
     return ax
@@ -248,7 +261,8 @@ def mark_session_slice_onsets(ax, df, chosen_player, s=10, color='k'):
 # In[ ]:
 
 
-def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=None, trial_index=None, s=36, colours=['b', 'g'],
+def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=None, trial_index=None, s=36,
+                                      colours=['darkcyan', 'coral'],
                                       label=None):
 
     ''' Plot the trajectories of each player for a single trial, with separate colours for winner and loser '''
@@ -278,14 +292,31 @@ def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=N
     labels = ['Self', 'Other']
     for i in range(num_players):
         colour_index = 0 if i == chosen_player else 1
+        x = coordinate_arrays[coordinate_array_labels[2*i]]
+        y = coordinate_arrays[coordinate_array_labels[2*i+1]]
         if label: # include some labels for the legend
-            ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=s,
-                    color=colours[colour_index], label=labels[colour_index])
+            ax.scatter(x, y, s=s,
+                    color=colours[colour_index], label=labels[colour_index], zorder=9001)
         else:
-            ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=s,
-                    color=colours[colour_index])
+            ax.scatter(x, y, s=s,
+                    color=colours[colour_index], zorder=9001)
+    
+    # print(type(coordinate_arrays[coordinate_array_labels[0]]), (coordinate_arrays[coordinate_array_labels[0]]))
+    p0_pos = [coordinate_arrays[coordinate_array_labels[0]], coordinate_arrays[coordinate_array_labels[1]]]
+    p1_pos = [coordinate_arrays[coordinate_array_labels[2]], coordinate_arrays[coordinate_array_labels[3]]]
 
-    # plt.legend()
+    p0_p1_pos = list(zip(p0_pos, p1_pos))
+    x = p0_p1_pos[0]
+    y = p0_p1_pos[1]
+    
+    ax.plot(x,y, c='k', alpha=0.5)
+    
+
+
+
+    
+
+    plt.legend(loc='upper right')
 
 
     return ax

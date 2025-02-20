@@ -208,6 +208,7 @@ def get_other_visible_session(orientation_angle_to_other_session, current_fov):
 def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferred_choice, current_fov,
                                                             chosen_wall_index=None, visible_wall_index=None,
                                                             wall_sep=None, trial_type=globals.HIGH_LOW,
+                                                            data_size_cutoff=6,
                                                             debug=False):
     ''' Returns two dictionaries: probabilities and trial_data.
         probabilities contains the probability of trial outcome given conditions for each session and player,
@@ -257,7 +258,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                 visible_wall_index, chosen_wall_index,
                                                 other_visible=True, wall_initial_vis_only=True,
                                                 inferred_choice=inferred_choice, current_fov=current_fov,
-                                                inverse_other_visible=False,
+                                                inverse_other_visible=False, data_size_cutoff=data_size_cutoff,
                                                 return_trial_indices=True, debug=False)
             (prob_not_visible,
             filtered_indices_not_visible,
@@ -266,7 +267,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                     visible_wall_index, chosen_wall_index,
                                                     other_visible=True, wall_initial_vis_only=True,
                                                     inferred_choice=inferred_choice, current_fov=current_fov,
-                                                    inverse_other_visible=True,
+                                                    inverse_other_visible=True, data_size_cutoff=data_size_cutoff,
                                                     return_trial_indices=True, debug=False)
             
             # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)
