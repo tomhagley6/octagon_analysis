@@ -198,7 +198,7 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
 # In[ ]:
 
 
-def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=0.9, chosen_player=None,
+def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=1, chosen_player=None,
                              slice_onset_markers=False, titles=True):
     ''' Plot the continuous trajectory for an entire session for each player '''
 

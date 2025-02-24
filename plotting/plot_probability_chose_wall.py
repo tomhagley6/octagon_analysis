@@ -53,7 +53,7 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
 
     # # Generate distinct colors for each individual
     paired = sns.color_palette("Paired")
-    custom_palette = [paired[0], paired[1], paired[2]]
+    custom_palette = [paired[2], paired[3], paired[2]]
 
     # Plot
     plt.figure(figsize=(4*num_datasets, 5))
@@ -302,7 +302,7 @@ def get_proportion_scores_df(trial_lists):
 # In[ ]:
 
 
-def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choose_high, black_lines=False):
+def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choose_high, black_lines=False, fontsize=16):
     ''' Plot paired data line graph of the probability of choosing High across
         solo and social conditions. 
         Takes a num_sessions*num_players social array and a 1D solo array of the same size.
@@ -326,7 +326,7 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
         
         solo_p_choose_high = solo_p_choose_high[0]
 
-        plt.figure(figsize=(4, 5))
+        plt.figure(figsize=(4,8), dpi=300)
 
         # Plot lines for each individual
         for i in individuals:
@@ -338,17 +338,28 @@ def plot_probability_choose_high_solo_social(social_p_choose_high, *solo_p_choos
             if np.any(nan_mask): # if nan value present
                 print(f"NaN value in probabilities: {probabilities}. Dropping this point from the combined plot.")
             
+            # plt.plot(conditions[~nan_mask], probabilities[~nan_mask], 
+            #         marker='o', linestyle='-', color=colors[i], alpha=0.7)
+
             plt.plot(conditions[~nan_mask], probabilities[~nan_mask], 
-                    marker='o', linestyle='-', color=colors[i], alpha=0.7)
+                     'k-',
+                      alpha=0.8, linewidth='2', zorder=0)
+            if not nan_mask[0]:
+                plt.scatter(conditions[0], probabilities[0], color='darkcyan', s=120)
+            if not nan_mask[1]:
+                plt.scatter(conditions[1], probabilities[1], color='coral', s=120)
+        
+        # plt.plot([0,1], [np.nanmean(solo_p_choose_high), np.nanmean(social_p_choose_high)],
+        #                     marker='x', color='red', label='Average', linewidth=2, linestyle='--')
 
-        plt.plot([0,1], [np.nanmean(solo_p_choose_high), np.nanmean(social_p_choose_high)],
-                            marker='x', color='red', label='Average', linewidth=2, linestyle='--')
-
-        plt.ylabel('P(Choose High)')
-        plt.xticks([0, 1], [' Combined Solo', 'Social'])
-        plt.ylim(0, 1.1)
+        plt.ylabel('P(Choose High)', fontsize=fontsize)
+        plt.xticks([0, 1], ['Solo', 'Competition'], fontsize=fontsize)
+        yticks = plt.yticks()[0]
+        plt.yticks(yticks[1:], fontsize=fontsize - 2)  # Skip the first tick
+        plt.ylim(0.3, 1.05)
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
+        # plt.tight_layout()
         plt.show()
 
     elif len(solo_p_choose_high) == 2: # plot for separated pre- and post solo data
