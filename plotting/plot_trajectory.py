@@ -289,7 +289,7 @@ def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=N
 
     # scatter each players trajectory, with a unique colour map for the winning player
     # colours = [colour_winner, colour_loser]
-    labels = ['Self', 'Other']
+    labels = ['Self', 'Opponent']
     for i in range(num_players):
         colour_index = 0 if i == chosen_player else 1
         x = coordinate_arrays[coordinate_array_labels[2*i]]
@@ -316,7 +316,7 @@ def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=N
 
     
 
-    plt.legend(loc='upper right')
+    plt.legend(loc='upper right', fontsize=9)
 
 
     return ax

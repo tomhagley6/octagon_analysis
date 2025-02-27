@@ -72,11 +72,14 @@ def boxplot_probability_choose_wall(wall_choice_probabilities, wall_choice_label
             alpha=0.4
         )
 
+    # plt.hlines(0.5, -0.4, +1.4, color='k', linestyles='dashed', zorder=-1, alpha=0.5)
+
     # plt.title("Probability of Choosing First Wall Seen vs. First Wall Seen (Low)")
     plt.ylabel(ylabel, fontsize=fontsize)
     plt.xlabel(xlabel, fontsize=fontsize)
 
     plt.xticks(fontsize=fontsize - 4)
+    plt.yticks(fontsize=fontsize - 4)
 
     plt.ylim(ylim)  # Set y-axis limits for probabilities
     plt.gca().set_aspect(set_aspect)    
