@@ -28,7 +28,7 @@ def extract_trial(trial, trial_list, trial_index):
     return this_trial
 
 
-# In[3]:
+# In[ ]:
 
 
 def plot_trial_trajectory_colour_map(ax, trial_list=None, trial_index=0, cmap_winner=mpl.cm.spring, cmap_loser=mpl.cm.summer,
@@ -69,7 +69,7 @@ def plot_trial_trajectory_colour_map(ax, trial_list=None, trial_index=0, cmap_wi
     cmaps = [cmap_winner, cmap_loser]
     for i in range(num_players):
         cmap_index = 0 if i == trigger_activating_client else 1
-        ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=0.5, c=timestamps, cmap=cmaps[cmap_index], norm=norm)
+        ax.scatter(coordinate_arrays[coordinate_array_labels[2*i]], coordinate_arrays[coordinate_array_labels[2*i+1]], s=s, c=timestamps, cmap=cmaps[cmap_index], norm=norm)
 
 
     return ax
@@ -187,8 +187,8 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
     y_coordinates = coordinate_arrays[coordinate_array_labels[1]]
     c = np.arange(len(x_coordinates))
     # ax.plot(x_coordinates, y_coordinates, markersize=1, color=colours[0 if wall1_triggered else 1], alpha=alpha)
-    ax.scatter(x_coordinates[::2], y_coordinates[::2], s=1., c=c[::2], cmap='viridis', alpha=alpha)
-
+    g = ax.scatter(x_coordinates[::2], y_coordinates[::2], s=2., c=c[::2], cmap='viridis', alpha=alpha)
+    # cbar = plt.gcf().colorbar(g)
     # testing = x_coordinates[0], y_coordinates[0]
     # print(testing)
     
@@ -198,7 +198,7 @@ def plot_trial_winning_trajectory(ax, trial_list=None, trial_index=0, colour_wal
 # In[ ]:
 
 
-def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=1, chosen_player=None,
+def plot_session_trajectory(ax, df, colour_player_1='skyblue', colour_player_2='coral', alpha=0.9, chosen_player=None,
                              slice_onset_markers=False, titles=True):
     ''' Plot the continuous trajectory for an entire session for each player '''
 
@@ -289,7 +289,7 @@ def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=N
 
     # scatter each players trajectory, with a unique colour map for the winning player
     # colours = [colour_winner, colour_loser]
-    labels = ['Self', 'Opponent']
+    labels = ['Self', 'Other']
     for i in range(num_players):
         colour_index = 0 if i == chosen_player else 1
         x = coordinate_arrays[coordinate_array_labels[2*i]]
@@ -316,7 +316,7 @@ def plot_trial_slice_onset_positions(ax, chosen_player, trial=None, trial_list=N
 
     
 
-    plt.legend(loc='upper right', fontsize=9)
+    plt.legend(loc='upper right')
 
 
     return ax
