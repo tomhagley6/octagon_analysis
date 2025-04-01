@@ -1,6 +1,6 @@
 # data folder
-# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
-DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
+DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -10,130 +10,130 @@ JSON_FILENAMES_SOCIAL_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-3
                    r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json']
 
   # all socials
-JSON_FILENAMES_SOCIAL = [r'first_experiments_2409\240913\2024-09-13_11-31-00_YansuJerrySocial.json',
-                  r'second_experiments_2409\240927\2024-09-27_14-25-20_SaraEmilySocial.json',
-                  r'third_experiments_2410\241017\2024-10-17_14-28-40_ShamirAbigailSocial.json',
-                  r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json',
-                  r'fifth_experiments_241112\2024-11-12_13-31-14_KhadijaWendySocial.json',
-                  r'sixth_experiments_241112\2024-11-12_15-23-24_FrancescaSenSzeSocial.json',
-                  r'seventh_experiments_241113\2024-11-13_14-18-54_NasiaRyanSocial.json',
-                  r'eighth_experiments_241113\2024-11-13_15-28-07_YichuanHoiSocial.json',
-                  r'ninth_experiments_241119\2024-11-19_14-24-49_AmyXinyuanSocial.json',
-                  r'tenth_experiments_241119\2024-11-19_15-22-56_SophiaHocineSocial.json',
-                  r'eleventh_experiments_241120\2024-11-20_14-17-44_JasonRahulSocial.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-16-21_SunnyVinceSocial.json',
-                  r'241203_1\2024-12-03_14-31-51_PaulNicoleSocial.json',
-                  r'241203_2\2024-12-03_15-27-28_EstherBowimSocial.json',
-                  r'241210_1\2024-12-10_14-21-17_TaqwaTasSocial.json',
-                  r'241210_2\2024-12-10_15-20-11_RyanRoseSocial.json',
-                  r'241219_1\2024-12-19_15-28-24_JingjingYeungSocial.json',
-                 r'241220_1\2024-12-20_17-44-50_KirtanChristopherSocial.json', # removed because of strategy difference
-                  r'250115_1\2025-01-15_15-21-27_YixuanMarcoSocial.json',
-                  r'250115_2\2025-01-15_16-27-23_YuChunRuiqingSocial.json'
+JSON_FILENAMES_SOCIAL = [r'240913_1\2024-09-13_11-31-00_YW13_JL13_Social.json',
+                  r'240927_1\2024-09-27_14-25-20_SH31_EN31_Social.json',
+                  r'241017_1\2024-10-17_14-28-40_SA17_AW17_Social.json',
+                  r'241017_2\2024-10-17_16-41-38_ZH17_EM17_Social.json',
+                  r'241112_1\2024-11-12_13-31-14_KA12_WM12_Social.json',
+                  r'241112_2\2024-11-12_15-23-24_FA15_SS15_Social.json',
+                  r'241113_1\2024-11-13_14-18-54_NK14_RD14_Social.json',
+                  r'241113_2\2024-11-13_15-28-07_YL13_HK13_Social.json',
+                  r'241119_1\2024-11-19_14-24-49_AV19_XG19_Social.json',
+                  r'241119_2\2024-11-19_15-22-56_SB19_HH19_Social.json',
+                  r'241120_1\2024-11-20_14-17-44_JS20_RR20_Social.json',
+                  r'241120_2\2024-11-20_15-16-21_SZ20_VC20_Social.json',
+                  r'241203_1\2024-12-03_14-31-51_PO03_NN03_Social.json',
+                  r'241203_2\2024-12-03_15-27-28_EX03_BC03_Social.json',
+                  r'241210_1\2024-12-10_14-21-17_TE10_TK10_Social.json',
+                  r'241210_2\2024-12-10_15-20-11_RK10_RU10_Social.json',
+                  r'241219_1\2024-12-19_15-28-24_JL19_SY19_Social.json',
+                  r'241220_1\2024-12-20_17-44-50_KS20_CS20_Social.json', # removed because of strategy difference
+                  r'250115_1\2025-01-15_15-21-27_YY15_MR15_Social.json',
+                  r'250115_2\2025-01-15_16-27-23_YL15_RY15_Social.json'
                   ]
 
 
 
 # all solos
-JSON_FILENAMES_SOLO = [r'first_experiments_2409\240913\2024-09-13_11-23-37_YansuFirstSolo.json',
-                  r'first_experiments_2409\240913\2024-09-13_11-53-34_YansuSecondSolo.json',
-                  r'first_experiments_2409\240913\2024-09-13_11-23-50_JerryFirstSolo.json',
-                  r'first_experiments_2409\240913\2024-09-13_11-53-56_JerrySecondSolo.json',
+JSON_FILENAMES_SOLO = [r'240913_1\2024-09-13_11-23-37_YW13_FirstSolo.json',
+                  r'240913_1\2024-09-13_11-53-34_YW13_SecondSolo.json',
+                  r'240913_1\2024-09-13_11-23-50_JL13_FirstSolo.json',
+                  r'240913_1\2024-09-13_11-53-56_JL13_SecondSolo.json',
                   
-                  r'second_experiments_2409\240927\2024-09-27_14-14-31_SaraFirstSolo.json',
-                  r'second_experiments_2409\240927\2024-09-27_14-45-55_SaraSecondSolo.json',
-                  r'second_experiments_2409\240927\2024-09-27_14-14-42_EmilyFirstSolo.json',
-                  r'second_experiments_2409\240927\2024-09-27_14-45-46_EmilySecondSolo.json',
+                  r'240927_1\2024-09-27_14-14-31_SH31_FirstSolo.json ',
+                  r'240927_1\2024-09-27_14-45-55_SH31_SecondSolo.json',
+                  r'240927_1\2024-09-27_14-14-42_EN31_FirstSolo.json',
+                  r'240927_1\2024-09-27_14-45-46_EN31_SecondSolo.json',
                                     
-                  r'third_experiments_2410\241017\2024-10-17_14-20-28_ShamirFirstSolo.json',
-                  r'third_experiments_2410\241017\2024-10-17_14-50-03_ShamirSecondSolo.json',
-                  r'third_experiments_2410\241017\2024-10-17_14-20-50_AbigailFirstSolo.json',
-                  r'third_experiments_2410\241017\2024-10-17_14-51-22_AbigailSecondSolo.json',
+                  r'241017_1\2024-10-17_14-20-28_SA17_FirstSolo.json',
+                  r'241017_1\2024-10-17_14-50-03_SA17_SecondSolo.json',
+                  r'241017_1\2024-10-17_14-20-50_AW17_FirstSolo.json',
+                  r'241017_1\2024-10-17_14-51-22_AW17_SecondSolo.json',
 
-                  r'fourth_experiments_2410\241017\2024-10-17_16-35-45_ElsaFirstSolo.json',
-                  r'fourth_experiments_2410\241017\2024-10-17_17-12-29_ElsaSecondSolo.json',
-                  r'fourth_experiments_2410\241017\2024-10-17_16-36-0_ZimoFirstSolo.json',
-                  r'fourth_experiments_2410\241017\2024-10-17_17-11-46_ZimoSecondSolo.json',
+                  r'241017_2\2024-10-17_16-35-45_EM17_FirstSolo.json',
+                  r'241017_2\2024-10-17_17-12-29_EM17_SecondSolo.json',
+                  r'241017_2\2024-10-17_16-36-0_ZH17_FirstSolo.json',
+                  r'241017_2\2024-10-17_17-11-46_ZH17_SecondSolo.json',
                 
-                  r'fifth_experiments_241112\2024-11-12_13-19-22_KhadijaFirstSolo.json',
-                  r'fifth_experiments_241112\2024-11-12_13-50-23_KhadijaSecondSolo.json',
-                  r'fifth_experiments_241112\2024-11-12_13-18-59_WendyFirstSolo.json',
-                  r'fifth_experiments_241112\2024-11-12_13-50-20_WendySecondSolo.json',                 
+                  r'241112_1\2024-11-12_13-19-22_KA12_FirstSolo.json',
+                  r'241112_1\2024-11-12_13-50-23_KA12_SecondSolo.json',
+                  r'241112_1\2024-11-12_13-18-59_WM12_FirstSolo.json',
+                  r'241112_1\2024-11-12_13-50-20_WM12_SecondSolo.json',                 
 
-                  r'sixth_experiments_241112\2024-11-12_15-13-34_FrancescaFirstSolo.json',
-                  r'sixth_experiments_241112\2024-11-12_15-44-54_FrancescaSecondSolo.json',
-                  r'sixth_experiments_241112\2024-11-12_15-11-45_SenFirstSolo.json',
-                  r'sixth_experiments_241112\2024-11-12_15-45-35_SenSecondSolo.json',
+                  r'241112_2\2024-11-12_15-13-34_FA15_FirstSolo.json',
+                  r'241112_2\2024-11-12_15-44-54_FA15_SecondSolo.json',
+                  r'241112_2\2024-11-12_15-11-45_SS15_FirstSolo.json',
+                  r'241112_2\2024-11-12_15-45-35_SS15_SecondSolo.json',
                   
-                  r'seventh_experiments_241113\2024-11-13_14-12-43_NasiaFirstSolo.json',
-                  r'seventh_experiments_241113\2024-11-13_14-37-06_NasiaSecondSolo.json',
-                  r'seventh_experiments_241113\2024-11-13_14-12-41_RyanFirstSolo.json',
-                  r'seventh_experiments_241113\2024-11-13_14-37-20_RyanSecondSolo.json',
+                  r'241113_1\2024-11-13_14-12-43_NK14_FirstSolo.json',
+                  r'241113_1\2024-11-13_14-37-06_NK14_SecondSolo.json',
+                  r'241113_1\2024-11-13_14-12-41_RD14_FirstSolo.json',
+                  r'241113_1\2024-11-13_14-37-20_RD14_SecondSolo.json',
 
-                  r'eighth_experiments_241113\2024-11-13_15-22-20_YichuanFirstSolo.json',
-                  r'eighth_experiments_241113\2024-11-13_15-51-39_YichuanSecondSolo.json',
-                  r'eighth_experiments_241113\2024-11-13_15-21-50_HoiFirstSolo.json',
-                  r'eighth_experiments_241113\2024-11-13_15-51-16_HoiSecondSolo.json',
+                  r'241113_2\2024-11-13_15-22-20_YL13_FirstSolo.json',
+                  r'241113_2\2024-11-13_15-51-39_YL13_SecondSolo.json',
+                  r'241113_2\2024-11-13_15-21-50_HK13_FirstSolo.json',
+                  r'241113_2\2024-11-13_15-51-16_HK13_SecondSolo.json',
                   
-                  r'ninth_experiments_241119\2024-11-19_14-18-18_AmyFirstSolo.json',
-                  r'ninth_experiments_241119\2024-11-19_14-44-00_AmySecondSolo.json',
-                  r'ninth_experiments_241119\2024-11-19_14-18-44_XinyuanFirstSolo.json',
-                  r'ninth_experiments_241119\2024-11-19_14-44-31_XinyuanSecondSolo.json',
+                  r'241119_1\2024-11-19_14-18-18_AV19_FirstSolo.json',
+                  r'241119_1\2024-11-19_14-44-00_AV19_SecondSolo.json',
+                  r'241119_1\2024-11-19_14-18-44_XG19_FirstSolo.json',
+                  r'241119_1\2024-11-19_14-44-31_XG19_SecondSolo.json',
                   
-                  r'tenth_experiments_241119\2024-11-19_15-15-53_SophiaFirstSolo.json',
-                  r'tenth_experiments_241119\2024-11-19_15-47-53_SophiaSecondSolo.json',
-                  r'tenth_experiments_241119\2024-11-19_15-14-19_HocineFirstSolo.json',
-                  r'tenth_experiments_241119\2024-11-19_15-47-29_HocineSecondSolo.json',
+                  r'241119_2\2024-11-19_15-15-53_SB19_FirstSolo.json',
+                  r'241119_2\2024-11-19_15-47-53_SB19_SecondSolo.json',
+                  r'241119_2\2024-11-19_15-14-19_HH19_FirstSolo.json',
+                  r'241119_2\2024-11-19_15-47-29_HH19_SecondSolo.json',
 
-                  r'eleventh_experiments_241120\2024-11-20_14-12-06_JasonFirstSolo.json',
-                  r'eleventh_experiments_241120\2024-11-20_14-42-16_JasonSecondSolo.json',
-                  r'eleventh_experiments_241120\2024-11-20_14-12-33_RahulFirstSolo.json',
-                  r'eleventh_experiments_241120\2024-11-20_14-41-56_RahulSecondSolo.json',
+                  r'241120_1\2024-11-20_14-12-06_JS20_FirstSolo.json',
+                  r'241120_1\2024-11-20_14-42-16_JS20_SecondSolo.json',
+                  r'241120_1\2024-11-20_14-12-33_RR20_FirstSolo.json',
+                  r'241120_1\2024-11-20_14-41-56_RR20_SecondSolo.json',
 
-                  r'twelfth_experiments_241120\2024-11-20_15-10-00_SunnyFirstSolo.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-40-08_SunnySecondSolo.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-10-17_VinceFirstSolo.json',
-                  r'twelfth_experiments_241120\2024-11-20_15-39-49_VinceSecondSolo.json',
+                  r'241120_2\2024-11-20_15-10-00_SZ20_FirstSolo.json',
+                  r'241120_2\2024-11-20_15-40-08_SZ20_SecondSolo.json',
+                  r'241120_2\2024-11-20_15-10-17_VC20_FirstSolo.json',
+                  r'241120_2\2024-11-20_15-39-49_VC20_SecondSolo.json',
                   
-                  r'241203_1\2024-12-03_14-20-13_PaulFirstSolo.json',
-                  r'241203_1\2024-12-03_14-52-05_PaulSecondSolo.json',
-                  r'241203_1\2024-12-03_14-19-21_NicoleFirstSolo.json',
-                  r'241203_1\2024-12-03_14-52-30_NicoleSecondSolo.json',
+                  r'241203_1\2024-12-03_14-20-13_PO03_FirstSolo.json',
+                  r'241203_1\2024-12-03_14-52-05_PO03_SecondSolo.json',
+                  r'241203_1\2024-12-03_14-19-21_NN03_FirstSolo.json',
+                  r'241203_1\2024-12-03_14-52-30_NN03_SecondSolo.json',
   
-                  r'241203_2\2024-12-03_15-19-51_EstherFirstSolo.json',
-                  r'241203_2\2024-12-03_15-53-11_EstherSecondSolo.json',
-                  r'241203_2\2024-12-03_15-20-09_BowinFirstSolo.json',
-                  r'241203_2\2024-12-03_15-52-57_BowinSecondSolo.json',
+                  r'241203_2\2024-12-03_15-19-51_EX03_FirstSolo.json',
+                  r'241203_2\2024-12-03_15-53-11_EX03_SecondSolo.json',
+                  r'241203_2\2024-12-03_15-20-09_BC03_FirstSolo.json',
+                  r'241203_2\2024-12-03_15-52-57_BC03_SecondSolo.json',
 
-                  r'241210_1\2024-12-10_14-13-47_TaqwaFirstSolo.json',
-                  r'241210_1\2024-12-10_14-45-41_TaqwaSecondSolo.json',
-                  r'241210_1\2024-12-10_14-12-58_TasFirstSolo.json',
-                  r'241210_1\2024-12-10_14-45-09_TasSecondSolo.json',
+                  r'241210_1\2024-12-10_14-13-47_TE10_FirstSolo.json',
+                  r'241210_1\2024-12-10_14-45-41_TE10_SecondSolo.json',
+                  r'241210_1\2024-12-10_14-12-58_TK10_FirstSolo.json',
+                  r'241210_1\2024-12-10_14-45-09_TK10_SecondSolo.json',
                   
-                  r'241210_2\2024-12-10_15-12-18_RyanFirstSolo.json',
-                  r'241210_2\2024-12-10_15-42-27_RyanSecondSolo.json',
-                  r'241210_2\2024-12-10_15-11-46_RoseFirstSolo.json',
-                  r'241210_2\2024-12-10_15-41-53_RoseSecondSolo.json',
+                  r'241210_2\2024-12-10_15-12-18_RK10_FirstSolo.json',
+                  r'241210_2\2024-12-10_15-42-27_RK10_SecondSolo.json',
+                  r'241210_2\2024-12-10_15-11-46_RU10_FirstSolo.json',
+                  r'241210_2\2024-12-10_15-41-53_RU10_SecondSolo.json',
 
-                  r'241219_1\2024-12-19_15-20-18_JingjingFirstSolo.json',
-                  r'241219_1\2024-12-19_15-51-58_JingjingSecondSolo.json',
-                  r'241219_1\2024-12-19_15-22-13_YeungFirstSolo.json',
-                  r'241219_1\2024-12-19_15-51-33_YeungSecondSolo.json',
+                  r'241219_1\2024-12-19_15-20-18_JL19_FirstSolo.json',
+                  r'241219_1\2024-12-19_15-51-58_JL19_SecondSolo.json',
+                  r'241219_1\2024-12-19_15-22-13_SY19_FirstSolo.json',
+                  r'241219_1\2024-12-19_15-51-33_SY19_SecondSolo.json',
                   
-                  r'241220_1\2024-12-20_17-36-27_KirtanFirstSolo.json',      # removed b/c strategy difference
-                  r'241220_1\2024-12-20_18-06-10_KirtanSecondSolo.json',
-                  r'241220_1\2024-12-20_17-36-54_ChristopherFirstSolo.json',
-                  r'241220_1\2024-12-20_18-06-44_ChristopherSecondSolo.json',
+                  r'241220_1\2024-12-20_17-36-27_KS20_FirstSolo.json',      # removed b/c strategy difference
+                  r'241220_1\2024-12-20_18-06-10_KS20_SecondSolo.json',
+                  r'241220_1\2024-12-20_17-36-54_CS20_FirstSolo.json',
+                  r'241220_1\2024-12-20_18-06-44_CS20_SecondSolo.json',
 
-                  r'250115_1\2025-01-15_15-12-13_YixuanFirstSolo.json',
-                  r'250115_1\2025-01-15_15-47-11_YixuanSecondSolo.json',
-                  r'250115_1\2025-01-15_15-12-39_MarcoFirstSolo.json',
-                  r'250115_1\2025-01-15_15-46-04_MarcoSecondSolo.json',
+                  r'250115_1\2025-01-15_15-12-13_YY15_FirstSolo.json',
+                  r'250115_1\2025-01-15_15-47-11_YY15_SecondSolo.json',
+                  r'250115_1\2025-01-15_15-12-39_MR15_FirstSolo.json',
+                  r'250115_1\2025-01-15_15-46-04_MR15_SecondSolo.json',
 
-                  r'250115_2\2025-01-15_16-14-40_YuChunFirstSolo.json',
-                  r'250115_2\2025-01-15_16-50-13_YuChunSecondSolo.json',
-                  r'250115_2\2025-01-15_16-14-58_RuiqingFirstSolo.json',
-                  r'250115_2\2025-01-15_16-50-37_RuiqingSecondSolo.json'
+                  r'250115_2\2025-01-15_16-14-40_YL15_FirstSolo.json',
+                  r'250115_2\2025-01-15_16-50-13_YL15_SecondSolo.json',
+                  r'250115_2\2025-01-15_16-14-58_RY15_FirstSolo.json',
+                  r'250115_2\2025-01-15_16-50-37_RY15_SecondSolo.json'
 
                   ]
 
