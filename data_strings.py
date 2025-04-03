@@ -1,6 +1,6 @@
 # data folder
-DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
-# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
+# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -11,12 +11,12 @@ JSON_FILENAMES_SOCIAL_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-3
 
   # all socials
 JSON_FILENAMES_SOCIAL = [r'240913_1\2024-09-13_11-31-00_YW13_JL13_Social.json',
-                  r'240927_1\2024-09-27_14-25-20_SH31_EN31_Social.json',
-                  r'241017_1\2024-10-17_14-28-40_SA17_AW17_Social.json',
+                  r'240927_1\2024-09-27_14-25-20_SH27_EN27_Social.json',
+                  r'241017_1\2024-10-17_14-28-40_SP17_AW17_Social.json',
                   r'241017_2\2024-10-17_16-41-38_ZH17_EM17_Social.json',
                   r'241112_1\2024-11-12_13-31-14_KA12_WM12_Social.json',
-                  r'241112_2\2024-11-12_15-23-24_FA15_SS15_Social.json',
-                  r'241113_1\2024-11-13_14-18-54_NK14_RD14_Social.json',
+                  r'241112_2\2024-11-12_15-23-24_FA12_SS12_Social.json',
+                  r'241113_1\2024-11-13_14-18-54_NK13_RD13_Social.json',
                   r'241113_2\2024-11-13_15-28-07_YL13_HK13_Social.json',
                   r'241119_1\2024-11-19_14-24-49_AV19_XG19_Social.json',
                   r'241119_2\2024-11-19_15-22-56_SB19_HH19_Social.json',
@@ -40,13 +40,13 @@ JSON_FILENAMES_SOLO = [r'240913_1\2024-09-13_11-23-37_YW13_FirstSolo.json',
                   r'240913_1\2024-09-13_11-23-50_JL13_FirstSolo.json',
                   r'240913_1\2024-09-13_11-53-56_JL13_SecondSolo.json',
                   
-                  r'240927_1\2024-09-27_14-14-31_SH31_FirstSolo.json ',
-                  r'240927_1\2024-09-27_14-45-55_SH31_SecondSolo.json',
-                  r'240927_1\2024-09-27_14-14-42_EN31_FirstSolo.json',
-                  r'240927_1\2024-09-27_14-45-46_EN31_SecondSolo.json',
+                  r'240927_1\2024-09-27_14-14-31_SH27_FirstSolo.json ',
+                  r'240927_1\2024-09-27_14-45-55_SH27_SecondSolo.json',
+                  r'240927_1\2024-09-27_14-14-42_EN27_FirstSolo.json',
+                  r'240927_1\2024-09-27_14-45-46_EN27_SecondSolo.json',
                                     
-                  r'241017_1\2024-10-17_14-20-28_SA17_FirstSolo.json',
-                  r'241017_1\2024-10-17_14-50-03_SA17_SecondSolo.json',
+                  r'241017_1\2024-10-17_14-20-28_SP17_FirstSolo.json',
+                  r'241017_1\2024-10-17_14-50-03_SP17_SecondSolo.json',
                   r'241017_1\2024-10-17_14-20-50_AW17_FirstSolo.json',
                   r'241017_1\2024-10-17_14-51-22_AW17_SecondSolo.json',
 
@@ -60,15 +60,15 @@ JSON_FILENAMES_SOLO = [r'240913_1\2024-09-13_11-23-37_YW13_FirstSolo.json',
                   r'241112_1\2024-11-12_13-18-59_WM12_FirstSolo.json',
                   r'241112_1\2024-11-12_13-50-20_WM12_SecondSolo.json',                 
 
-                  r'241112_2\2024-11-12_15-13-34_FA15_FirstSolo.json',
-                  r'241112_2\2024-11-12_15-44-54_FA15_SecondSolo.json',
-                  r'241112_2\2024-11-12_15-11-45_SS15_FirstSolo.json',
-                  r'241112_2\2024-11-12_15-45-35_SS15_SecondSolo.json',
+                  r'241112_2\2024-11-12_15-13-34_FA12_FirstSolo.json',
+                  r'241112_2\2024-11-12_15-44-54_FA12_SecondSolo.json',
+                  r'241112_2\2024-11-12_15-11-45_SS12_FirstSolo.json',
+                  r'241112_2\2024-11-12_15-45-35_SS12_SecondSolo.json',
                   
-                  r'241113_1\2024-11-13_14-12-43_NK14_FirstSolo.json',
-                  r'241113_1\2024-11-13_14-37-06_NK14_SecondSolo.json',
-                  r'241113_1\2024-11-13_14-12-41_RD14_FirstSolo.json',
-                  r'241113_1\2024-11-13_14-37-20_RD14_SecondSolo.json',
+                  r'241113_1\2024-11-13_14-12-43_NK13_FirstSolo.json',
+                  r'241113_1\2024-11-13_14-37-06_NK13_SecondSolo.json',
+                  r'241113_1\2024-11-13_14-12-41_RD13_FirstSolo.json',
+                  r'241113_1\2024-11-13_14-37-20_RD13_SecondSolo.json',
 
                   r'241113_2\2024-11-13_15-22-20_YL13_FirstSolo.json',
                   r'241113_2\2024-11-13_15-51-39_YL13_SecondSolo.json',
