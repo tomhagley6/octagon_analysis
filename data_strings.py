@@ -1,6 +1,6 @@
 # data folder
-# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
-DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
+DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data' # Tom desktop home
+# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data' # Tom laptop
 
 
 # first four socials
@@ -133,7 +133,9 @@ JSON_FILENAMES_SOLO = [r'240913_1\2024-09-13_11-23-37_YW13_FirstSolo.json',
                   r'250115_2\2025-01-15_16-14-40_YL15_FirstSolo.json',
                   r'250115_2\2025-01-15_16-50-13_YL15_SecondSolo.json',
                   r'250115_2\2025-01-15_16-14-58_RY15_FirstSolo.json',
-                  r'250115_2\2025-01-15_16-50-37_RY15_SecondSolo.json'
+                  r'250115_2\2025-01-15_16-50-37_RY15_SecondSolo.json',
+
+
 
                   ]
 
