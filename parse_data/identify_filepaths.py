@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[41]:
+# In[46]:
 
 
 import os
 import re
-import data_strings
+import data_strings 
+from collections import defaultdict
 
 
-# In[ ]:
+# #### Functions to extract filepaths for social and solo sessions from a root directory. Socials are returned taken in session order. Solos are returned in session order, prioritise Host, and then prioritising FirstSolo
+
+# In[47]:
 
 
 def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
@@ -36,78 +39,56 @@ def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
     
 
 
-# In[ ]:
+# In[48]:
 
 
-def get_relative_paths_regex(match_string, data_folder=data_strings.DATA_FOLDER):
-    ''' Find all relative paths for files that contain match_string in
-        subfolders of data_folder. Store these filenames in a dictionary
-        with the filename pseudonym as a key. (Useful for combining different
-        files from the same player, e.g. solos) '''
+def get_filenames(data_folder=data_strings.DATA_FOLDER):
+    ''' Take a root folder, and extracts all social and solo filenames from
+        all subfolders. Uses the social filename pseudonym order to order solo
+        files, such that the structure priotises session, then host, then first solo.
+        Returns a list of all Social session files in the directory, and a list of all
+        ordered Solo session files in the directory '''
     
-    datafile_paths = {}
+    
+    # First list of individual files
+    solo_files = get_relative_paths('Solo', data_folder)
+    # Second list of social files (with desired pseudonym order)
+    social_files = get_relative_paths('Social', data_folder)
 
-    # regex for identifier pseudonym 
-    pattern = re.compile(r'([A-Za-z]{2}\d{2})')
+    # 1. Create a dict of sessions with nested pseudonyms
+    session_order = {}
+    for sf in social_files:
+        # match the session number and the pseudonym string
+        match = re.search(r'(\d+_\d)\\.*?_(.*?)_Social\.json', sf)
+        if match:
+            session, pseudonyms = match.groups()
+            pseudonym_list = pseudonyms.split('_')
+            session_order[session] = pseudonym_list
 
-    # check that the item is a directory
-    for subfolder in os.listdir(data_folder):
-        subfolder_path = os.path.join(data_folder, subfolder)
-        
-        # check that the item is a directory
-        if os.path.isdir(subfolder_path):
-            
-            # for each subfolder, check for .json files that contain the matched string
-            for filename in os.listdir(subfolder_path):
-                
-                if filename.endswith('.json') and match_string in filename:
-                    match = pattern.search(filename)
-                    if match:
-                        pseudonym = match.group(1) 
-                        full_path = os.path.join(subfolder, filename)
+    # 2. Group solo filenames by session and pseudonym 
+    # create dictionary structure to initiate any new entry to the dictionary as
+    # a default dict, which will contain an empty list
+    # Note that the argument to a defaultdict is what that defaultdict initialises for 
+    # any new entries
+    session_pseudo_files = defaultdict(lambda: defaultdict(list))
+    for f in solo_files:
+        match = re.search(r'(\d+_\d)\\.*?_(\w+?)_(?:First|Second)Solo\.json', f)
+        if match:
+            session, pseudonym = match.groups()
+            session_pseudo_files[session][pseudonym].append(f) # append the entire filename
 
-                        if pseudonym not in datafile_paths:
-                            datafile_paths[pseudonym] = []
-                            datafile_paths[pseudonym].append(full_path)
+    # 3. Sort each pseudonym's files by timestamp (ensure FirstSolo always comes first)
+    for session in session_pseudo_files:
+        for pseudonym in session_pseudo_files[session]:
+            session_pseudo_files[session][pseudonym].sort()
 
-    return datafile_paths
+    # 4. Reconstruct final ordered list
+    ordered_solos_list = []
+    for session in session_order:
+        for pseudonym in session_order[session]:
+            # extend the list with each session's pseudonym's files, or extend by an empty list
+            # if these do not exist
+            ordered_solos_list.extend(session_pseudo_files[session].get(pseudonym, []))
 
-
-# In[ ]:
-
-
-def match_orders_solo(first_solos, second_solos, data_folder=data_strings.DATA_FOLDER):
-    '''Ensures that the first solo sessions are correctly ordered w.r.t second solos.
-       Takes 2 dictionaries, with key:value as pseudonym:filename, one for each type of solo
-       session.'''
-
-    # sort identifiers based on second_solos
-    ordered_pseudonyms = sorted(second_solos.keys(), key=lambda pseudo: second_solos[pseudo])
-
-    matched_first_solos = []
-    matched_second_solos = []
-
-    # append all values of first_solos to a list in the order of second_solos
-    for pseudonym in ordered_pseudonyms:
-        if pseudonym in first_solos and len(first_solos[pseudonym]) == 1:
-            matched_first_solos.extend(first_solos[pseudonym])
-
-    # also convert the second solo session filenames into a list of strings
-    for pseudonym in second_solos.keys():
-        matched_second_solos.extend(second_solos[pseudonym])
-
-
-    return matched_first_solos, matched_second_solos
-
-
-# In[ ]:
-
-
-def get_all_relative_paths(data_folder=data_strings.DATA_FOLDER):
-    social = get_relative_paths('Social', data_folder=data_folder)
-    first_solo = get_relative_paths_regex('FirstSolo', data_folder=data_folder)
-    second_solo = get_relative_paths_regex('SecondSolo', data_folder=data_folder)
-    ordered_first_solo, ordered_second_solo = match_orders_solo(first_solo, second_solo)
-
-    return social, ordered_first_solo, ordered_second_solo
+    return social_files, ordered_solos_list
 

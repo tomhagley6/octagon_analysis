@@ -3,41 +3,34 @@ DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data\pseudonymised_json_files' # T
 # DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom laptop
 
 
+# first four socials
+JSON_FILENAMES_SOCIAL_TESTING = [r'first_experiments_2409\240913\2024-09-13_11-31-00_YansuJerrySocial.json',
+                   r'second_experiments_2409\240927\2024-09-27_14-25-20_SaraEmilySocial.json',
+                   r'third_experiments_2410\241017\2024-10-17_14-28-40_ShamirAbigailSocial.json',
+                   r'fourth_experiments_2410\241017\2024-10-17_16-41-38_ZimoElsaSocial.json']
 
   # all socials
-JSON_FILENAMES_SOCIAL = ['240913_1\\2024-09-13_11-31-00_YW13_JL13_Social.json',
-                        '240927_1\\2024-09-27_14-25-20_SH27_EN27_Social.json',
-                        '241017_1\\2024-10-17_14-28-40_SP17_AW17_Social.json',
-                        '241017_2\\2024-10-17_16-41-38_ZH17_EM17_Social.json',
-                        '241112_1\\2024-11-12_13-31-14_KA12_WM12_Social.json',
-                        '241112_2\\2024-11-12_15-23-24_FA12_SL12_Social.json',
-                        '241113_1\\2024-11-13_14-18-54_NK13_RD13_Social.json',
-                        '241113_2\\2024-11-13_15-28-07_YL13_HC13_Social.json',
-                        '241119_1\\2024-11-19_14-24-49_AV19_XG19_Social.json',
-                        '241119_2\\2024-11-19_15-22-56_SB19_HH19_Social.json',
-                        '241120_1\\2024-11-20_14-17-44_JS20_RR20_Social.json',
-                        '241120_2\\2024-11-20_15-16-21_ZS20_VC20_Social.json',
-                        '241203_1\\2024-12-03_14-31-51_PO03_NN03_Social.json',
-                        '241203_2\\2024-12-03_15-27-28_EX03_BC03_Social.json',
-                        '241210_1\\2024-12-10_14-21-17_TE10_TK10_Social.json',
-                        '241210_2\\2024-12-10_15-20-11_RK10_RU10_Social.json',
-                        '241219_1\\2024-12-19_15-28-24_JU19_SY19_Social.json',
-                        '241220_1\\2024-12-20_17-44-50_KS20_CS20_Social.json',
-                        '250115_1\\2025-01-15_15-21-27_YY15_MR15_Social.json',
-                        '250115_2\\2025-01-15_16-27-23_YL15_RR15_Social.json',
-                        '250204_1\\2025-02-04_15-55-44_IN04_JL04_Social.json',
-                        '250204_2\\2025-02-04_17-11-07_DB04_GG04_Social.json',
-                        '250314_1\\2025-03-14_12-12-57_KC14_WL14_Social.json',
-                        '250314_2\\2025-03-14_13-10-49_AE14_JL14_Social.json',
-                        '250314_3\\2025-03-14_14-24-05_MA14_RM14_Social.json',
-                        '250318_1\\2025-03-18_14-22-29_SJ18_CD18_Social.json',
-                        '250318_2\\2025-03-18_16-22-17_JK18_HL18_Social.json',
-                        '250318_3\\2025-03-18_17-27-32_HM18_SC18_Social.json',
-                        '250319_1\\2025-03-19_13-29-40_HL19_AW19_Social.json',
-                        '250319_2\\2025-03-19_14-33-16_PT19_JL19_Social.json',
-                        '250401_1\\2025-04-01_14-27-01_IS01_HQ01_Social.json',
-                        '250401_2\\2025-04-01_15-29-49_AL01_NL01_Social.json',
-                        '250402_1\\2025-04-02_16-26-25_SH02_ML02_Social.json']
+JSON_FILENAMES_SOCIAL = [r'240913_1\2024-09-13_11-31-00_YW13_JL13_Social.json',
+                  r'240927_1\2024-09-27_14-25-20_SH27_EN27_Social.json',
+                  r'241017_1\2024-10-17_14-28-40_SP17_AW17_Social.json',
+                  r'241017_2\2024-10-17_16-41-38_ZH17_EM17_Social.json',
+                  r'241112_1\2024-11-12_13-31-14_KA12_WM12_Social.json',
+                  r'241112_2\2024-11-12_15-23-24_FA12_SS12_Social.json',
+                  r'241113_1\2024-11-13_14-18-54_NK13_RD13_Social.json',
+                  r'241113_2\2024-11-13_15-28-07_YL13_HC13_Social.json',
+                  r'241119_1\2024-11-19_14-24-49_AV19_XG19_Social.json',
+                  r'241119_2\2024-11-19_15-22-56_SB19_HH19_Social.json',
+                  r'241120_1\2024-11-20_14-17-44_JS20_RR20_Social.json',
+                  r'241120_2\2024-11-20_15-16-21_SZ20_VC20_Social.json',
+                  r'241203_1\2024-12-03_14-31-51_PO03_NN03_Social.json',
+                  r'241203_2\2024-12-03_15-27-28_EX03_BC03_Social.json',
+                  r'241210_1\2024-12-10_14-21-17_TE10_TK10_Social.json',
+                  r'241210_2\2024-12-10_15-20-11_RK10_RU10_Social.json',
+                  r'241219_1\2024-12-19_15-28-24_JL19_SY19_Social.json',
+                  r'241220_1\2024-12-20_17-44-50_KS20_CS20_Social.json', # removed because of strategy difference
+                  r'250115_1\2025-01-15_15-21-27_YY15_MR15_Social.json',
+                  r'250115_2\2025-01-15_16-27-23_YL15_RY15_Social.json'
+                  ]
 
 
 
