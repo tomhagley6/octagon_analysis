@@ -118,7 +118,7 @@ def final_distance_to_wall(trajectory, average_most_aligned_wall_index):
 
 
 # umbrella function to extract loser's choice for one trial
-def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
+def infer_loser_choice_trial(trial_list, trial_index, loser_ids, trial_walls, window_size=5):
     ''' Given a trial list and index, and 1D array of loser id ints, find the most
         aligned wall for the loser in the latter part of their trajectory, and decide
         whether this most aligned wall should be considered their choice.
@@ -164,9 +164,10 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
 
     # decide whether to accept the loser's choice
     # based on average alignment to wall and final distance to wall
-    if highest_alignment_val > 0.875:
+    # only if the wall is relevant to the trial
+    if highest_alignment_val > 0.875 and average_most_aligned_wall_num in trial_walls:
         losers_choice_accepted = True
-    elif final_distance_most_aligned_wall < 4:
+    elif final_distance_most_aligned_wall < 4 and average_most_aligned_wall_num in trial_walls:
         losers_choice_accepted = True
 
     return average_most_aligned_wall_num, losers_choice_accepted
@@ -179,13 +180,16 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, window_size=5):
 
 
 # umbrella function to extract loser's choice for all trials in a list
-def infer_loser_choice_session(trial_list):
+def infer_loser_choice_session(trial_list, debug=False):
     ''' Given a trial list find the most aligned wall for the loser 
         in the latter part of their trajectory, and decide
         whether this most aligned wall should be considered their choice,
         for all trials. 
         Return an array of most aligned walls and a boolean array of confidence
         (Both 1D of size len(trial_list)). '''
+
+    if debug:
+        start_time = time.time()
 
     # initialise
     loser_inferred_choice = np.zeros(len(trial_list))
@@ -196,11 +200,20 @@ def infer_loser_choice_session(trial_list):
     loser_ids = (winner_ids -1) * -1
 
     # get choice and confidence for each trial
-    for trial_index in range(len(trial_list)):
-        this_loser_inferred_choice, this_loser_inferred_choice_confidence = infer_loser_choice_trial(trial_list, trial_index, loser_ids)
+    for trial_index, trial in enumerate(trial_list):
+        trial_walls = get_indices.get_walls(trial=trial)
+        this_loser_inferred_choice, this_loser_inferred_choice_confidence = infer_loser_choice_trial(trial_list, trial_index, loser_ids, trial_walls)
         loser_inferred_choice[trial_index] = this_loser_inferred_choice
         loser_inferred_choice_confidence[trial_index] = this_loser_inferred_choice_confidence
 
+    # output the time taken for this function
+    if debug:
+        end_time = time.time()
+        print(f"Time taken for infer_loser_choice_session (one session) is {end_time-start_time:.2f}")
+        print(f"Loser inferred choices: {loser_inferred_choice}")
+
+
+    print(f"proportion loser's choice confident = {np.nansum(loser_inferred_choice_confidence)/loser_inferred_choice_confidence.size}")
 
     return loser_inferred_choice, loser_inferred_choice_confidence
 
@@ -216,16 +229,20 @@ def infer_loser_choice_session(trial_list):
 
 def player_wall_choice_win_or_loss(trials_list, player_id, debug=False):
     ''' Logic for identifying the player's chosen wall whether they lost the trial or not
-        Returns int array of size len(trials_list) of chosen wall numbers (or np.nan) '''
+        Returns int array of size len(trials_list) of chosen wall numbers, or of np.nan for
+        trials where confidence in loser's choice was False. '''
     
     if debug:
         start_time = time.time()
 
     winning_player = get_indices.get_trigger_activators(trials_list)
     chosen_walls = get_indices.get_chosen_walls(trials_list)
-    loser_inferred_choices, loser_inferred_choice_confidences = infer_loser_choice_session(trials_list)
+    loser_inferred_choices, loser_inferred_choice_confidences = infer_loser_choice_session(trials_list, debug=debug)
     current_player_wall_choice = np.zeros(len(trials_list))
     
+    # define wall chosen for each trial as the recorded winner choice, the inferred loser's choice, or np.nan if loser's inferred
+    # choice is not confident
+    # assign each trial's value to current_player_wall_choice
     for trial_index in range(len(trials_list)):
         if player_id != winning_player[trial_index]:
             if loser_inferred_choice_confidences[trial_index] == False:
@@ -243,6 +260,13 @@ def player_wall_choice_win_or_loss(trials_list, player_id, debug=False):
     if debug:
         end_time = time.time()
         print(f"Time taken for player_wall_choice_win_or_loss (one session for one player) is {end_time-start_time:.2f}")
+    if debug:
+        print(f"Chosen walls are {chosen_walls}")
+        session_walls = np.full((len(trials_list),2), np.nan)
+        for i, trial in enumerate(trials_list):
+            walls = get_indices.get_walls(trial)
+            session_walls[i,:] = walls
+        print(f"Walls for the session are: {session_walls}")
 
     return current_player_wall_choice
 
