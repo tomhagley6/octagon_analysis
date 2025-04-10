@@ -34,10 +34,10 @@ alcove_length_axis_projection = (alcove_length_scaled*math.sin(math.pi/4))/math.
 ## Functions ##
 
 
-# In[4]:
+# In[ ]:
 
 
-# coordinate generation # 
+# Coordinate generation # 
 
 
 # In[5]:
@@ -254,10 +254,49 @@ def get_zipped_vertex_coordinates(final_x_coords, final_y_coords):
                         
 
 
-# In[10]:
+# In[ ]:
 
 
-# plotting # 
+# Coordinate use #
+
+
+# In[ ]:
+
+
+def return_maximum_distance():
+    ''' Return the maximum distance between 2 points within the Octagon arena '''
+    
+    # get octagon arena coordinates
+    # global Unity coordinates (so, local Unity coordinates, multiplied by arena scale factor)
+    octagon_coordinates = return_octagon_path_points()
+
+    # separate x and y coordinates
+    x_coords = [coordinates[0] for coordinates in octagon_coordinates]
+    y_coords = [coordinates[1] for coordinates in octagon_coordinates]
+
+    # find the L2 norm between the minimum and maximum x location, at y=0
+    # (octagon is symmetric, so any opposites points can be used)
+    max_dist = np.linalg.norm(np.array([min(x_coords), 0]) - np.array([max(x_coords), 0]))
+
+    return max_dist
+
+
+# In[ ]:
+
+
+def normalise_distances(distances):
+    ''' Take an array of distances and return an array normalised
+        by maximum distance'''
+    
+    max_dist = return_maximum_distance()
+
+    return distances/max_dist
+
+
+# In[ ]:
+
+
+# Plotting # 
 
 
 # In[11]:
