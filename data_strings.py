@@ -1,7 +1,7 @@
 # data folder
-# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom desktop home
+DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom desktop home
 
-DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom laptop
+# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom laptop
 
 
 
