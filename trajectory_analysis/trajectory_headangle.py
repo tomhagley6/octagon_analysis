@@ -677,7 +677,8 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
         Takes num_walls,timepoints boolean array of wall visibility,
         and num_walls boolean array of whether walls are visible at trial start.
         Also takes the trial.
-        Returns int index at which this wall became visible relative to other walls. '''
+        Returns int trial frame index at which this wall became visible relative to other walls.
+        This is 0 if wall was already visible at trial start.'''
     
     
     if debug:

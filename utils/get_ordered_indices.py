@@ -16,6 +16,7 @@ def get_ordered_indices(values_array):
         the size order of the numeric values in the input array.
         Where two indices have the same numeric value, the returned array
         will have the same order value.
+        Lowest value will be 0, next lowest will be 1, etc.
         Np.nans will carry over. '''
     
     # get mask of nan values
