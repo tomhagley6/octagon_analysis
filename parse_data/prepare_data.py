@@ -15,6 +15,9 @@ import pandas as pd
 import scipy
 import matplotlib.pyplot as plt
 import globals
+from ipywidgets import IntProgress
+from IPython.display import display
+import time
 
 
 # In[10]:
@@ -73,13 +76,20 @@ def prepare_data(data_folder, json_filenames, combine=False):
             df, trial_list = prepare_combined_session_data(data_folder, json_filenames)
         
         else: # separate sessions in separate dfs and separate trial lists
+            
+            # use a progress bar to show loading progress
+            max_count = len(json_filenames)
+            f = IntProgress(min=0, max=max_count) # instantiate the bar
+            display(f) # display the bar
+            
             df = []
             trial_list = []
             for filename in json_filenames:
                 this_df, this_trial_list = prepare_single_session_data(data_folder, filename)
                 df.append(this_df)
                 trial_list.append(this_trial_list)
-    
+                
+                f.value += 1 # signal to increment the progress bar
     else:
         print("json_filenames must be a list of strings of len >= 1, or a string")
         return None
