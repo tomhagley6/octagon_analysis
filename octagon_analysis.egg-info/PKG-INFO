@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: octagon_analysis
 Version: 0.1
 Summary: functions to handle octagon data parsing and preprocessing
@@ -8,3 +8,7 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Dist: numpy
 Requires-Dist: pandas
+Dynamic: author
+Dynamic: classifier
+Dynamic: requires-dist
+Dynamic: summary

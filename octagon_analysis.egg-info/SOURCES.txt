@@ -22,3 +22,10 @@ parse_data/loading.py
 parse_data/prepare_data.py
 parse_data/preprocess.py
 parse_data/split_session_by_trial.py
+plotting/__init__.py
+plotting/flipped_rotated_trajectory_testing_functions.py
+plotting/plot_counts_seen_vs_chosen.py
+plotting/plot_octagon.py
+plotting/plot_probability_chose_wall.py
+plotting/plot_trajectory.py
+plotting/wall_visibility_order_testing_functions.py
