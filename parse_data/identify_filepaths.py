@@ -91,16 +91,11 @@ def get_filenames(data_folder=data_strings.DATA_FOLDER):
     session_order = {}
     for sf in social_files:
         # match the session number and the pseudonym string
-        match = re.search(r'(\d+_\d)[\\/].*?_(.*?)_Social\.json', sf)
+        match = re.search(r'(\d+_\d)[\\/].*?_.*?_(.*?)_Social\.json', sf)
         if match:
             session, pseudonyms = match.groups()
             pseudonym_list = pseudonyms.split('_')
             session_order[session] = pseudonym_list
-
-    # Print each session's pseudonym list in order
-    for session, pseudonym_list in session_order.items():
-        for pseudonym in pseudonym_list:
-            print(pseudonym)
 
     # 2. Group solo filenames by session and pseudonym 
     # create dictionary structure to initiate any new entry to the dictionary as
