@@ -1,20 +1,13 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[46]:
-
-
+# %%
 import os
 import re
 import data_strings 
 from collections import defaultdict
 
-
+# %% [markdown]
 # #### Functions to extract filepaths for social and solo sessions from a root directory. Socials are returned taken in session order. Solos are returned in session order, prioritise Host, and then prioritising FirstSolo
 
-# In[ ]:
-
-
+# %%
 def extract_sort_key(path):
     ''' Extract a sorting key from the folder name in the path.
         The folder name is expected to be in the format 'YYMMDD_SessionNumber'.
@@ -29,10 +22,7 @@ def extract_sort_key(path):
         # If the folder name doesn't match the expected format, return a default key
         return (0, 0, 0, 0)
 
-
-# In[ ]:
-
-
+# %%
 def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
     ''' Find all relative paths for files that contain match_string in
         subfolders of data_folder. Store these filenames in a list '''
@@ -41,18 +31,18 @@ def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
 
     for subfolder in os.listdir(data_folder):
         subfolder_path = os.path.join(data_folder, subfolder)
-
+        
         # check that the item is a directory
         if os.path.isdir(subfolder_path):
-
+            
             # for each subfolder, check for .json files that contain the matched string
             for filename in os.listdir(subfolder_path):
-
+                
                 if filename.endswith('.json') and match_string in filename:
                     # add each relative filepath to the list
                     relative_path = os.path.join(subfolder, filename)
                     datafile_paths.append(relative_path)
-
+    
     # Sort the paths based on the folder name (date and session number)
     datafile_paths.sort(key=lambda path: extract_sort_key(path))
 
@@ -60,28 +50,27 @@ def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
     for path in datafile_paths:
         if re.search(r'\s', path):
             print(f"Warning: Whitespace found in path: {path}")
-
+            
+    # Check for double underscores in any of the paths and print a warning if found
+    for path in datafile_paths:
+        if re.search(r'__', path):
+            print(f"Warning: Double underscores found in path: {path}")
+                
     return datafile_paths
+    
+
+# %%
 
 
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
+# %%
 def get_filenames(data_folder=data_strings.DATA_FOLDER):
     ''' Take a root folder, and extracts all social and solo filenames from
         all subfolders. Uses the social filename pseudonym order to order solo
         files, such that the structure priotises session, then host, then first solo.
         Returns a list of all Social session files in the directory, and a list of all
         ordered Solo session files in the directory '''
-
-
+    
+    
     # First list of individual files
     solo_files = get_relative_paths('Solo', data_folder)
     # Second list of social files (with desired pseudonym order)
@@ -127,4 +116,5 @@ def get_filenames(data_folder=data_strings.DATA_FOLDER):
 
 
     return social_files, ordered_solos_list
+
 
