@@ -81,8 +81,9 @@ def populate_dataframe(analysis_results, analysis_type):
 
 
     # convert columns to categorical types for input to lmer
-    glm_df["FirstSeenWall"] = glm_df["FirstSeenWall"].astype(str).astype("category")
-    glm_df["WallSep"] = glm_df["WallSep"].astype(str).astype("category")
+    glm_df["FirstSeenWall"] = glm_df["FirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+    glm_df["FirstSeenWall"] = glm_df["FirstSeenWall"].astype("category")
+    # glm_df["WallSep"] = glm_df["WallSep"].astype(str).astype("category")
 
     return glm_df
 
