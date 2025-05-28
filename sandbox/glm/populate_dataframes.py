@@ -72,9 +72,10 @@ def populate_dataframe(analysis_results, analysis_type):
                     df_player["OpponentFirstSeenWall"] = player_data['first_seen_opponent']
                     df_player["OpponentD2H"] = player_data['d2h_opponent']
                     df_player["OpponentD2L"] = player_data['d2l_opponent']
-                    df_player["OpponentFirstSeenWall"] = df_player["OpponentFirstSeenWall"].astype(str).astype("category")
-
-                    df_player["OpponentFirstSeenWall"] = df_player["OpponentFirstSeenWall"].astype(str).astype("category")
+                    
+                    # convert columns to categorical types for input to lmer
+                    df_player["OpponentFirstSeenWall"] = df_player["OpponentFirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+                    df_player["OpponentFirstSeenWall"] = df_player["OpponentFirstSeenWall"].astype("category")
             
             # append this smaller dataframe to the the full dataframe
             glm_df = pd.concat([glm_df, df_player], ignore_index=True)
