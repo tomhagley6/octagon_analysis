@@ -3,9 +3,9 @@
 
 # DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom laptop
 
-DATA_FOLDER = r'O:\human_octagon\RAW\standard' # Tom laptop ogma path
+# DATA_FOLDER = r'O:\human_octagon\RAW\standard' # Tom laptop ogma path
 
-# DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # ogma on Duan lab desktop
+DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # ogma on Duan lab desktop
 
 
 
