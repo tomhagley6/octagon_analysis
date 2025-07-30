@@ -5,10 +5,8 @@
 
 # DATA_FOLDER = r'O:\human_octagon\RAW\standard' # Tom laptop ogma path
 
-DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # ogma on Duan lab desktop
-
-
-
+# DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
+DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
 
   # all socials
 JSON_FILENAMES_SOCIAL = ['240913_1\\2024-09-13_11-31-00_YW13_JL13_Social.json',
