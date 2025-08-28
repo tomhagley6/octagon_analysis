@@ -1,12 +1,31 @@
-# data folder
-# DATA_FOLDER = r'D:\Users\Tom\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom desktop home
+import os
 
-# DATA_FOLDER = r'C:\Users\tomha\OneDrive\PhD\SWC\data\pseudonymised_json_files' # Tom laptop
+# Globals file for access to raw data and pre-processed saved data in pandas format
 
-# DATA_FOLDER = r'O:\human_octagon\RAW\standard' # Tom laptop ogma path
-
+### data folder
+# DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
 # DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
-DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
+# DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
+DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
+
+### saved dataframe relative path
+DATAFRAME_DIR = r'octagon_analysis\data' 
+
+### saved dataframe absolute path (depends on machine)
+DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos'
+
+### saved dataframe solo filename
+FILENAME_SOLO = r'trial_lists_solo_standard_50'
+
+### saved dataframe social filename
+FILENAME_SOCIAL = r'trial_lists_social_standard_50'
+
+### saved dataframe combined solo filename
+FILENAME_SOLO_COMBINED = r'trial_lists_solo_combined_standard_50'
+
+### saved dataframe full path
+DATAFRAME_PATH = DATAFRAME_ROOT + os.sep + DATAFRAME_DIR + os.sep
+
 
   # all socials
 JSON_FILENAMES_SOCIAL = ['240913_1\\2024-09-13_11-31-00_YW13_JL13_Social.json',

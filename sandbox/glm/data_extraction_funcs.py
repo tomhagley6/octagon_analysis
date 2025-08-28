@@ -4,6 +4,13 @@ from analysis import opponent_visibility, wall_visibility_and_choice
 from data_extraction import get_indices
 from plotting import plot_octagon
 from trajectory_analysis import trajectory_vectors
+import os
+import pickle
+import pandas as pd
+import globals
+
+# %% [markdown]
+# ### Regressor value extraction functions (for one session). To be used if not loading pre-generated analysis_results
 
 # %%
 def extract_wall_sep(trial_list, normalise=False):
@@ -164,5 +171,262 @@ def extract_trial_outcome(trial_list, player_id):
     this_player_won_session = (trigger_activators-1)*-1 if player_id == 0 else trigger_activators
 
     return this_player_won_session
+
+# %% [markdown]
+# ### Analysis dictionary functions
+# - Create a dictionary to hold session regressor values for each session and player
+# - Populate this dictionary with regressor values
+# - Save the dictionary 
+# - Load the dictionary
+# 
+
+# %%
+def generate_analysis_dict(num_experiments):
+    ''' Generate a dictionary to hold all analysis results for each player and session type.
+        This is used to store results from the GLM analysis. '''
+    
+    # Define player IDs and session types
+    player_ids = [0,1]
+
+    analysis_results = {
+        experiment_id: {
+            player_id: {
+                session_type: {
+
+                    'regressors': {
+                        'wall_sep': None,
+                        'first_seen': None,
+                        'd2h': None,
+                        'd2l': None,
+                        'opponent_visible': None,
+                        'd2h_opponent': None,
+                        'd2l_opponent': None
+                    },
+
+                    'dependent': {
+                        'choice': None
+                    },
+
+                    'misc': {
+                        'valid_trial_indices': None,
+                        'high_low_trial_indices': None
+                    }
+                    
+                }
+                for session_type in ['solo', 'social']
+            }   
+            for player_id in player_ids
+        }
+        for experiment_id in np.arange(num_experiments)
+    }
+
+    return analysis_results
+
+
+def populate_analysis_dict(analysis_results, trial_lists_social, trial_lists_combined_solo, opponent_first_seen_wall):
+    ''' Populate the analysis dictionary with data extracted from trial lists.
+        This function processes each player's trial lists, extracts relevant data,
+        and fills the analysis_results dictionary with regressors, dependent variables,
+        and miscellaneous information for both social and solo sessions. '''
+
+    # Loop through each experiment and player
+    for experiment_id, players in analysis_results.items():
+        for player_id, data in players.items():
+            
+            # get opponent_id
+            opponent_id = 1 if player_id == 0 else 0
+            
+            # get the trial lists for this session and player
+            trial_list_social = trial_lists_social[experiment_id]
+            trial_list_solo = trial_lists_combined_solo[experiment_id*2 + player_id] # player_id used to select correct solo
+            trial_lists = [trial_list_social, trial_list_solo]
+            print(f"Trial list social length for experimentId {experiment_id} and playerId {player_id}: {len(trial_list_social)}")
+            
+            # filter the trial lists for HighLow trials
+            original_indices_lists = []
+            for i, trial_list in enumerate(trial_lists):
+                original_indices = np.arange(len(trial_list))
+                
+                # identify indices of trial list with HighLow trials and filter
+                high_low_trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=globals.HIGH_LOW)
+                original_indices = original_indices[high_low_trial_indices]
+                trial_list_filtered = [trial_list[i] for i in high_low_trial_indices]
+                trial_lists[i] = trial_list_filtered
+                original_indices_lists.append(original_indices)
+                print(f"{high_low_trial_indices.size} high_low_trial_indices for player_id {player_id}, trail_list {i}\n out of {len(trial_list)} total trials")
+
+            # re-assign trial lists
+            trial_list_social = trial_lists[0]
+            trial_list_solo = trial_lists[1]
+            
+            ## fill all social regressors
+            ## social, use player_id == player_id and trial_list_social for functions
+            # regressors social
+            player_data = analysis_results[experiment_id][player_id]['social']
+            distances = extract_distances_to_walls(trial_list_social, player_id, normalise=True)
+            distances_opponent = extract_distances_to_walls(trial_list_social, player_id=opponent_id, normalise=True)
+            player_data['regressors']['wall_sep'] = extract_wall_sep(trial_list_social, normalise=True)
+            player_data['regressors']['first_seen'] = extract_first_wall_visibilities(trial_list_social, player_id, three_levels=False)
+            player_data['regressors']['d2h'] = distances[:,0]
+            player_data['regressors']['d2l'] = distances[:,1]
+            player_data['regressors']['opponent_visible'] = extract_opponent_visibility_slice_onset(trial_list_social, player_id)
+            player_data['regressors']['d2h_opponent'] = distances_opponent[:,0]
+            player_data['regressors']['d2l_opponent'] = distances_opponent[:,1]
+            if opponent_first_seen_wall:
+                player_data['regressors']['first_seen_opponent'] = extract_first_wall_visibilities(trial_list_social, opponent_id)
+
+            # dependent variable social
+            player_data['dependent']['choice'] = extract_player_choice(trial_list_social, player_id, inferred_choice=True)
+
+            # misc
+            # player_data['misc']['valid_trial_indices'] = filtered_valid_trial_indices_social
+            player_data['misc']['high_low_trial_indices'] = original_indices_lists[0] # social trial list indices
+
+
+            ## fill all solo regressors
+            ## solo, use player_id == 0 and trial_list_solo for functions
+            # regressors solo
+            player_data = analysis_results[experiment_id][player_id]['solo']
+            distances = extract_distances_to_walls(trial_list_solo, player_id=0, normalise=True)
+            player_data['regressors']['wall_sep'] = extract_wall_sep(trial_list_solo, normalise=True)
+            player_data['regressors']['first_seen'] = extract_first_wall_visibilities(trial_list_solo, player_id=0, three_levels=False)
+            player_data['regressors']['d2h'] = distances[:,0]
+            player_data['regressors']['d2l'] = distances[:,1]
+
+            # dependent variable solo
+            player_data['dependent']['choice'] = extract_player_choice(trial_list_solo, player_id=0, inferred_choice=False) # no inferred for solo
+
+            # misc
+            player_data['misc']['high_low_trial_indices'] = original_indices_lists[1] # solo trial list indices
+
+
+    return analysis_results
+
+
+def save_analysis_dict(analysis_dict, analysis_file, analysis_dir='../data'):
+    ''' Save the analysis dictionary to a file for later use. '''
+
+    path = os.path.join(analysis_dir, analysis_file)
+    with open(path, 'wb') as f:
+        pickle.dump(analysis_dict, f)
+
+        
+
+def load_analysis_dict(analysis_file, analysis_dir='../data'):
+    ''' Load the analysis dictionary from a file. '''
+ 
+    filename = os.path.join(analysis_dir, analysis_file)
+    with open(filename, 'rb') as f:
+        analysis_results = pickle.load(f)
+
+    return analysis_results
+
+# %% [markdown]
+# ### Dataframe generation from analysis dictionary (can I reduce repeated code here?)
+
+# %%
+# glm_df_social = pd.DataFrame()
+
+# for session_id, players in analysis_results.items():
+#     for player_id in players:
+        
+#         # take each filtered_regressor array and fill the relevant df field for this player
+#         player_data = analysis_results[session_id][player_id]['social']['regressors']
+#         choice = analysis_results[session_id][player_id]['social']['dependent']['choice']
+#         opponent_player_id = 1 if player_id == 0 else 1
+#         opponent_player_data = analysis_results[session_id][opponent_player_id]['social']['regressors']
+#         df_player = pd.DataFrame(
+#                     {
+#                         "SessionID" : session_id,
+#                         "PlayerID" : player_id,
+#                         "GlmPlayerID" : session_id*2 + player_id,
+#                         "ChooseHigh" : choice,
+#                         "WallSep" : player_data['wall_sep'],
+#                         "FirstSeenWall" : player_data['first_seen'],
+#                         "D2H" : player_data['d2h'],
+#                         "D2L" : player_data['d2l'],
+#                         "OpponentVisible" : player_data['opponent_visible'],
+#                         "OpponentFirstSeenWall" : player_data['first_seen_opponent'],
+#                         "OpponentD2H" : player_data['d2h_opponent'],
+#                         "OpponentD2L" : player_data['d2l_opponent']
+                        
+#                     }
+#         )
+
+
+#         # append this smaller dataframe to the the full dataframe
+#         glm_df_social = pd.concat([glm_df_social, df_player], ignore_index=True)
+
+# # convert to categorical variables, retaining np.nans
+# glm_df_social["FirstSeenWall"] = glm_df_social["FirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+# glm_df_social["OpponentFirstSeenWall"] = glm_df_social["OpponentFirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+# glm_df_social["FirstSeenWall"] = glm_df_social["FirstSeenWall"].astype("category")
+# glm_df_social["OpponentFirstSeenWall"] = glm_df_social["OpponentFirstSeenWall"].astype("category")
+
+# # glm_df_social["WallSep"] = glm_df_social["WallSep"].astype("category") # now using continuous values for wall separation
+
+# %%
+# glm_df_solo_social = pd.DataFrame()
+
+# for session_id, players in analysis_results.items():
+#     for player_id in players:
+        
+#         # take each filtered_regressor array and fill the relevant df field for this player
+#         player_data_solo = analysis_results[session_id][player_id]['solo']['regressors']
+#         player_data_social = analysis_results[session_id][player_id]['social']['regressors']
+#         choice_solo = analysis_results[session_id][player_id]['solo']['dependent']['choice']
+#         choice_social = analysis_results[session_id][player_id]['social']['dependent']['choice']
+#         df_player = pd.DataFrame(
+#                     {
+#                         "SessionID" : session_id,
+#                         "PlayerID" : player_id,
+#                         "GlmPlayerID" : session_id*2 + player_id,
+#                         "ChooseHigh" : np.concatenate([choice_solo, choice_social]),
+#                         "WallSep" :  np.concatenate([player_data_solo['wall_sep'], player_data_social['wall_sep']]),
+#                         "FirstSeenWall" : np.concatenate([player_data_solo['first_seen'], player_data_social['first_seen']]),
+#                         "D2H" : np.concatenate([player_data_solo['d2h'], player_data_social['d2h']]),
+#                         "D2L" : np.concatenate([player_data_solo['d2l'], player_data_social['d2l']]),
+#                         "SocialContext" : np.concatenate([np.ones(player_data_solo["wall_sep"].shape[0]) - 1, np.ones(player_data_social["wall_sep"].shape[0])]) # 0 for solo, 1 for social
+#                     }
+#         )
+
+#         # append this smaller dataframe to the the full dataframe
+#         glm_df_solo_social = pd.concat([glm_df_solo_social, df_player], ignore_index=True)
+
+# # convert to categorical variables, retaining np.nans
+# glm_df_solo_social["FirstSeenWall"] = glm_df_solo_social["FirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+# glm_df_solo_social["FirstSeenWall"] = glm_df_solo_social["FirstSeenWall"].astype("category")
+# # glm_df_solo_social["WallSep"] = glm_df_solo_social["WallSep"].astype("category")
+
+# %%
+# glm_df_solo = pd.DataFrame()
+
+# for session_id, players in analysis_results.items():
+#     for player_id in players:
+        
+#         # take each filtered_regressor array and fill the relevant df field for this player
+#         player_data = analysis_results[session_id][player_id]['solo']['regressors']
+#         choice = analysis_results[session_id][player_id]['solo']['dependent']['choice']
+#         df_player = pd.DataFrame(
+#                     {
+#                         "SessionID" : session_id,
+#                         "PlayerID" : player_id,
+#                         "GlmPlayerID" : session_id*2 + player_id,
+#                         "ChooseHigh" : choice,
+#                         "WallSep" : player_data['wall_sep'],
+#                         "FirstSeenWall" : player_data['first_seen'],
+#                         "D2H" : player_data['d2h'],
+#                         "D2L" : player_data['d2l']
+#                     }
+#         )
+
+#         # append this smaller dataframe to the the full dataframe
+#         glm_df_solo = pd.concat([glm_df_solo, df_player], ignore_index=True)
+
+# # convert to categorical variables, retaining np.nans
+# glm_df_solo["FirstSeenWall"] = glm_df_solo["FirstSeenWall"].apply(lambda x: str(x) if pd.notna(x) else x)
+# glm_df_solo["FirstSeenWall"] = glm_df_solo["FirstSeenWall"].astype("category")
+
+# # glm_df_solo["WallSep"] = glm_df_solo["WallSep"].astype(str).astype("category")
 
 
