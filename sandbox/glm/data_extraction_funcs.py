@@ -49,7 +49,7 @@ def extract_first_wall_seen(trial_list, player_id):
 
     return first_visible_session
 
-def extract_first_wall_visibilities(trial_list, player_id, three_levels=False):
+def extract_first_wall_visibilities(trial_list, player_id, three_levels=True):
     ''' Return first visible walls for one player across one session.
         1 for WALL_1, 2 for WALL_2, and np.nan for no visible wall.
         If three_levels, 1 for WALL_1, 2 for WALL_2, 3 for both visible, and np.nan for neither. '''
