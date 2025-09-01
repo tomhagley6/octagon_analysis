@@ -1,3 +1,0 @@
-'standard_50' refers to the original n=100 standard human octagon dataset.
-
-For combined, the first 5 trials of pre- is cut, and pre- and post- are concatenated

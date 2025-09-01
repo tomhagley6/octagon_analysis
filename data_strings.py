@@ -9,7 +9,7 @@ import os
 DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
 
 ### saved dataframe relative path
-DATAFRAME_DIR = r'octagon_analysis\data' 
+DATAFRAME_DIR = r'data' 
 
 ### saved dataframe absolute path (depends on machine)
 DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos'
