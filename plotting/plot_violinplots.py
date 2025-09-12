@@ -4,33 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# %% [markdown]
-# ### Violin Plots vs. Boxplots
-# 
-# **Key Factors of Violin Plots:**
-# - Show the full distribution of data using kernel density estimation
-# - Width represents the density of data points at that value
-# - Can display multi-modal distributions that boxplots hide
-# - Can be combined with boxplots or inner representations (like points, bars, or box)
-# - Symmetric display showing distribution on both sides
-# 
-# **When Violin Plots are Better than Boxplots:**
-# 1. For complex distributions (multi-modal, skewed, or with unusual shapes)
-# 2. When you need to see the full shape of distributions, not just quartiles
-# 3. When comparing distributions across groups
-# 4. When looking for subtle differences between groups
-# 5. When sample sizes are large enough for meaningful density estimation
-# 
-# **When Boxplots Might Be Better:**
-# 1. For simple, standard distributions
-# 2. When you need to focus on exact statistical values (medians, quartiles)
-# 3. With smaller sample sizes where density estimation might not be reliable
-# 4. For audiences more familiar with traditional statistical representations
-# 5. When simplicity and clarity are preferred over detailed distribution information
-
 # %%
 def plot_violinplot(data_list, label_list, ylabel, xlabel="",
-                ylim=(0.0,1), set_aspect=3, fontsize=24, custom_colors=None, color_offset=0, 
+                ylim=(0.0,1), set_aspect=3, fontsize=34, custom_colors=None, color_offset=0, 
                 return_data=False, inner='box', split=False, bw_adjust=1.0):
     ''' 
     Helper function to create violin plots for multiple datasets with optional return values.

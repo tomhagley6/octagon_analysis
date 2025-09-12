@@ -4,7 +4,7 @@
 # In[1]:
 
 
-def extract_trial(trial, trial_list, trial_index):
+def extract_trial(trial=None, trial_list=None, trial_index=None):
     ''' isolate trial '''
     
     if not trial is None:

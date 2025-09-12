@@ -1,9 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
-
+# %%
 import parse_data.prepare_data as prepare_data
 import numpy as np
 import pandas as pd
@@ -16,10 +11,7 @@ import math
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
 from scipy import signal
 
-
-# In[ ]:
-
-
+# %%
 def get_player_direction_vectors_for_trajectory(trajectory):
     ''' Calculate player direction vectors for a whole trajectory
         Takes a 2*timepoints array of vstacked x_coords and y_coords
@@ -34,10 +26,7 @@ def get_player_direction_vectors_for_trajectory(trajectory):
 
     return direction_vectors
 
-
-# In[ ]:
-
-
+# %%
 ## Mean average window
 # def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size=10):
 #     ''' Calculate smoothed player direction vectors for a whole trajectory
@@ -59,11 +48,8 @@ def get_player_direction_vectors_for_trajectory(trajectory):
 
 #     return direction_vectors_smoothed
 
-
-# In[ ]:
-
-
-#Savitzky-Golay 
+# %%
+#Savitzky-Golay (actually, isn't savgol being overwritten here?)
 def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size=5, debug=False):
     ''' Calculate smoothed player direction vectors for a whole trajectory
         Return an array of shape 2*timepoints-window_size
@@ -86,10 +72,7 @@ def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size
 
     return direction_vectors_smoothed
 
-
-# In[ ]:
-
-
+# %%
 # Umbrella function for getting cosine similarities for player direction vector to player-to-alcove vectors
 # for an entire trial
 # stored in a num_walls*timepoints shaped array
@@ -159,4 +142,5 @@ def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_wall
         return cosine_similarities_trajectory
     
     
+
 

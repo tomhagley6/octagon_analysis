@@ -1,9 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
+# %%
 import parse_data.prepare_data as prepare_data
 import numpy as np
 import pandas as pd
@@ -18,16 +13,10 @@ import data_extraction.get_indices as get_indices
 import utils.get_ordered_indices as get_ordered_indices
 import time
 
-
-# In[2]:
-
-
+# %%
 ## HEADANGLES THROUGHOUT TRAJECTORY ##
 
-
-# In[ ]:
-
-
+# %%
 def get_player_headangle_vectors_for_trial(head_angles):
     ''' Returns a 2xtimepoints array of vstacked x components and y components of head angle vector for a single player's trial trajectory
         from trial start to trial end
@@ -44,10 +33,7 @@ def get_player_headangle_vectors_for_trial(head_angles):
 
     return head_angle_vector_array
 
-
-# In[ ]:
-
-
+# %%
 def get_smoothed_player_head_angle_vectors_for_trial(head_angles, window_size=5, debug=False):
     ''' Calculate smoothed player head angle vectors for a whole trajectory '''
 
@@ -70,16 +56,12 @@ def get_smoothed_player_head_angle_vectors_for_trial(head_angles, window_size=5,
 
     return head_angle_vector_array_smoothed
 
-
-# In[5]:
-
+# %%
 
 ## HEAD ANGLE COMPARED TO WALL CENTRES ##
 
 
-# In[ ]:
-
-
+# %%
 # Umbrella function for getting angle difference between FoV centre and walls for a player
 # for an entire trial
 
@@ -144,16 +126,12 @@ def head_angle_to_walls_throughout_trajectory(trajectory, head_angle_vector_arra
     return thetas
     
 
-
-# In[7]:
-
+# %%
 
 ## WALL VISIBILITY ##
 
 
-# In[ ]:
-
-
+# %%
 def get_octagon_vertex_coordinates():
     ''' Return octagon vertex coordinates as a 2D array of shape 2*8
         The first point is the CCW vertex of wall 1 '''
@@ -173,10 +151,7 @@ def get_octagon_vertex_coordinates():
     
     return octagon_vertex_coords
 
-
-# In[ ]:
-
-
+# %%
 def get_CW_CCW_vertex_coords(octagon_vertex_coords):
     ''' Take a 2*8 array of octagon vertex coordinates and return two arrays
         First is the 'clockwise' array, to be used when individual is CW of the wall, where the first column is the CCW vertex of wall 1
@@ -188,10 +163,7 @@ def get_CW_CCW_vertex_coords(octagon_vertex_coords):
 
     return CW_octagon_vertex_coords, CCW_octagon_vertex_coords
 
-
-# In[ ]:
-
-
+# %%
 def calculate_cross_product(smoothed_player_headangles_trial, player_to_alcove_vectors, num_walls=8):
     ''' Calculate the cross product between the head angle vector and the alcove vectors for each time
         point in a trajectory
@@ -214,10 +186,7 @@ def calculate_cross_product(smoothed_player_headangles_trial, player_to_alcove_v
     return cross_products_wall_headangle
     
 
-
-# In[ ]:
-
-
+# %%
 def is_wall_clockwise_of_player(cross_products_wall_headangle):
     ''' Return a boolean array of shape num_walls*timepoints
         which is True for when the wall is clockwise of the player's current headangle vector '''
@@ -225,9 +194,7 @@ def is_wall_clockwise_of_player(cross_products_wall_headangle):
     return cross_products_wall_headangle < 0
 
 
-# In[ ]:
-
-
+# %%
 # Helper function
 def get_closest_wall_section_coords_trajectory(wall_is_clockwise, CW_octagon_vertex_coords, CCW_octagon_vertex_coords, debug=False):
     ''' Takes the clockwise and counterclockwise octagon vertex coordinates (i.e., the coordinates of the
@@ -279,10 +246,7 @@ def get_closest_wall_section_coords_trajectory(wall_is_clockwise, CW_octagon_ver
 
     return wall_coords_cross_product_dependent
 
-
-# In[ ]:
-
-
+# %%
 def get_player_to_closest_wall_section_direction_vectors_for_trajectory(trajectory,
                                                                         wall_coords_cross_product_dependent,
                                                                         num_walls=8,
@@ -313,10 +277,7 @@ def get_player_to_closest_wall_section_direction_vectors_for_trajectory(trajecto
 
     return vector_to_closest_wall_sections
 
-
-# In[ ]:
-
-
+# %%
 # Umbrella function
 def get_wall_coords_cross_product_dependent(trial_list=None, trial_index=0, trial=None, player_id=0, window_size=5):
     ''' Umbrella function
@@ -365,10 +326,7 @@ def get_wall_coords_cross_product_dependent(trial_list=None, trial_index=0, tria
 
         
 
-
-# In[ ]:
-
-
+# %%
 # Umbrella function for getting angle difference between FoV centre and angularly-closest section of wall for a player
 # (similar to head_angle_to_walls_throughout_trajectory, see above)
 def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, trial_index=0, trial=None, player_id=0,
@@ -447,16 +405,12 @@ def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, tr
     return thetas
     
 
-
-# In[16]:
-
+# %%
 
 ## WALL VISIBILITY ANALYSIS
 
 
-# In[ ]:
-
-
+# %%
 def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, current_fov=110.36, debug=False):
     ''' Returns wall visibility array (boolean array of whether each wall is visible for
         the player at each timepoint, shape num_walls*timepoints), for a chosen player and 
@@ -475,8 +429,8 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
         print(f"get_wall_visible trial is of type {type(trial)}")
         if isinstance(trial, int):
             print(f"get_wall_visible int trials is: {trial}")
-    assert(isinstance(trial, pd.DataFrame))
-    
+    assert isinstance(trial, pd.DataFrame), f"trial is of type {type(trial)}, not pd.DataFrame"
+
     # trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
     # head_angle_vector_array_trial = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
     # trial_player_headangles = get_smoothed_player_head_angle_vectors_for_trial(head_angle_vector_array_trial)
@@ -505,10 +459,7 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
 
     return wall_visible
 
-
-# In[ ]:
-
-
+# %%
 def wall_visibility_player_slice_onset(wall_visible, trial):
     ''' Identify whether either of the relevant walls for this trial are visible at trial start
         Takes a boolean array of shape num_walls*timepoints which is True when a wall falls within the FoV
@@ -535,10 +486,7 @@ def wall_visibility_player_slice_onset(wall_visible, trial):
 
     return wall1_visible, wall2_visible
 
-
-# In[ ]:
-
-
+# %%
 # Eventually might want to change this function to include whether the second wall becomes visible
 def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
                                     debug=False):
@@ -667,10 +615,7 @@ def get_first_visible_wall(wall_visible, wall1_visible, wall2_visible, trial,
         raise ValueError("Function logic has failed.")
         
 
-
-# In[ ]:
-
-
+# %%
 def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial, 
                                     return_times=False, debug=False):
     ''' Return when walls becomes visible.
@@ -747,10 +692,7 @@ def get_wall_visibility_order(wall_visible, wall_initial_visibility, trial,
     
             
 
-
-# In[ ]:
-
-
+# %%
 def was_first_visible_wall_chosen_winner(wall, trial):
     ''' Identifies if the first visible wall for the winner was the wall chosen by the winner
         To be used in trials where one wall was visible to the player before the other
@@ -785,9 +727,7 @@ def was_first_visible_wall_chosen_winner(wall, trial):
 
 
 
-# In[ ]:
-
-
+# %%
 def was_first_visible_wall_chosen_general(wall_num, trial):
     ''' Identifies if the first visible wall for the loser was the wall chosen by the loser
         To be used in trials where one wall was visible to the player before the other
@@ -795,10 +735,7 @@ def was_first_visible_wall_chosen_general(wall_num, trial):
 
         
 
-
-# In[ ]:
-
-
+# %%
 # Note that this only takes the winners choices. Do I have a separate function for Loser's choice in losers_inferred_choice? check this.
 
 # umbrella function for identifying if there was a first visible wall, whether it was the one chosen,
@@ -856,4 +793,5 @@ def was_first_visible_wall_chosen_player(wall_visible, trial):
     return first_visible_wall_chosen, first_visible_wall_high
 
     
+
 
