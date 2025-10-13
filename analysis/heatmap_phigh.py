@@ -22,25 +22,8 @@ import data_strings
 import data_extraction.data_saving as data_saving
 import plotting.plot_octagon as plot_octagon
 
-# %%
-# load_data = True
-# data_folder = data_strings.DATA_FOLDER
-
-# %%
-# if load_data:
-#     # load previously prepared data
-#     trial_lists_solo = data_saving.load_data(r'trial_lists_solo_combined_standard_50')
-#     trial_lists_social = data_saving.load_data(r'trial_lists_social_standard_50')
-
-# else:
-
-#     data_folder = data_strings.DATA_FOLDER
-
-#     # combine consecutive solo sessions (pre- and post- for an individual player)
-#     json_filenames_social, json_filenames_solo = identify_filepaths.get_filenames()
-#     _, trial_lists = prepare_data.prepare_data(data_folder, json_filenames_solo, combine=False)
-#     print(len(trial_lists))
-#     trial_lists = [trial_lists[i] + trial_lists[i+1] for i in range(0, len(trial_lists), 2)]
+# %% [markdown]
+# ### Filter functions
 
 # %%
 def flip_rotate_trial_list(trial_list):
@@ -173,6 +156,37 @@ def trial_list_filter_chose_wall(trial_list, num_players, chosen_wall_index):
 
     return trial_list_choice_filtered, trial_list_choice_filtered_indices
 
+# %% [markdown]
+# ### Umbrella filtering function
+# 
+
+# %%
+def filter_pipeline_p_high_first_seen_wall_no_filtering_vis(trial_lists, num_players, first_visible_wall_index, chosen_wall_index):
+
+    trial_list_vis_filtered = {}
+    trial_list_vis_and_choice_filtered = {}
+
+
+    for i, trial_list in enumerate(trial_lists):
+        # Step 1: flip and rotate
+        flip_rotated = flip_rotate_trial_list(trial_list)
+
+        # Step 2: filter for valid choice trials
+        valid_choice_filtered, _ = trial_list_filter_valid_choice(flip_rotated, num_players)
+
+
+        # Step 4: filter for trials where player chose the chosen_wall_index wall
+        chose_wall_filtered, _ = trial_list_filter_chose_wall(valid_choice_filtered, num_players, chosen_wall_index)
+
+        # Store results indexed by player_id
+        for player_id in range(num_players):
+            trial_list_vis_filtered.setdefault(player_id, []).append(valid_choice_filtered[player_id])
+            trial_list_vis_and_choice_filtered.setdefault(player_id, []).append(chose_wall_filtered[player_id])
+
+    return trial_list_vis_filtered, trial_list_vis_and_choice_filtered
+
+
+
 # %%
 def filter_pipeline_p_high_first_seen_wall(trial_lists, num_players, first_visible_wall_index, chosen_wall_index):
 
@@ -202,6 +216,96 @@ def filter_pipeline_p_high_first_seen_wall(trial_lists, num_players, first_visib
             trial_list_vis_and_choice_filtered.setdefault(player_id, []).append(chose_wall_filtered[player_id])
 
     return trial_list_vis_filtered, trial_list_vis_and_choice_filtered
+
+
+# %%
+
+
+# %% [markdown]
+# ### post-processing functions
+
+# %%
+def heatmap_counts_division(bins_dict_wall_seen_wall_chosen, bins_dict_wall_seen):
+
+    # element-wise division of numerator and denominator arrays, with handling for division by zero
+    probabilities = np.divide(
+        bins_dict_wall_seen_wall_chosen, bins_dict_wall_seen,
+        out=np.zeros_like(bins_dict_wall_seen_wall_chosen, dtype=float),
+        # boolean array to mask division for only non-zero denominator entries
+        where=bins_dict_wall_seen > 0
+    )
+
+    return probabilities
+
+
+def heatmap_lowbincounts_filter(probabilities, bin_counts, min_trials=10):
+    ''' Filter out bins with fewer than min_trials trials by setting them to NaN
+        bincounts: array or list of arrays of bin counts to use for filtering '''
+    
+    probabilities_filtered = np.copy(probabilities)
+
+    if isinstance(bin_counts, list):
+        for array in bin_counts:
+            probabilities_filtered[array <= min_trials] = np.nan
+    else:
+            probabilities_filtered[bin_counts <= min_trials] = np.nan
+    
+    return probabilities_filtered
+
+# %% [markdown]
+# ### plotting function
+
+# %%
+def plot_heatmap_phigh(probabilities, n_rows=10, n_cols=10, difference=False,
+                        cmap_name='inferno', diff_cmap_name='PiYG'):
+    ''' Plot a heatmap of P(Choose High) across spatial bins
+     
+        probabilities: 2D array of probabilities across heatmap bin space
+        Expects an array produced by heatmap_phigh functions, numerator divided by denominator,
+        and filtered for a minimum number of trials per bin'''
+    
+    n_rows, n_cols = 10, 10
+    x_min, x_max = -20, 20
+    y_min, y_max = -20, 20
+    grid_width = (x_max - x_min) / n_cols
+    grid_height = (y_max - y_min) / n_rows
+
+    octagon_vertex_coordinates = plot_octagon.return_octagon_path_points()
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    cmap = cmap_name if not difference else diff_cmap_name
+    cmap = cm.get_cmap(cmap).copy()
+    cmap.set_bad(color='lightgrey')
+
+    if not difference: # normalise probabilities to 0-1 if not a difference heatmap
+        norm = mpl.colors.Normalize(vmin=0, vmax=1)
+        im = ax.imshow(probabilities, extent=[x_min, x_max, y_min, y_max],
+                    origin='lower', norm=norm, cmap=cmap)
+    else: # keep probabilities within a fixed range for difference heatmap
+        im = ax.imshow(probabilities, extent=[x_min, x_max, y_min, y_max],
+                origin='lower', vmin=-1, vmax=1, cmap=cmap)
+
+    patch = Polygon(octagon_vertex_coordinates, edgecolor='black', facecolor='none', lw=2)
+    ax.add_patch(patch)
+    im.set_clip_path(patch)
+
+    ax.set_xlim([-22, 22])
+    ax.set_ylim([-22, 22])
+    ax.set_aspect(1.)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = plt.colorbar(im, cax=cax)
+    #cbar.set_label("Average Occupancy", fontsize=16)
+    cbar.ax.tick_params(labelsize=16)
+
+    plt.tight_layout()
+    plt.show()
 
 
 

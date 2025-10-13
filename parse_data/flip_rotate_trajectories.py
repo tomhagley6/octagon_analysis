@@ -142,11 +142,11 @@ def replace_with_altered_coordinates(trial, altered_coordinates):
 
 
 # umbrella function
-def flip_rotate_trajectories(trial=None, flip=True):
+def flip_rotate_trajectories(trial=None, trial_list=None, trial_index=None, flip=True):
     ''' Pipeline for flipping and rotating trajectories for a single trial
         Return a copy of that trial '''
     
-    trial = extract_trial.extract_trial(trial=trial)
+    trial = extract_trial.extract_trial(trial=trial, trial_list=trial_list, trial_index=trial_index)
     
     theta = find_rotation_angle_trial(trial)
     altered_coords = flip_rotate_trial(trial, theta, flip=flip)

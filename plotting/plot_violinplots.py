@@ -6,7 +6,7 @@ import seaborn as sns
 
 # %%
 def plot_violinplot(data_list, label_list, ylabel, xlabel="",
-                ylim=(0.0,1), set_aspect=3, fontsize=34, custom_colors=None, color_offset=0, 
+                ylim=(0.0,1), figsize=(10, 8), set_aspect=3, fontsize=32, custom_colors=None, color_offset=0, 
                 return_data=False, inner='box', split=False, bw_adjust=1.0):
     ''' 
     Helper function to create violin plots for multiple datasets with optional return values.
@@ -78,7 +78,7 @@ def plot_violinplot(data_list, label_list, ylabel, xlabel="",
         custom_palette = custom_colors
 
     # Create figure with larger size for poster visibility
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=figsize)
     
     # Create violinplot with custom properties
     ax = sns.violinplot(x="Condition", y="Probability", data=df, palette=custom_palette, 
@@ -95,7 +95,7 @@ def plot_violinplot(data_list, label_list, ylabel, xlabel="",
     plt.xticks(fontsize=fontsize - 2)  # Larger font for x-tick labels
     plt.yticks(fontsize=fontsize - 2)  # Larger font for y-tick labels
     plt.ylim(ylim)  # Set y-axis limits for probabilities
-    plt.gca().set_aspect(set_aspect)
+    # plt.gca().set_aspect(set_aspect)
     plt.tight_layout()
 
     # Remove top and right spines
