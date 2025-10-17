@@ -4,9 +4,9 @@ import os
 
 ### data folder
 # DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
-# DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
+DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
 # DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
-DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
+# DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
 
 ### saved dataframe relative path
 DATAFRAME_DIR = r'data' 

@@ -23,13 +23,21 @@ def extract_sort_key(path):
         return (0, 0, 0, 0)
 
 # %%
+# %%
 def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
     ''' Find all relative paths for files that contain match_string in
         subfolders of data_folder. Store these filenames in a list '''
 
     datafile_paths = []
 
+    # directories and filenames to ignore (AppleDouble, macOS metadata)
+    exclude_dirs = {'__MACOSX'}
+
     for subfolder in os.listdir(data_folder):
+        # skip macOS metadata folders and AppleDouble directory entries
+        if subfolder in exclude_dirs or subfolder.startswith('._'):
+            continue
+
         subfolder_path = os.path.join(data_folder, subfolder)
         
         # check that the item is a directory
@@ -37,7 +45,10 @@ def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
             
             # for each subfolder, check for .json files that contain the matched string
             for filename in os.listdir(subfolder_path):
-                
+                # skip AppleDouble files and common macOS metadata files
+                if filename.startswith('._') or filename == '.DS_Store':
+                    continue
+
                 if filename.endswith('.json') and match_string in filename:
                     # add each relative filepath to the list
                     relative_path = os.path.join(subfolder, filename)
@@ -57,10 +68,6 @@ def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
             print(f"Warning: Double underscores found in path: {path}")
                 
     return datafile_paths
-    
-
-# %%
-
 
 # %%
 def get_filenames(data_folder=data_strings.DATA_FOLDER):

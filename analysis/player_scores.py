@@ -71,7 +71,7 @@ def proportion_score_sessions_df(trial_lists):
 
 # have made edits to address the above. Now run checks to see if this workss
 
-def proportion_score_subset_sessions_df(trial_lists, num_trials):
+def proportion_score_subset_sessions_df(trial_lists, num_trials, debug=False):
     ''' Return num_sessions*num_players array for proportion of score
         each player earned in a random string of num_trials trials in a session.
         Takes a list of pre-processed trial lists '''
@@ -185,7 +185,7 @@ def proportion_wins_sessions(trial_lists):
 # I think this should be correct
 # Check results for bugs
 
-def proportion_score_solo_sessions_df(trial_lists_player0, trial_lists_player1):
+def proportion_score_solo_sessions_df(trial_lists_player0, trial_lists_player1, debug=False):
     ''' Return num_sessions*num_players array for proportion of score
         each player earned in a the final solo session.
         Takes a list of pre-processed trial lists '''
@@ -221,6 +221,67 @@ def proportion_score_solo_sessions_df(trial_lists_player0, trial_lists_player1):
         proportion_scores_all_sessions[trial_list_index, 0] = proportion_score_player0
         proportion_scores_all_sessions[trial_list_index, 1] = proportion_score_player1
 
+        if debug:
+            # brief verification prints
+            print(f"Session {trial_list_index}: player0_score={player0_score}, player1_score={player1_score}, total_score={total_score}")
+            print(f"Session {trial_list_index}: proportion_player0={proportion_score_player0:.4f}, proportion_player1={proportion_score_player1:.4f}")
+
+            # simple sanity checks
+            if total_score == 0:
+                print(f"Warning: Session {trial_list_index} total_score is 0 — proportions may be invalid")
+            elif not (0.0 <= proportion_score_player0 <= 1.0):
+                print(f"Warning: Session {trial_list_index} proportion_player0 out of bounds: {proportion_score_player0}")
+
     return proportion_scores_all_sessions
+
+# %%
+def is_winner(trial_lists, debug=False):
+    ''' Return num_sessions*num_players boolean array
+        for the winner of each trial'''
+    
+    is_winner_all_sessions = np.zeros((len(trial_lists), 2))
+    
+    for trial_list_index in range(len(trial_lists)):
+
+        # grab the trial list for this session
+        trial_list = trial_lists[trial_list_index]
+        final_trial = trial_list[-2] # use penultimate trial to avoid end of session issues
+        trial_end_event = final_trial[final_trial['eventDescription'] == 'trial end']
+
+        player0_final_score = trial_end_event[globals.PLAYER_SCORE_DICT[0]['score']].item()
+        player1_final_score = trial_end_event[globals.PLAYER_SCORE_DICT[1]['score']].item()
+
+        if player0_final_score > player1_final_score:
+            is_winner_player0 = 1
+            is_winner_player1 = 0
+        elif player1_final_score > player0_final_score:
+            is_winner_player0 = 0
+            is_winner_player1 = 1
+        elif player0_final_score == player1_final_score:
+            is_winner_player0 = 0.5
+            is_winner_player1 = 0.5
+            print("Tiebreaker social game")
+        else:
+            print(f"player0_final_score={player0_final_score}, player1_final_score={player1_final_score}")
+            raise ValueError("Unexpected condition in determining winner")
+        
+
+
+        # store in an array across all sessions
+        is_winner_all_sessions[trial_list_index, 0] = is_winner_player0
+        is_winner_all_sessions[trial_list_index, 1] = is_winner_player1
+
+        if debug:
+            # brief print checks for winner and loser scores
+            if is_winner_player0 == 1:
+                print(f"Session {trial_list_index}: Player 0 wins — winner_score={player0_final_score}, loser_score={player1_final_score}")
+            elif is_winner_player1 == 1:
+                print(f"Session {trial_list_index}: Player 1 wins — winner_score={player1_final_score}, loser_score={player0_final_score}")
+            else:
+                # tie case (0.5 / 0.5)
+                print(f"Session {trial_list_index}: Tie — both players score={player0_final_score}")
+
+    return is_winner_all_sessions
+    
 
 
