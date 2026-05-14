@@ -167,12 +167,12 @@ def preprocess_data(AQ_path, GAD_path, BIS_path):
 
     return df
 
-def process_items():
+def process_items(AQ_path, GAD_path, BIS_path):
 
     questionnaire_dict = {
-        'AQ': "AQ_scores.csv", 
-        'GAD': "GAD_scores.csv",
-        'BIS': "BIS_scores.csv"
+        'AQ': AQ_path, 
+        'GAD': GAD_path,
+        'BIS': BIS_path
     }
     traits_dict = {
         'AQ': 10,  # AQ has 10 questions
@@ -286,14 +286,28 @@ def process_items():
 
     return df
 
-def process_items_pseudo():
+def process_items_pseudo(AQ_path, GAD_path, BIS_path):
 
-    df = process_items()
-    df_totals = preprocess_data()
+    df = process_items(AQ_path, GAD_path, BIS_path)
+    df_totals = preprocess_data(AQ_path, GAD_path, BIS_path)
 
-    # convert to datetime and extract only the date
-    df['date'] = pd.to_datetime(df['Session identifier'].str[:10])
+    # ignore rows where Session identifier starts with R_ or is "risky"
+    df = df[
+        ~df['Session identifier'].astype(str).str.startswith('R_', na=False)
+        & ~df['Session identifier'].astype(str).str.lower().eq('risky')
+    ].copy()
 
+    # allow dates written as 2025_05_12 or 2025-05-12
+    df['date'] = pd.to_datetime(
+        df['Session identifier']
+          .astype(str)
+          .str[:10]
+          .str.replace('_', '-', regex=False),
+        errors='coerce'
+    )
+
+    # remove rows where date could not be parsed
+    df = df.dropna(subset=['date'])
     # apply function to DataFrame
     df['pseudonym'] = df.apply(generate_pseudonym, axis=1)
 
@@ -314,12 +328,12 @@ def process_items_pseudo():
     return df
 
 
-def process_personal_data():
+def process_personal_data(AQ_path, GAD_path, BIS_path):
 
     questionnaire_dict = {
-        'AQ': "AQ_scores.csv", 
-        'GAD': "GAD_scores.csv",
-        'BIS': "BIS_scores.csv"
+        'AQ': AQ_path,
+        'GAD': GAD_path,
+        'BIS': BIS_path
     }
 
     dfs={}
