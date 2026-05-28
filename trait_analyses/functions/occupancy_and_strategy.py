@@ -134,12 +134,16 @@ def central_tendency_multiple_sessions(trial_lists=None, num_players=2):
         session_player_values = [[] for _ in range(num_players)]
 
         for trial_index in range(len(trial_list)):
+            if trial_index == len(trial_list)-1:
+                continue
             central_tendencies = central_tendency_trial(trial_list=trial_list, trial=None, trial_index=trial_index, num_players=num_players)
-            
+            if num_players==2:
+                if np.isnan(central_tendencies[0]) or np.isnan(central_tendencies[1]):
+                    continue
             for player_id in range(num_players):
                 session_player_values[player_id].append(central_tendencies[player_id])
             
-        mean_per_player = [np.mean(session_player_values[player_id]) for player_id in range(num_players)]
+        mean_per_player = [np.nanmean(session_player_values[player_id]) for player_id in range(num_players)]
         
         mean_central_tendencies_multiple_sessions[session_idx] = mean_per_player
         central_tendencies_multiple_sessions[session_idx] = session_player_values
