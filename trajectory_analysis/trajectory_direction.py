@@ -92,7 +92,7 @@ def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_wall
 
     
     # 2. find the player-to-alcove vectors for each wall, for each timepoint
-    player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(smoothed_player_vectors,
+    player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(trajectory,
                                                                                                          num_walls=num_walls)
     if debug:
         print("player_to_alcove_vectors.shape: ", player_to_alcove_vectors.shape)
