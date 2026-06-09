@@ -12,8 +12,13 @@ DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
 DATAFRAME_DIR = r'data' 
 
 ### saved dataframe absolute path (depends on machine)
+<<<<<<< Updated upstream
 DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos' # Tom desktop home
 DATAFRAME_ROOT = r'C:\Users\tomha\repos'  # Tom laptop
+=======
+# DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos' # Home desktop
+DATAFRAME_ROOT = r'/home/tom/repos'  # Duan lab desktop
+>>>>>>> Stashed changes
 
 ### saved dataframe solo filename
 FILENAME_SOLO = r'trial_lists_solo_standard_50'

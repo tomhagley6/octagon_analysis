@@ -49,35 +49,41 @@ def get_player_direction_vectors_for_trajectory(trajectory):
 #     return direction_vectors_smoothed
 
 # %%
-#Savitzky-Golay (actually, isn't savgol being overwritten here?)
-def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size=5, debug=False):
-    ''' Calculate smoothed player direction vectors for a whole trajectory
-        Return an array of shape 2*timepoints-window_size
-        Default window size = 10 '''
-    
+# Savitzky-Golay smoothing of player movement-direction vectors
+def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size=11, polyorder=3, debug=False):
+    ''' Smooth a player's movement-direction vectors across a whole trajectory with a
+        Savitzky-Golay filter.
+        Takes a 2*timepoints array of vstacked x_coords and y_coords.
+        Returns a 2*(timepoints-1) array of smoothed direction vectors (length-preserving).
+        If the trajectory is too short for the filter (fewer direction-vector samples than
+        window_size, or window_size <= polyorder), the raw unsmoothed direction vectors
+        are returned instead. '''
+
     direction_vectors = get_player_direction_vectors_for_trajectory(trajectory)
+    n_samples = direction_vectors.shape[1]
 
-    try:
-        # apply savgol filter to the full trajectory
-        timepoints = trajectory.shape[1]
-        direction_vectors_smoothed = np.zeros([2,timepoints-window_size])
-        direction_vectors_smoothed = signal.savgol_filter(direction_vectors, window_length=5, polyorder=3, axis=1)
-        for i in range(timepoints - window_size):
-            smoothed_direction_vector = np.mean(direction_vectors[:,i:i+window_size], axis=1) # take the mean across columns
-            direction_vectors_smoothed[:,i] = smoothed_direction_vector
-    except ValueError:
+    # scipy's savgol_filter (mode='interp') requires window_length <= n_samples and
+    # polyorder < window_length, else it raises ValueError. Guard explicitly and fall
+    # back to the raw direction vectors so short trajectories don't crash.
+    if n_samples < window_size or window_size <= polyorder:
         if debug:
-            print("Direction vector too short to smooth, taking raw direction vector instead")
-        direction_vectors_smoothed = direction_vectors
+            print(f"Direction vector too short to smooth (n_samples={n_samples}, "
+                  f"window_size={window_size}, polyorder={polyorder}); "
+                  f"returning raw direction vectors instead")
+        return direction_vectors
 
+    direction_vectors_smoothed = signal.savgol_filter(direction_vectors,
+                                                      window_length=window_size,
+                                                      polyorder=polyorder,
+                                                      axis=1)
     return direction_vectors_smoothed
 
 # %%
-# Umbrella function for getting cosine similarities for player direction vector to player-to-alcove vectors
+2# Umbrella function for getting cosine similarities for player direction vector to player-to-alcove vectors
 # for an entire trial
 # stored in a num_walls*timepoints shaped array
 
-def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_walls=8, calculate_thetas=False, debug=False):
+def cosine_similarity_throughout_trajectory(trajectory, window_size=11, num_walls=8, calculate_thetas=False, debug=False):
     ''' From a trajectory, calculate the cosine similarity between the player direction vector and 
         the player-to-alcove vectors for an entire trial
         Takes a 2*timepoints array of vstacked x_coords and y_coords
@@ -92,7 +98,10 @@ def cosine_similarity_throughout_trajectory(trajectory, window_size=10, num_wall
 
     
     # 2. find the player-to-alcove vectors for each wall, for each timepoint
-    player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(smoothed_player_vectors,
+    #    anchor each heading vector at the position it leaves from (drop the final position,
+    #    since there are T-1 step/heading vectors for T positions)
+    player_positions = trajectory[:, :smoothed_player_vectors.shape[1]]
+    player_to_alcove_vectors = trajectory_vectors.get_player_to_alcove_direction_vectors_for_trajectory(player_positions,
                                                                                                          num_walls=num_walls)
     if debug:
         print("player_to_alcove_vectors.shape: ", player_to_alcove_vectors.shape)

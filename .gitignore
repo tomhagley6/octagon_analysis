@@ -1,0 +1,3 @@
+# Large data files (exceed GitHub's 100 MB limit) — keep local only
+demos/trial_lists_social.pkl
+demos/trial_lists_social_50.pkl
