@@ -4,6 +4,7 @@ import yaml
 def extract_step_penalties(parent_dir, yaml_filename=None):
     results = []
     step_penalties = []
+    thetas = []
 
     # Ensure consistent ordering of subfolders
     subfolders = sorted([
@@ -36,10 +37,14 @@ def extract_step_penalties(parent_dir, yaml_filename=None):
                 data = yaml.safe_load(f)
 
             step_penalty = data.get("environment_parameters", {}).get("step_penalty")
-            results.append((folder, step_penalty))
+            translation_cost = data.get("environment_parameters", {}).get("translation_cost")
+            turning_cost = data.get("environment_parameters", {}).get("turning_cost")
+            
+            results.append((folder, step_penalty, translation_cost, turning_cost))
             step_penalties.append(step_penalty)
+            thetas.append((translation_cost, turning_cost))
 
         except Exception as e:
             print(f"Error processing {yaml_path}: {e}")
 
-    return results, step_penalties
+    return results, step_penalties, thetas
