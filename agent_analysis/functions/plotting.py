@@ -99,3 +99,118 @@ def plot_sorted_session_trajectories(
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_sorted_split_cost_session_trajectories(
+    df,
+    thetas,
+    color_trajectory='lightseagreen',
+    color_position='deeppink',
+    color_by_quartile=False,
+    quartile_colors=None,
+    sort_descending=False
+):
+    num_trials = len(df)
+    num_cols = 8
+    num_rows = (num_trials + num_cols - 1) // num_cols
+
+    fig, axes = plt.subplots(
+        num_rows,
+        num_cols,
+        figsize=(5*num_cols, 5*num_rows)
+    )
+    axes = np.array(axes).flatten()
+
+    session_ids = list(range(num_trials))
+
+    if quartile_colors is None:
+        quartile_colors = {
+            "q1": "lightseagreen",
+            "q2": "darkseagreen",
+            "q3": "goldenrod",
+            "q4": "orangered",
+        }
+
+    thetas = np.asarray(thetas)
+
+    translation_costs = thetas[:, 0]
+    turning_costs = thetas[:, 1]
+
+    ratios = np.divide(
+        translation_costs,
+        turning_costs,
+        out=np.full_like(translation_costs, np.inf, dtype=float),
+        where=turning_costs != 0
+    )
+
+    # Assign quartiles by ratio rank
+    sorted_idx = np.argsort(ratios)
+    quartile_labels = np.empty(len(ratios), dtype=object)
+
+    quartile_bins = np.array_split(sorted_idx, 4)
+    for q, idxs in zip(["q1", "q2", "q3", "q4"], quartile_bins):
+        quartile_labels[idxs] = q
+
+    # Sort sessions by translation / turning ratio
+    sorted_trials = sorted(
+        zip(thetas, ratios, df, session_ids, quartile_labels),
+        key=lambda x: x[1],
+        reverse=sort_descending
+    )
+
+    for i, (theta, ratio, trial_list, session_id, q_label) in enumerate(sorted_trials):
+        translation_cost = theta[0]
+        turning_cost = theta[1]
+
+        ax = plot_octagon.plot_octagon(ax=axes[i])
+
+        this_color = quartile_colors[q_label] if color_by_quartile else color_trajectory
+
+        plot_trajectory_module.plot_session_trajectory(
+            ax,
+            trial_list,
+            colour_player_1=this_color,
+            alpha=0.4,
+            slice_onset_markers=True
+        )
+
+        plot_trajectory_module.mark_session_slice_onsets(
+            ax,
+            trial_list,
+            chosen_player=0,
+            color=color_position
+        )
+
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        ax.set_title(
+            f'{q_label} | ratio: {ratio:.3f}\n'
+            f'T: {translation_cost:.6f}, R: {turning_cost:.6f}\n'
+            f'original session number: {session_id}',
+            fontsize=12,
+            fontweight='bold'
+        )
+
+    for j in range(num_trials, len(axes)):
+        axes[j].set_visible(False)
+
+    if color_by_quartile:
+        legend_handles = [
+            Patch(facecolor=quartile_colors[q], label=q)
+            for q in ["q1", "q2", "q3", "q4"]
+        ]
+
+        fig.legend(
+            handles=legend_handles,
+            title="Translation / turning ratio quartile",
+            loc="upper right",
+            fontsize=12,
+            title_fontsize=12
+        )
+
+    plt.tight_layout()
+    plt.show()
