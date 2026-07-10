@@ -31,6 +31,15 @@ PLAYER_1_ZROT = 'data.playerPosition.1.rotation.z'
 PLAYER_0_SCORE = 'data.playerScores.0'
 PLAYER_1_SCORE = 'data.playerScores.1'
 
+## Simulation-only fields, logged in the 'trial end' event of RL agent inference runs.
+## trialScores  = per-trial terminal reward (reward for the wall reached this trial)
+## trialRewards = overall trial reward (terminal reward summed with step/shaping rewards)
+## playerScores = cumulative terminal reward across trials (also present in human data)
+PLAYER_0_TRIAL_SCORE = 'data.trialScores.0'
+PLAYER_1_TRIAL_SCORE = 'data.trialScores.1'
+PLAYER_0_TRIAL_REWARD = 'data.trialRewards.0'
+PLAYER_1_TRIAL_REWARD = 'data.trialRewards.1'
+
 
 
 WALL_1 = 'data.wall1'
@@ -59,7 +68,13 @@ PLAYER_ROT_DICT = {
 PLAYER_SCORE_DICT = {
                      0: {'score': PLAYER_0_SCORE},
                      1: {'score': PLAYER_1_SCORE}
-                    } 
+                    }
+
+# simulation-only per-trial reward fields, keyed by player/agent id
+PLAYER_TRIAL_REWARD_DICT = {
+                     0: {'trial_score': PLAYER_0_TRIAL_SCORE, 'trial_reward': PLAYER_0_TRIAL_REWARD},
+                     1: {'trial_score': PLAYER_1_TRIAL_SCORE, 'trial_reward': PLAYER_1_TRIAL_REWARD}
+                    }
 
 XLOC = 'location.x'
 
