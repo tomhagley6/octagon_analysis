@@ -9,7 +9,7 @@ DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
 # DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
 
 ### simulation results folder (RL agent inference runs; one model per subfolder)
-SIM_DATA_FOLDER = os.path.expanduser(r'~/Unity/Octagon/simulations/results') # Duan lab desktop
+SIM_DATA_FOLDER = os.path.expanduser(r'~/Unity/Octagon/simulations') # Duan lab desktop
 
 ### saved dataframe relative path
 DATAFRAME_DIR = r'data' 

@@ -175,22 +175,10 @@ def get_player_to_alcove_direction_vectors_for_trajectory(trajectory, num_walls=
   
     # get the central point of each alcove
     alcove_centre_points = plot_octagon.return_alcove_centre_points()
-    
-    # calculate the vector between the alcove point and current player location
-    timepoints = trajectory.shape[1]
-    vector_to_alcoves = np.zeros((2, num_walls, timepoints))
-    for time_index in range(0, trajectory.shape[1]): # for each timepoint in trajectory
-        if debug:
-            player_x_loc = trajectory[0,time_index]
-            player_y_loc = trajectory[1,time_index]
-            print("player x/y loc for this timepoint: ", player_x_loc, player_y_loc)
 
-    
-        for wall_num in range(num_walls): # for each wall
-            # euclidean vector from point B (trajectory location) to point A (alcove centre location) 
-            # for this wall
-            vector_to_alcove = alcove_centre_points[:, wall_num] - trajectory[:, time_index]
-            vector_to_alcoves[:,wall_num,time_index] = vector_to_alcove # append
+    # euclidean vector from each trajectory location (point B) to each alcove centre (point A),
+    # broadcast over all walls and timepoints at once: (2, num_walls, 1) - (2, 1, timepoints)
+    vector_to_alcoves = alcove_centre_points[:, :num_walls, None] - trajectory[:, None, :]
 
     return vector_to_alcoves
 
@@ -205,13 +193,10 @@ def calculate_vector_dot_products_for_trajectory(vector_to_alcoves, player_vecto
         Returns an array of shape num_walls*timepoints '''
 
     timepoints = player_vectors_smoothed.shape[1]
-    dot_products_trajectory = np.zeros([num_walls, timepoints])
-    for timepoint in range(timepoints):
-        dot_products_timepoint = calculate_vector_dot_products_for_timepoint(vector_to_alcoves=vector_to_alcoves,
-                                                                             player_vectors_smoothed=player_vectors_smoothed,
-                                                                             timepoint=timepoint,
-                                                                             num_walls=num_walls)
-        dot_products_trajectory[:,timepoint] = dot_products_timepoint
+    # per-wall dot product of (2, num_walls, timepoints) with (2, 1, timepoints), summed over the xy axis.
+    # vector_to_alcoves may be longer than the smoothed player vectors, so trim to timepoints (as the loop did)
+    dot_products_trajectory = np.sum(vector_to_alcoves[:, :num_walls, :timepoints]
+                                     * player_vectors_smoothed[:, None, :], axis=0)
 
     return dot_products_trajectory
 
@@ -246,18 +231,10 @@ def calculate_vector_norms_for_trajectory(vector_to_alcoves, player_vectors_smoo
         and num_walls*trajectory player_to_alcove_vector_norms_trajectory '''
     
     timepoints = player_vectors_smoothed.shape[1]
-    player_vector_norms_trajectory = np.zeros([timepoints])
-    player_to_alcove_vector_norms_trajectory = np.zeros([num_walls, timepoints])
-    
-    for timepoint in range(timepoints):
-        (direction_vector_norm_timepoint,
-        player_to_alcove_vector_norms_timepoint) = calculate_vector_norms_for_timepoint(vector_to_alcoves=vector_to_alcoves,
-                                                                                        player_vectors_smoothed=player_vectors_smoothed,
-                                                                                        timepoint=timepoint,
-                                                                                        num_walls=num_walls)
-                        
-        player_vector_norms_trajectory[timepoint] = direction_vector_norm_timepoint
-        player_to_alcove_vector_norms_trajectory[:,timepoint] = player_to_alcove_vector_norms_timepoint
+    # L2 norm over the xy axis for the player head-angle vectors (timepoints,)
+    player_vector_norms_trajectory = np.linalg.norm(player_vectors_smoothed, axis=0)
+    # and for each player-to-alcove vector (num_walls, timepoints), trimmed to the smoothed length as the loop did
+    player_to_alcove_vector_norms_trajectory = np.linalg.norm(vector_to_alcoves[:, :num_walls, :timepoints], axis=0)
 
     return player_vector_norms_trajectory, player_to_alcove_vector_norms_trajectory
 
@@ -293,13 +270,9 @@ def calculate_cosine_similarity_for_trajectory(dot_products, player_vector_norms
        and a num_walls*timepoints player_to_alcove_vector_norms_trajectory array
        Returns an array of shape num_walls*timepoints '''
     
-    timepoints = player_to_alcove_vector_norms_trajectory.shape[1]
-    cosine_similarities = np.zeros([num_walls, timepoints])
-    for timepoint in range(timepoints):
-        cosine_similarities[:,timepoint] = calculate_cosine_similarity_for_timepoint(dot_products[:,timepoint],
-                                                                                    player_vector_norms_trajectory[timepoint],
-                                                                                    player_to_alcove_vector_norms_trajectory[:,timepoint],
-                                                                                    num_walls=8)
+    # cosine similarity = dot product / (alcove vector norm * player vector norm), broadcast over walls and timepoints
+    cosine_similarities = dot_products / (player_to_alcove_vector_norms_trajectory
+                                          * player_vector_norms_trajectory[None, :])
 
     return cosine_similarities
         
@@ -333,12 +306,11 @@ def calculate_thetas_for_trajectory(cosine_similarities_for_trajectory, num_wall
         Takes a num_walls*timepoints cosine_similarities_for_trajectory array
         Return an array of shape num_walls*timepoints'''
 
-    timepoints = cosine_similarities_for_trajectory.shape[1]
-    trajectory_thetas = np.zeros([num_walls, timepoints])
-    for timepoint in range(timepoints):
-        cosine_similarities_timepoint = cosine_similarities_for_trajectory[:,timepoint]
-        trajectory_thetas[:,timepoint] = calculate_thetas_for_timepoint(cosine_similarities_timepoint)
-    
+    # arccos over the whole (num_walls, timepoints) array at once.
+    # clip guards against cosine similarities marginally outside [-1, 1] from floating point error,
+    # which would otherwise make math.acos raise (the previous per-element implementation could crash here)
+    trajectory_thetas = np.arccos(np.clip(cosine_similarities_for_trajectory, -1.0, 1.0))
+
     return trajectory_thetas
 
 
