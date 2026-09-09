@@ -1,9 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[9]:
-
-
+# %%
 import parse_data.preprocess as preprocess
 import parse_data.loading as loading
 import parse_data.combine_sessions as combine_sessions
@@ -19,10 +14,7 @@ from ipywidgets import IntProgress
 from IPython.display import display
 import time
 
-
-# In[10]:
-
-
+# %%
 def prepare_single_session_data(data_folder, json_filename):
     ''' Load and preprocess data from a single session
         Returns: full dataframe, list of trials '''
@@ -36,14 +28,11 @@ def prepare_single_session_data(data_folder, json_filename):
     df = preprocess.standard_preprocessing(df)
 
     # (parse_data/split_session_by_trial.py)
-    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=True)
+    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=False) # already dropped trial 0 above
 
     return df, trial_list
 
-
-# In[ ]:
-
-
+# %%
 def prepare_combined_session_data(data_folder, json_filenames, drop_trial_zero=True):
     ''' Load and preprocess multiple dataframes, and concatenate
         Returns: full dataframe, list of trials '''
@@ -56,10 +45,7 @@ def prepare_combined_session_data(data_folder, json_filenames, drop_trial_zero=T
 
     return df, trial_list
 
-
-# In[ ]:
-
-
+# %%
 # umbrella function
 def prepare_data(data_folder, json_filenames, combine=False):
     ''' Input: data folder and json_filename string or list of json_filename strings.
@@ -96,4 +82,5 @@ def prepare_data(data_folder, json_filenames, combine=False):
 
     return df, trial_list
         
+
 

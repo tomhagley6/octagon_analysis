@@ -1,9 +1,4 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
+# %%
 import json
 import os
 from datetime import datetime, timedelta
@@ -17,16 +12,10 @@ pd.set_option('display.max_columns', None)  # Show all columns
 
 json_normalise = True
 
-
-# In[2]:
-
-
+# %%
 ## Load JSON file into pandas df with collapsed data dictionary ##
 
-
-# In[3]:
-
-
+# %%
 # ## paths
 # # data_folder = '/home/tom/Documents/SWC/data' # desktop Duan Lab
 # # json_filename = '240913_Yansu_Jerry/2024-09-13_11-23-37_YansuFirstSolo.json' 
@@ -36,15 +25,10 @@ json_normalise = True
 # filepath = data_folder + os.sep + json_filename
 
 
-# In[52]:
-
-
+# %%
 ## Handle trial start events using a different key for player location information - pre-240927 data ##
 
-
-# In[1]:
-
-
+# %%
 def playerinfo_playerposition_conversion(df, solo=True):
     ''' Initially, playerinfo was included alongside playerposition, although the data was indentical
         Transfer the data from playerinfo into the playerposition dict for these datasets '''
@@ -54,7 +38,7 @@ def playerinfo_playerposition_conversion(df, solo=True):
     if solo:
         columns_to_merge = ['0.location.x', '0.location.y', '0.location.z', '0.rotation.x', '0.rotation.y', '0.rotation.z']
     else:
-        columns_to_merge = ['0.location.x', '0.location.y', '0.location.z', '0.rotation.x', '0.rotation.y', '0.rotation.z', +
+        columns_to_merge = ['0.location.x', '0.location.y', '0.location.z', '0.rotation.x', '0.rotation.y', '0.rotation.z', 
                             '1.location.x', '1.location.y', '1.location.z', '1.rotation.x', '1.rotation.y', '1.rotation.z']
     # Replace the current playerPosition column with one in which the trial start events are filled (instead of NaN)
     # Do this by filtering the relevant 2 columns, ffilling across columns (so the playerPosition column has its NaNs
@@ -70,10 +54,7 @@ def playerinfo_playerposition_conversion(df, solo=True):
 
     return df2
 
-
-# In[18]:
-
-
+# %%
 def remove_zero_wall_numbers(df):
     ''' When a trigger activation occurred that was not selected by the server, it would record trial walls as 0,0
         Remove these values and replace with nans to allow forward and backward filling of wall numbers '''
@@ -83,4 +64,5 @@ def remove_zero_wall_numbers(df):
     df2[df2['data.wall2'] == 0] = np.nan
 
     return df2
+
 

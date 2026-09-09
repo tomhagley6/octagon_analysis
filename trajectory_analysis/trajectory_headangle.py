@@ -324,20 +324,25 @@ def get_wall_coords_cross_product_dependent(trial_list=None, trial_index=0, tria
 # Umbrella function for getting angle difference between FoV centre and angularly-closest section of wall for a player
 # (similar to head_angle_to_walls_throughout_trajectory, see above)
 def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, trial_index=0, trial=None, player_id=0,
-                                                             window_size=5, num_walls=8, debug=False):
+                                                             window_size=5, num_walls=8, debug=False,
+                                                             trajectory=None, head_angles=None):
     ''' From a trajectory, calculate the angles between the player head angle vector and 
         the player-to-closest-wall-coordinate vectors for an entire trial
-        Returns an array of shape num_walls*timepoints '''
+        Returns an array of shape num_walls*timepoints
+        trajectory and head_angles may be passed in to analyse a window other than the default
+        slice onset -> trigger activation (see get_wall_visible's full_trial_window) '''
 
     # access the dataframe for the trial
     trial = extract_trial.extract_trial(trial, trial_list, trial_index)
 
-    # get the trajectory for calculating direction vectors to alcoves
-    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+    # get the trajectory for calculating direction vectors to alcoves (unless supplied by the caller)
+    if trajectory is None:
+        trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
 
     # find head angle unit vectors for a player at each timepoint, smoothed with a rolling window
-    trial_player_headangles = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
-    smoothed_head_angle_vectors = get_smoothed_player_head_angle_vectors_for_trial(trial_player_headangles,
+    if head_angles is None:
+        head_angles = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
+    smoothed_head_angle_vectors = get_smoothed_player_head_angle_vectors_for_trial(head_angles,
                                                                          window_size=window_size)
     
     # if smoothed head angles are too short to analyse, return np.nan
@@ -409,10 +414,14 @@ def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, tr
 
 
 # %%
-def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, current_fov=110.36, debug=False):
+def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, current_fov=110.36, debug=False,
+                     full_trial_window=False):
     ''' Returns wall visibility array (boolean array of whether each wall is visible for
         the player at each timepoint, shape num_walls*timepoints), for a chosen player and 
-        chosen trial '''
+        chosen trial
+        Frame 0 is always slice onset. full_trial_window computes over trial start -> trial end
+        and then crops back to slice onset -> trigger, so that the head angle smoothing has enough
+        frames on trials shorter than window_size + 20. Those trials return np.nan otherwise '''
     
     if debug:
         start_time = time.time()
@@ -439,7 +448,14 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
     #                                                                   trial_player_headangles,
     #                                                                   wall_coords_cross_product_dependent)
 
-    thetas = head_angle_to_closest_wall_section_throughout_trajectory(trial=trial, player_id=player_id)
+    # compute over the whole trial group when asked, so that short trials survive the smoothing
+    trajectory = head_angles = None
+    if full_trial_window:
+        trajectory = trajectory_vectors.extract_trial_player_trajectory_full(trial=trial, player_id=player_id)
+        head_angles = trajectory_vectors.extract_trial_player_headangles_full(trial=trial, player_id=player_id)
+
+    thetas = head_angle_to_closest_wall_section_throughout_trajectory(trial=trial, player_id=player_id,
+                                                                     trajectory=trajectory, head_angles=head_angles)
     if isinstance(thetas, float) and np.isnan(thetas):
         if debug:
             print(f"trial is too short to analyse. Returning np.nan instead of wall_visible array")
@@ -448,6 +464,15 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
     thetas = np.rad2deg(thetas)
 
     wall_visible = thetas < current_fov/2
+
+    # crop the wide window back to slice onset -> trigger, so frame 0 is slice onset either way
+    if full_trial_window:
+        base = trial.index[0]
+        slice_onset_index = trial.index[trial['eventDescription'] == globals.SLICE_ONSET][0] - base
+        trigger_index = trial.index[trial['eventDescription'] == globals.SELECTED_TRIGGER_ACTIVATION][0] - base
+        wall_visible = wall_visible[:, slice_onset_index:trigger_index + 1]
+        if wall_visible.shape[1] == 0:
+            return np.nan
 
     # output the time taken for this function
     if debug:

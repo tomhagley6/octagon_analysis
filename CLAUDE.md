@@ -1,3 +1,10 @@
+## General Points
+- You are allowed to say 'I don't know'
+- Use direct quotes for factual grounding
+- Verify claims with citations
+- Prompt with questions about implementation freely
+- Code changes should have clear tests before implementing
+
 # octagon_analysis
 
 Python repo for behavioural and statistical analysis, plotting, and visualisation of

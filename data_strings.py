@@ -3,8 +3,8 @@ import os
 # Globals file for access to raw data and pre-processed saved data in pandas format
 
 ### data folder
-DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
-# DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
+# DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom laptop
+DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Duan lab desktop
 # DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
 # DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
 
@@ -15,8 +15,9 @@ SIM_DATA_FOLDER = os.path.expanduser(r'~/Unity/Octagon/simulations') # Duan lab 
 DATAFRAME_DIR = r'data' 
 
 ### saved dataframe absolute path (depends on machine)
-DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos' # Tom desktop home
-DATAFRAME_ROOT = r'C:\Users\tomha\repos'  # Tom laptop
+# DATAFRAME_ROOT  = r'D:\Tom\Documents\SWC\repos' # Tom desktop home
+# DATAFRAME_ROOT = r'C:\Users\tomha\repos'  # Tom laptop
+DATAFRAME_ROOT = r'/home/tom/repos' # Duan lab desktop
 
 ### saved dataframe solo filename
 FILENAME_SOLO = r'trial_lists_solo_standard_50'
