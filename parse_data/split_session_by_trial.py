@@ -27,6 +27,7 @@ import matplotlib as mpl
 
 
 def split_session_by_trial(df, drop_trial_zero=True):
+    ''' Returns a list of trial dataframes from a full session dataframe '''
     
     # groupby produces an iterable of tuples with the group key and the dataframe 
     trials_list = [data for _, data in df.groupby('data.trialNum')]
@@ -35,7 +36,9 @@ def split_session_by_trial(df, drop_trial_zero=True):
         # exclude trial 0 (could also exclude trial 1)
         trials_list = trials_list[1:]
 
-    # if final  trial does not contain a server selected trigger activation, discard it
+    # if final trial does not contain a trial end, discard it
+    # (This occurs after preprocessing, so preprocessing will act on a dataframe with
+    # the true last trial present)
     if not globals.TRIAL_END in trials_list[-1]['eventDescription'].unique():
         trials_list = trials_list[:-1]
 

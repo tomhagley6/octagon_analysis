@@ -3,21 +3,21 @@
 
 # Analyse a cross-model tournament: which trained models win in competition.
 #
-# A tournament folder holds one subfolder per matchup, named `<runA>__vs__<runB>`, where
-# model A drives agent 0 (P1) and model B drives agent 1 (P2). Each matchup contains one
-# session JSON. This module reduces that to a per-trial table, then to per-model rankings.
+# A tournament folder holds one subfolder per matchup, named <runA>__vs__<runB>, where model
+# A drives agent 0 (P1) and model B drives agent 1 (P2). Each matchup holds one session
+# JSON. This module reduces those to a per-trial table, then to per-model rankings.
 #
 # Two outcome measures are carried side by side:
 #   score  - terminal outcome, winner-take-all: 1.0 for High, 0.4 for Low, loser 0.
-#   reward - score minus step_penalty x episode steps, i.e. score net of movement cost.
-# Whether reward is meaningful depends on the BUILD the tournament was run with: if the
-# no-movement penalty break is absent, resting is penalised too and (episodes being fixed
-# length and symmetric between competitors) reward is score minus a near-constant, which
-# reorders nothing. Check the build before reading anything into a reward ranking.
+#   reward - score minus step_penalty x episode steps, so score net of movement cost.
+# Whether reward means anything depends on the build. With the no-movement penalty break
+# absent, resting is penalised too, and since episodes are fixed length and symmetric
+# between competitors, reward is score minus a near-constant and reorders nothing. Check
+# which build produced the data before reading a reward ranking.
 #
-# The notebooks in demos/tournament/ hold the per-batch config (which folder, which
-# entrants, their strategy labels) and the written-up results. Everything that computes a
-# number or draws a figure lives here, so a new batch is a new config cell, not new code.
+# The notebooks in demos/tournament/ hold the per-batch config and the written-up results.
+# Anything that computes a number or draws a figure lives here, so a new batch is a new
+# config cell rather than new code.
 
 import contextlib
 import io
@@ -69,15 +69,15 @@ def extract_matchup(folder, base):
         tournament dir. One row per completed trial, with both models, the winning client,
         each model's score and reward, and the wall separation.
 
-        Winner and walls come from the server-selected trigger event, the authoritative
-        per-agent score/reward from the trial-end event; the two event streams are merged
-        on trialNum, which is robust to the usual off-by-one between them. '''
+        Winner and walls come from the server-selected trigger event, the per-agent
+        score and reward from the trial-end event. The two streams are merged on trialNum,
+        which handles the usual off-by-one between them. '''
 
     d = os.path.join(base, folder)
-    # first filename that fits: the session log, not a macOS resource fork or a config
+    # the session log, skipping macOS resource forks and config files
     fn = next(f for f in os.listdir(d)
               if f.endswith('.json') and not f.startswith('._') and 'config' not in f)
-    # redirect_stdout mutes the pipeline's per-file prints so a loop over 64 matchups stays readable
+    # mute the pipeline's per-file prints so a loop over 64 matchups stays readable
     with contextlib.redirect_stdout(io.StringIO()):
         df = loading.loading_pipeline(d, fn)
         df = preprocess_sim.standard_preprocessing_sim(df)
@@ -98,8 +98,8 @@ def extract_matchup(folder, base):
     a, b = model_ids(folder)
     w1 = m[globals.WALL_1].to_numpy(float)
     w2 = m[globals.WALL_2].to_numpy(float)
-    # walls are numbered 1..8, so |w1 - w2| is already 0..7; the circular wrap (walls 1 and
-    # 8 are adjacent) is closed by taking min(gap, 8 - gap) below
+    # walls are numbered 1..8, so |w1 - w2| is 0..7. Walls 1 and 8 are adjacent, so the
+    # wrap is closed by min(gap, 8 - gap) below.
     dd = np.abs(w1 - w2)
     out = pd.DataFrame(dict(
         matchup=folder, model_A=a, model_B=b, trial_num=m[TN].to_numpy(float),
@@ -116,9 +116,9 @@ def load_tournament(base, folders=None, verbose=True):
     ''' Return one long per-trial dataframe over every matchup in a tournament dir.
         Takes the dir and an optional folder list (default: all matchups present).
 
-        Also reports which matchups are missing DONE.txt (the run harness writes it on a
-        clean finish) and which failed to parse; a matchup that fails is left out of the
-        table rather than killing the pass. '''
+        Reports which matchups are missing DONE.txt (written by the run harness on a clean
+        finish) and which failed to parse. A matchup that fails is left out of the table
+        rather than stopping the pass. '''
 
     if folders is None:
         folders = matchup_folders(base)
@@ -151,8 +151,8 @@ def per_matchup_summary(trials_df, verbose=True):
         each model's mean score and reward. Takes the per-trial table.
 
         Uses pandas named aggregation: .groupby(keys).agg(out=(col, func)) gives one row per
-        group and one column per out. model_A/model_B are constant within a matchup so adding
-        them does NOT change the grouping — it just carries the ids through to the output. '''
+        group and one column per out. model_A and model_B are constant within a matchup, so
+        adding them leaves the grouping alone and carries the ids through to the output. '''
 
     per_matchup = trials_df.groupby(['matchup', 'model_A', 'model_B']).agg(
         n=('winner_client', 'size'),                                        # trials in the matchup
@@ -171,8 +171,8 @@ def perspective_table(trials_df, drop_self=True):
         Takes the per-trial table; drop_self removes self-matchups, which carry no
         competitive information (a model cannot out-rank itself).
 
-        Every trial appears twice, once framed from each model's side, so this table must
-        always be indexed by `focus` — aggregating it without grouping double-counts. '''
+        Every trial appears twice, once from each model's side, so index this table by
+        focus. Aggregating it without grouping double-counts. '''
 
     perspective = pd.concat([
         trials_df.assign(focus=trials_df.model_A, opp=trials_df.model_B,
@@ -188,13 +188,13 @@ def perspective_table(trials_df, drop_self=True):
 def models_in_order(strategy, order=STRAT_ORDER):
     ''' Return the model ids grouped by strategy band, for matrix and plot ordering.
         Takes a {model_id: strategy} dict. Within a band the caller's dict order is kept,
-        so a hand-ordered shortlist (e.g. most central first) survives into the figures. '''
+        so a hand-ordered shortlist stays in that order in the figures. '''
 
     unknown = sorted({v for v in strategy.values()} - set(order))
     if unknown:
         raise ValueError(f"strategy labels not in order={list(order)}: {unknown}. "
-                         "Models with an unlisted band would be silently dropped from every "
-                         "matrix and figure, so add the band to `order` (and to the palette).")
+                         "A model with an unlisted band is dropped from every matrix and "
+                         "figure, so add the band to order and to the palette.")
     return [m for s in order for m in strategy if strategy[m] == s]
 
 
@@ -206,17 +206,17 @@ def validation_report(trials_df, per_matchup, models, verbose=True):
     ''' Return the fairness checks for a tournament, as a dict. Takes the per-trial table,
         the per-matchup summary and the entrant list.
 
-        Trust no ranking until these pass:
-          - self-matchups (a model against a copy of itself) sit near 0.5. Far from it means
-            a seat or agent asymmetry — the failure mode of the first run, where the
-            opponent never moved and P1 won every trial.
+        Three checks:
+          - self-matchups (a model against a copy of itself) sit near 0.5. A large deviation
+            means a seat or agent asymmetry, the failure mode of the first run where the
+            opponent never moved.
           - mirror consistency: a model's win rate against an opponent is the same whether
             it played P1 or P2. Large gaps mean the seat still matters.
           - winner-take-all: exactly one agent scores each trial.
 
-        Score is safe to use here even when the build's reward structure is off, because
-        these comparisons are self- and mirror-matchups, where score proportions cannot
-        differ by construction. Mirror checks are skipped if the batch has no mirrors. '''
+        Score works here even when the build's reward structure is wrong, because these are
+        self- and mirror-matchups, where score proportions cannot differ by construction.
+        Mirror checks are skipped when the batch has no mirrors. '''
 
     self_mask = per_matchup['model_A'] == per_matchup['model_B']
     self_tbl = (per_matchup[self_mask][['model_A', 'n', 'p1_win_rate']]
@@ -244,11 +244,11 @@ def validation_report(trials_df, per_matchup, models, verbose=True):
             print("No self-matchups in this batch.")
 
         if len(mirror):
-            print(f"\nMirror consistency over {len(mirror)} pairs — mean gap "
+            print(f"\nMirror consistency over {len(mirror)} pairs, mean gap "
                   f"{mirror.gap.mean():.3f}, max {mirror.gap.max():.3f}")
             print(mirror.sort_values('gap', ascending=False).head(5).round(3).to_string(index=False))
         else:
-            print("\nNo mirror matchups in this batch — seat effects cannot be checked.")
+            print("\nNo mirror matchups in this batch, so seat effects cannot be checked.")
 
         print(f"\nwinner-take-all (exactly one agent scores per trial): {one_winner:.3f} of trials")
         if trials_df[['reward_A', 'reward_B']].notna().any().any():
@@ -267,8 +267,8 @@ def head_to_head(selfless, models):
         score / win / reward. Takes the self-excluded perspective table and the model
         order to use for rows and columns.
 
-        Each matrix reads row-model against column-opponent. Pooling both seat orders
-        gives a seat-balanced estimate of how each model does against each opponent. '''
+        Each matrix reads row-model against column-opponent. Pooling both seat orders gives
+        a seat-balanced estimate of how each model does against each opponent. '''
 
     h2h = selfless.groupby(['focus', 'opp']).agg(
         score=('f_score', 'mean'), win=('f_win', 'mean'), reward=('f_reward', 'mean')).reset_index()
@@ -318,19 +318,19 @@ def fit_bradley_terry(wins, prior=0.5, n_iter=2000, tol=1e-10):
         A small prior (pseudo-wins each way) keeps lopsided pairs from diverging. Strengths
         are normalised to mean 1; P(i beats j) = p_i / (p_i + p_j). '''
 
-    # add pseudo-wins each way so a 100%/0% pair cannot push a strength to 0 or infinity
+    # pseudo-wins each way stop a 100%/0% pair pushing a strength to 0 or infinity
     W = wins.astype(float) + prior
     np.fill_diagonal(W, 0.0)                            # no self-games
     n = W.shape[0]
     total_wins = W.sum(axis=1)                          # each model's total wins, which BT fits to
     games = W + W.T                                     # games[i, j] = contests between i and j
     p = np.ones(n)                                      # start every model at equal strength
-    # iterative MLE (Zermelo / MM update): reset each strength to the value its wins imply given
-    # the others' current strengths, and repeat until the strengths stop moving
+    # iterative MLE (Zermelo / MM update): reset each strength to the value its wins imply,
+    # given the others' current strengths, and repeat until they stop moving
     for _ in range(n_iter):
         p_old = p.copy()
         for i in range(n):
-            # denominator = i's expected wins at current strengths (games weighted by win share)
+            # denominator is i's expected wins at current strengths
             denom = np.sum([games[i, j] / (p[i] + p[j]) for j in range(n) if j != i])
             p[i] = total_wins[i] / denom if denom > 0 else p[i]   # actual / expected -> new strength
         p /= p.mean()                                   # strengths are defined only up to scale
@@ -355,9 +355,9 @@ def overall_ranking(selfless, strategy, models=None, sort_by='mean_score', verbo
         perspective table, a {model: strategy} dict, and the metric to rank on
         ('mean_score' or 'mean_reward').
 
-        Self-matchups are already excluded, so every number is competitive performance
-        against other models. Ranking on score credits winning; ranking on reward credits
-        winning cheaply — see the module docstring on when that distinction is real. '''
+        Self-matchups are already excluded, so every number is performance against other
+        models. Ranking on score credits winning, ranking on reward credits winning cheaply.
+        The module header says when that distinction is real. '''
 
     models = models or models_in_order(strategy)
     overall = selfless.groupby('focus').agg(
@@ -396,7 +396,7 @@ def plot_overall_ranking(overall, metric='mean_score', palette=STRAT_PALETTE,
     axes[0].barh(np.arange(len(order)), order[metric],
                  color=[palette[s] for s in order['strategy']], edgecolor='black', linewidth=0.4)
     if metric == 'mean_reward':
-        axes[0].axvline(0, color='k', lw=0.8)           # reward crosses zero; score cannot
+        axes[0].axvline(0, color='k', lw=0.8)           # reward crosses zero, score cannot
     axes[0].set_yticks(np.arange(len(order)))
     axes[0].set_yticklabels(order['model'])
     axes[0].set_xlabel(label)
@@ -432,8 +432,8 @@ def intransitive_triads(win_mat, models):
 
     loops = []
     for i, j, k in combinations(models, 3):
-        # count how many of the other two each model beats; a transitive triad gives
-        # counts {2, 1, 0}, a rock-paper-scissors loop gives {1, 1, 1}
+        # count how many of the other two each model beats. A transitive triad gives
+        # {2, 1, 0}, a rock-paper-scissors loop gives {1, 1, 1}.
         beats = {m: sum(win_mat.loc[m, o] > 0.5 for o in (i, j, k) if o != m) for m in (i, j, k)}
         if all(v == 1 for v in beats.values()):
             loops.append((i, j, k))
@@ -445,9 +445,9 @@ def interaction(win_mat, bt_map, models, strategy=None, verbose=True):
         rate for every ordered pair. Takes the win-rate matrix, the BT strengths and the
         model order.
 
-        If success were purely each model's general strength, every head-to-head would be
-        predicted by the two strengths, and every residual would be ~0. Large residuals, or
-        non-transitive loops, mean the specific pairing matters beyond overall strength. '''
+        If success were purely each model's general strength, the two strengths would
+        predict every head-to-head and every residual would sit near 0. Large residuals, or
+        non-transitive loops, mean the pairing matters beyond overall strength. '''
 
     pred = pd.DataFrame(index=models, columns=models, dtype=float)
     for i in models:
@@ -492,14 +492,14 @@ def score_vs_reward(overall, verbose=True):
     ''' Return each model's rank under score and under reward, the shift between them, and
         the movement cost it paid (score minus reward). Takes the overall table.
 
-        Score credits winning; reward credits winning cheaply. If lower movement cost
-        matters, cheap models climb under reward. A rank_shift of 0 everywhere means the
-        cost is a constant across models and reward adds nothing over score. '''
+        Score credits winning, reward credits winning cheaply. If lower movement cost
+        matters, cheap models climb under reward. A rank_shift of 0 everywhere means the cost
+        is constant across models and reward adds nothing over score. '''
 
     cmp = overall[['model', 'strategy', 'mean_score', 'mean_reward']].copy()
     cmp['score_rank'] = cmp['mean_score'].rank(ascending=False).astype(int)
     cmp['reward_rank'] = cmp['mean_reward'].rank(ascending=False).astype(int)
-    cmp['rank_shift'] = cmp['score_rank'] - cmp['reward_rank']      # + = climbs under reward
+    cmp['rank_shift'] = cmp['score_rank'] - cmp['reward_rank']      # positive = climbs under reward
     cmp['cost'] = cmp['mean_score'] - cmp['mean_reward']            # movement cost paid
     cmp = cmp.sort_values('reward_rank').reset_index(drop=True)
     if verbose:
@@ -509,8 +509,8 @@ def score_vs_reward(overall, verbose=True):
 
 
 def plot_score_vs_reward(cmp, palette=STRAT_PALETTE, strat_order=STRAT_ORDER, figsize=(14, 5)):
-    ''' Plot mean score against mean reward per model (gap below the identity line is the
-        movement cost), and the mean cost paid by each strategy band.
+    ''' Plot mean score against mean reward per model, where the gap below the identity
+        line is the movement cost, and the mean cost paid by each strategy band.
         Takes the table from score_vs_reward. Returns (fig, axes). '''
 
     fig, axes = plt.subplots(1, 2, figsize=figsize)
