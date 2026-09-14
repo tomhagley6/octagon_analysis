@@ -27,8 +27,18 @@ def prepare_single_session_data(data_folder, json_filename):
     # (parse_data/preprocess.py)
     df = preprocess.standard_preprocessing(df)
 
+    # split into trials, dropping the pre-trial block and any final trial with no trial end
     # (parse_data/split_session_by_trial.py)
-    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=False) # already dropped trial 0 above
+    trial_list = split_session_by_trial.split_session_by_trial(df, drop_trial_zero=True)
+
+    # rebuild the session dataframe from the trials, so it covers exactly the trials that are
+    # analysed. This drops two blocks that are never useful:
+    #   - the rows before the first `trial start`, which fill_trial_zero labels trialNum 0. They
+    #     hold only `logging start` and `time`, so there is no choice, no walls and no trigger
+    #   - a final trial with no `trial end`. Logging stops on the last trigger, so that trial has
+    #     a time but no score
+    # combine_sessions does the same for the combined path, so both now agree
+    df = pd.concat(trial_list)
 
     return df, trial_list
 

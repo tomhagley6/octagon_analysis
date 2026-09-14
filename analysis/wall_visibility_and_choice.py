@@ -315,9 +315,10 @@ def given_wall_chosen_conditioned_on_visibility(trial_list, player_id, given_wal
         # find whether player chose given_wall for this trial (np.nan if choice not retrievable)
         walls = get_indices.get_walls(trial)
         given_wall = walls[given_wall_index]
-        trial_player_chose_given_wall = get_player_choice_trial(player_wall_choice, trial_idx, given_wall)
+        trial_player_chose_given_wall = get_player_choice_trial(player_wall_choice, trial_idx, given_wall, debug=debug)
         player_chose_given_wall_session[trial_idx] = trial_player_chose_given_wall
-        print(f"for trial {trial_idx}, trial_player_chose_given_wall added to array as {trial_player_chose_given_wall}")
+        if debug:
+            print(f"for trial {trial_idx}, trial_player_chose_given_wall added to array as {trial_player_chose_given_wall}")
 
     return condition_fulfilled_session, player_chose_given_wall_session
 
@@ -428,7 +429,7 @@ def get_first_visible_wall_trial(trial, player_id, current_fov, debug=False):
 # In[ ]:
 
 
-def get_player_choice_trial(player_wall_choice, trial_idx, comparison_wall, debug=True):
+def get_player_choice_trial(player_wall_choice, trial_idx, comparison_wall, debug=False):
     ''' Returns a bool for whether the comparison wall was chosen on this trial '''
 
     
@@ -508,7 +509,7 @@ def first_visible_wall_chosen_session(trial_list, player_id, current_fov=110, wa
         this_trial_first_visible_wall_high, this_player_this_trial_first_visible_wall_num = get_first_visible_wall_trial(trial, player_id, current_fov)
 
         # check against player choices to see if the first visible wall was chosen
-        this_trial_first_visible_wall_chosen = get_player_choice_trial(player_wall_choice, trial_idx, this_player_this_trial_first_visible_wall_num)
+        this_trial_first_visible_wall_chosen = get_player_choice_trial(player_wall_choice, trial_idx, this_player_this_trial_first_visible_wall_num, debug=debug)
 
         # set everything equal to nan if we cannot retrieve player choice (we don't want to include trials in analysis
         # unless they contain all information)
@@ -624,10 +625,12 @@ def probability_first_wall_chosen_and_low_multiple_sessions_social(trial_lists, 
 
     # for each session data file, identify probability of choosing first wall seen when that wall is Low
     for trial_list_idx in range(len(trial_lists)):
-        print(f"trial list index: {trial_list_idx}")
+        if debug:
+            print(f"trial list index: {trial_list_idx}")
         this_trial_list = trial_lists[trial_list_idx]
         for player_id in range(2): # for each player
-            print(f"player num: {player_id}")
+            if debug:
+                print(f"player num: {player_id}")
             first_visible_wall_chosen, first_visible_wall_high = first_visible_wall_chosen_session(this_trial_list, player_id=player_id, wall_sep=wall_sep, trial_type=trial_type, inferred_choice=inferred_choice, debug=debug)
 
             # quick detour to get the probability of choosing the first visible wall
@@ -662,7 +665,8 @@ def probability_first_wall_chosen_and_low_multiple_sessions_combined_solo(trial_
 
     # for each session data file, identify probability of choosing first wall seen when that wall is Low
     for trial_list_idx in range(0,len(trial_lists),2):
-        print(f"trial list index: {trial_list_idx}")
+        if debug:
+            print(f"trial list index: {trial_list_idx}")
 
         # get the trial lists for both solo sessions
         trial_list_first_solo = trial_lists[trial_list_idx]
@@ -716,10 +720,12 @@ def given_wall_chosen_conditioned_on_visibility_multiple_sessions_social(trial_l
 
     # for each session data file, identify probability of choosing high wall seen when seen first or seen second
     for trial_list_idx, trial_list in enumerate(trial_lists):
-        print(f"trial list index: {trial_list_idx}")
+        if debug:
+            print(f"trial list index: {trial_list_idx}")
         this_trial_list = trial_list
         for player_id in range(2): # for each player
-            print(f"player num: {player_id}")
+            if debug:
+                print(f"player num: {player_id}")
             condition_fulfilled_session, player_chose_given_wall_session = given_wall_chosen_conditioned_on_visibility(this_trial_list, player_id=player_id,
                                                                                                                     given_wall_index=given_wall_index, 
                                                                                                                     given_wall_first_vis=given_wall_first_vis, 
@@ -772,7 +778,8 @@ def given_wall_chosen_conditioned_on_visibility_multiple_sessions_solo(trial_lis
 
     # for each session data file, identify probability of choosing high wall seen when seen first or seen second
     for trial_list_idx in range(0,len(trial_lists),2):
-        print(f"trial list index: {trial_list_idx}")
+        if debug:
+            print(f"trial list index: {trial_list_idx}")
 
         # get the trial lists for both solo sessions
         trial_list_first_solo = trial_lists[trial_list_idx]

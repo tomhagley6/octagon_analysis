@@ -213,7 +213,8 @@ def infer_loser_choice_session(trial_list, debug=False):
         print(f"Loser inferred choices: {loser_inferred_choice}")
 
 
-    print(f"proportion loser's choice confident = {np.nansum(loser_inferred_choice_confidence)/loser_inferred_choice_confidence.size}")
+    if debug:
+        print(f"proportion loser's choice confident = {np.nansum(loser_inferred_choice_confidence)/loser_inferred_choice_confidence.size}")
 
     return loser_inferred_choice, loser_inferred_choice_confidence
 

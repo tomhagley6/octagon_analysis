@@ -3,14 +3,18 @@
 
 # %%
 def combine_solo_sessions(trial_lists_solo, drop_first_n_trials=5):
-    ''' Combine pre- and post- social solo sessions, removing 5 trials from each pre 
-    Args:
-        trial_lists_solo (list): List of lists containing the  trials for each solo session.
-        Post-social solo sessions are expected to be at even indices, and pre-social solo sessions at odd indices,
-        with contiguous indices representing the same individual.
-        Returns:
-        trial_lists_combined_solo (list): List of lists containing the combined trials for each individual,
-        with the first 5 trials of the pre-social solo sessions removed.
+    ''' Combine each player's two solo sessions, cutting the opening trials of the first.
+        Takes the per-session solo trial lists and the number of trials to cut.
+
+        The first (pre-social) solo is expected at even indices and the second (post-social) solo at
+        odd indices, with consecutive indices belonging to the same player. That is the order
+        identify_filepaths.get_filenames returns: session, then player, then FirstSolo before
+        SecondSolo.
+
+        Only the first solo is cut, because it is the player's first exposure to the task and those
+        choices are confounded by learning the controls. The second solo is never cut.
+
+        Returns one combined trial list per player, so 404 solo sessions become 202 entries.
     '''
     # create a list of combined pre- and post- social solo sessions, removing 5 trials from each pre
     trial_lists_combined_solo = []

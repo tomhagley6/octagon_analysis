@@ -24,14 +24,17 @@ def extract_sort_key(path):
 
 # %%
 # %%
-def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER):
+def get_relative_paths(match_string, data_folder=data_strings.DATA_FOLDER,
+                       exclude_folders=data_strings.EXCLUDED_SESSION_FOLDERS):
     ''' Find all relative paths for files that contain match_string in
-        subfolders of data_folder. Store these filenames in a list '''
+        subfolders of data_folder. Store these filenames in a list.
+        Session folders in exclude_folders are skipped, so their solo and social files are dropped
+        together and the solo-to-social alignment holds. Pass an empty set to see every session '''
 
     datafile_paths = []
 
-    # directories and filenames to ignore (AppleDouble, macOS metadata)
-    exclude_dirs = {'__MACOSX'}
+    # directories and filenames to ignore (AppleDouble, macOS metadata, excluded sessions)
+    exclude_dirs = {'__MACOSX'} | set(exclude_folders)
 
     for subfolder in os.listdir(data_folder):
         # skip macOS metadata folders and AppleDouble directory entries

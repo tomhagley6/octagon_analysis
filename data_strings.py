@@ -8,6 +8,15 @@ DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/standard' # standard on Dua
 # DATA_FOLDER = r'/mnt/tom/ceph/ogma/human_octagon/RAW/risky' # risky on Duan lab desktop 
 # DATA_FOLDER = r'O:\human_octagon\RAW\standard' # standard on Tom desktop home
 
+### session folders excluded from every file listing, so they never reach the saved pickles
+# 260116_1: FR16's second solo lost 92.7% of its recording to three blackout windows, leaving 5
+# trials with gaps in trialNum (1, 25, 26, 42, 43). Trial 1 has no `trial end`, so trial starts
+# outnumber trial ends and fill_trial_walls_fully never fills trial 43's walls, which crashes
+# get_walls on int(NaN). The rest of the folder is healthy, but solo and social results are matched
+# by position (solo pair 2s/2s+1 against social session s, players 0/1), so dropping one player's
+# solos would shift every player after them. The whole folder goes to keep that alignment
+EXCLUDED_SESSION_FOLDERS = {'260116_1'}
+
 ### simulation results folder (RL agent inference runs; one model per subfolder)
 SIM_DATA_FOLDER = os.path.expanduser(r'~/Unity/Octagon/simulations') # Duan lab desktop
 
@@ -19,14 +28,20 @@ DATAFRAME_DIR = r'data'
 # DATAFRAME_ROOT = r'C:\Users\tomha\repos'  # Tom laptop
 DATAFRAME_ROOT = r'/home/tom/repos' # Duan lab desktop
 
-### saved dataframe solo filename
-FILENAME_SOLO = r'trial_lists_solo_standard_50'
+### saved session lists of trial dataframes (solo filename)
+FILENAME_SOLO = r'solo_trials_list'
 
-### saved dataframe social filename
-FILENAME_SOCIAL = r'trial_lists_social_standard_50'
+### saved session lists of trial dataframes (social filename)
+FILENAME_SOCIAL = r'social_trials_list'
 
-### saved dataframe combined solo filename
-FILENAME_SOLO_COMBINED = r'trial_lists_solo_combined_standard_50'
+### saved list of session dataframes
+FILENAME_SOLO_SESSIONS = r'solo_df'
+FILENAME_SOCIAL_SESSIONS = r'social_df'
+
+
+### cached analysis results, in a subfolder of the saved dataframe path so they sit apart from
+### the session pickles and can be cleared on their own
+ANALYSIS_CACHE_DIR = r'analysis_cache'
 
 ### saved dataframe full path
 DATAFRAME_PATH = DATAFRAME_ROOT + os.sep + DATAFRAME_DIR + os.sep
