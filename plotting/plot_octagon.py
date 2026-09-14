@@ -1,48 +1,34 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
+# %%
 import math
 import numpy as np
 from matplotlib import pyplot as plt
+import globals
 
-
-# In[2]:
-
-
+# %%
 # default arguments
 num_walls = 8
-diameter = 36.21
+diameter = 2 * globals.OCTAGON_VERTEX_RADIUS
 radius = diameter/2
 angle_sep = 2*math.pi/num_walls  # angle between walls
 vertex_offset = angle_sep/2      # angular distance between centre-wall and vertex 
 
 # alcoves
-alcove_length_scaled = 3.0       # depth of alcove in Blender/Unity units after scaling 
-                                 # of Octagon in Unity
+alcove_length_scaled = globals.ALCOVE_DEPTH     # depth of alcove in Blender/Unity units after scaling of Octagon in Unity
+alcove_half_width = globals.ALCOVE_HALF_WIDTH      
+                                 
 alcove_length_axis_projection = (alcove_length_scaled*math.sin(math.pi/4))/math.sin(math.pi/2) # Sin rule to find x and y coordinate
                                                                                                # offset from values in vertex_x/y
                                                                                                # This is the projection of the diagonal
                                                                                                # alcove walls onto the x and y axis
 
 
-# In[3]:
-
-
+# %%
 ## Functions ##
 
-
-# In[ ]:
-
-
+# %%
 # Coordinate generation # 
 
-
-# In[5]:
-
-
+# %%
 # this will return lists of x and y coordinates, for vertices if vertex=True, and for
 # wall centres if vertex=False
 def calculate_coordinates(vertex=True, angle_sep=angle_sep, vertex_offset=vertex_offset, num_walls=num_walls, radius=radius):
@@ -70,42 +56,61 @@ def calculate_coordinates(vertex=True, angle_sep=angle_sep, vertex_offset=vertex
 
     return [coords_x, coords_y]
 
+# %%
+## This function inaccurately plotted the alcoves as too wide. Replaced with the following function.
 
-# In[6]:
+# # find 1/3 and 2/3 coordinates along each wall
+# def calculate_wall_thirds_coordinates(vertex_x, vertex_y):
+#     ''' Find the coordinates for the 1/3 and 2/3 distances along the Octagon walls ''' 
 
+#     # use linear interpolation to find 1/3 and 2/3 coordinates for each wall (16 points)
+#     wall_one_third_x = []
+#     wall_one_third_y = []
+#     for i in range(num_walls):
+#         wall_one_third_x.append((2/3)*vertex_x[i] + (1/3)*vertex_x[i+1])
+#         wall_one_third_y.append((2/3)*vertex_y[i] + (1/3)*vertex_y[i+1])
+    
+#     wall_two_thirds_x = []
+#     wall_two_thirds_y = []
+#     for i in range(num_walls):
+#         wall_two_thirds_x.append((1/3)*vertex_x[i] + (2/3)*vertex_x[i+1])
+#         wall_two_thirds_y.append((1/3)*vertex_y[i] + (2/3)*vertex_y[i+1])
+    
+#     # interleave the one-thirds and two-thirds lists
+#     # first zip them together and then flatten the pairs
+#     lists_x = [wall_one_third_x, wall_two_thirds_x]
+#     wall_thirds_x = [val for tup in zip(*lists_x) for val in tup] 
+    
+#     # repeat for y
+#     lists_y = [wall_one_third_y, wall_two_thirds_y]
+#     wall_thirds_y = [val for tup in zip(*lists_y) for val in tup] 
 
-# find 1/3 and 2/3 coordinates along each wall
-def calculate_wall_thirds_coordinates(vertex_x, vertex_y):
-    ''' Find the coordinates for the 1/3 and 2/3 distances along the Octagon walls ''' 
+#     return [wall_thirds_x, wall_thirds_y]
 
-    # use linear interpolation to find 1/3 and 2/3 coordinates for each wall (16 points)
-    wall_one_third_x = []
-    wall_one_third_y = []
+# %%
+# find where each alcove meets its wall
+def calculate_alcove_edge_coordinates(vertex_x, vertex_y, alcove_half_width=alcove_half_width):
+    ''' Find the coordinates where each alcove meets its wall (alcove_half_width either side of the wall centre).
+        Takes vertex x and y coordinates and the alcove half-width. '''
+
+    alcove_edge_x = []
+    alcove_edge_y = []
     for i in range(num_walls):
-        wall_one_third_x.append((2/3)*vertex_x[i] + (1/3)*vertex_x[i+1])
-        wall_one_third_y.append((2/3)*vertex_y[i] + (1/3)*vertex_y[i+1])
-    
-    wall_two_thirds_x = []
-    wall_two_thirds_y = []
-    for i in range(num_walls):
-        wall_two_thirds_x.append((1/3)*vertex_x[i] + (2/3)*vertex_x[i+1])
-        wall_two_thirds_y.append((1/3)*vertex_y[i] + (2/3)*vertex_y[i+1])
-    
-    # interleave the one-thirds and two-thirds lists
-    # first zip them together and then flatten the pairs
-    lists_x = [wall_one_third_x, wall_two_thirds_x]
-    wall_thirds_x = [val for tup in zip(*lists_x) for val in tup] 
-    
-    # repeat for y
-    lists_y = [wall_one_third_y, wall_two_thirds_y]
-    wall_thirds_y = [val for tup in zip(*lists_y) for val in tup] 
+        # get the wall length between this vertex and the next
+        wall_length = math.hypot(vertex_x[i+1] - vertex_x[i], vertex_y[i+1] - vertex_y[i])
 
-    return [wall_thirds_x, wall_thirds_y]
+        # find the fraction along the wall where each alcove edge sits
+        edge_fraction = 0.5 - alcove_half_width / wall_length
+
+        # interpolate the edge nearer vertex i, then the edge nearer vertex i+1
+        for f in (edge_fraction, 1 - edge_fraction):
+            alcove_edge_x.append((1 - f)*vertex_x[i] + f*vertex_x[i+1])
+            alcove_edge_y.append((1 - f)*vertex_y[i] + f*vertex_y[i+1])
+
+    return [alcove_edge_x, alcove_edge_y]
 
 
-# In[7]:
-
-
+# %%
 # generate alcove end-points
 def generate_alcove_endpoints(vertex_x_thirds, vertex_y_thirds, alcove_length_scaled=alcove_length_scaled,
                               alcove_length_axis_projection=alcove_length_axis_projection):
@@ -168,10 +173,7 @@ def generate_alcove_endpoints(vertex_x_thirds, vertex_y_thirds, alcove_length_sc
 
     return [alcove_x_coords, alcove_y_coords]
 
-
-# In[9]:
-
-
+# %%
 def find_alcove_centre_points(alcove_x_coords, alcove_y_coords, vertex_x_thirds, vertex_y_thirds):
     ''' Use the alcove end-points and the octagon vertex thirds to find the centre point of each alcove ''' 
     
@@ -189,10 +191,7 @@ def find_alcove_centre_points(alcove_x_coords, alcove_y_coords, vertex_x_thirds,
 
     return average_alcove_coordinates
 
-
-# In[8]:
-
-
+# %%
 def concatenate_all_coord_lists(vertex_x, vertex_x_thirds, alcove_x_coords,
                                 vertex_y, vertex_y_thirds, alcove_y_coords):
     ''' Concatenate all of the x and y vertex lists in the correct order ready for
@@ -242,9 +241,7 @@ def concatenate_all_coord_lists(vertex_x, vertex_x_thirds, alcove_x_coords,
     return [final_x_coords, final_y_coords]
 
 
-# In[9]:
-
-
+# %%
 def get_zipped_vertex_coordinates(final_x_coords, final_y_coords):
     ''' Return vertex coordinates for use in creating a mask ''' 
     
@@ -253,16 +250,10 @@ def get_zipped_vertex_coordinates(final_x_coords, final_y_coords):
     return final_coords
                         
 
-
-# In[ ]:
-
-
+# %%
 # Coordinate use #
 
-
-# In[ ]:
-
-
+# %%
 def return_maximum_distance():
     ''' Return the maximum distance between 2 points within the Octagon arena '''
     
@@ -280,10 +271,7 @@ def return_maximum_distance():
 
     return max_dist
 
-
-# In[ ]:
-
-
+# %%
 def normalise_distances(distances):
     ''' Take an array of distances and return an array normalised
         by maximum distance'''
@@ -292,16 +280,10 @@ def normalise_distances(distances):
 
     return distances/max_dist
 
-
-# In[ ]:
-
-
+# %%
 # Plotting # 
 
-
-# In[11]:
-
-
+# %%
 def plot_octagon_from_coords(x_coords, y_coords, ax=None):
     ''' Plot the full alcove octagon outline shape '''
 
@@ -316,10 +298,7 @@ def plot_octagon_from_coords(x_coords, y_coords, ax=None):
 
     return ax 
 
-
-# In[12]:
-
-
+# %%
 def plot_all_octagon_coordinates(vertex_x, wall_thirds_x, alcoves_x,
                                  vertex_y, wall_thirds_y, alcoves_y,
                                 ax=None):
@@ -334,16 +313,10 @@ def plot_all_octagon_coordinates(vertex_x, wall_thirds_x, alcoves_x,
 
         return ax
 
-
-# In[13]:
-
-
+# %%
 ## Execution ## 
 
-
-# In[14]:
-
-
+# %%
 def return_octagon_path_points():
     ''' Umbrella function to returning a zipped list of Octagon x and y coordinates '''
     
@@ -351,7 +324,7 @@ def return_octagon_path_points():
     vertex_x, vertex_y = calculate_coordinates(vertex=True)
 
     # get coordinates for the points 1/3 and 2/3 along each wall
-    wall_thirds_x, wall_thirds_y = calculate_wall_thirds_coordinates(vertex_x, vertex_y)
+    wall_thirds_x, wall_thirds_y = calculate_alcove_edge_coordinates(vertex_x, vertex_y)
 
     # get coordinates for the alcove endpoints
     alcove_x, alcove_y = generate_alcove_endpoints(wall_thirds_x, wall_thirds_y, alcove_length_scaled, alcove_length_axis_projection)
@@ -365,10 +338,7 @@ def return_octagon_path_points():
     return path_coordinates
     
 
-
-# In[11]:
-
-
+# %%
 def return_alcove_centre_points():
     ''' Umbrella function to return only the central points within each alcove
         as a 2x8 np.array '''
@@ -377,7 +347,7 @@ def return_alcove_centre_points():
     vertex_x, vertex_y = calculate_coordinates(vertex=True)
 
     # get coordinates for the points 1/3 and 2/3 along each wall
-    wall_thirds_x, wall_thirds_y = calculate_wall_thirds_coordinates(vertex_x, vertex_y)
+    wall_thirds_x, wall_thirds_y = calculate_alcove_edge_coordinates(vertex_x, vertex_y)
 
     # get coordinates for the alcove endpoints
     alcove_x, alcove_y = generate_alcove_endpoints(wall_thirds_x, wall_thirds_y, alcove_length_scaled, alcove_length_axis_projection)
@@ -391,9 +361,7 @@ def return_alcove_centre_points():
     return average_alcove_coordinates
 
 
-# In[ ]:
-
-
+# %%
 def plot_octagon(ax=None):
     ''' Octagon plotting umbrella function '''
     
@@ -401,8 +369,8 @@ def plot_octagon(ax=None):
     vertex_x, vertex_y = calculate_coordinates(vertex=True)
 
     # get coordinates for the points 1/3 and 2/3 along each wall
-    wall_thirds_x, wall_thirds_y = calculate_wall_thirds_coordinates(vertex_x, vertex_y)
-
+    wall_thirds_x, wall_thirds_y = calculate_alcove_edge_coordinates(vertex_x, vertex_y)
+    
     # get coordinates for the alcove endpoints
     alcove_x, alcove_y = generate_alcove_endpoints(wall_thirds_x, wall_thirds_y, alcove_length_scaled, alcove_length_axis_projection)
 
@@ -419,4 +387,6 @@ def plot_octagon(ax=None):
     
     # return axes for further plotting
     return ax 
+
+
 

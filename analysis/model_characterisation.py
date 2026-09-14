@@ -31,7 +31,7 @@ from parse_data import identify_sim_filepaths, prepare_sim_data
 
 DEFAULT_FOV = 110.0                 # agent camera FoV (total degrees); get_wall_visible tests theta < FoV/2
 FS = globals.RECORDING_FREQUENCY    # 50 Hz logging
-ARENA_RADIUS = 36.21 / 2            # octagon centred at (0, 0); centrality 1 = centre, 0 = wall
+ARENA_RADIUS = globals.OCTAGON_ALCOVE_RADIUS           # octagon centred at (0, 0); centrality 1 = centre, 0 = alcove back
 ITI_EPOCHS = [globals.ITI, globals.TRIAL_STARTED]  # "ITI" here = trial end -> next slice onset
 STATIONARY_SPEED = 0.05             # units/frame; below this a frame counts as "not translating"
 STATIONARY_ROT = 0.5                # deg/frame; below this a frame counts as "not rotating"

@@ -1,4 +1,5 @@
 # globals.py
+import math
 
 NUM_WALLS = 8
 
@@ -79,3 +80,14 @@ PLAYER_TRIAL_REWARD_DICT = {
 XLOC = 'location.x'
 
 RECORDING_FREQUENCY = 50
+
+## arena geometry as distances the player centre can reach, not technically wall positions
+## measured from 260723 agent logs (models 1, 23, 33, 51)
+
+OCTAGON_WALLFACE_RADIUS = 16.747 
+OCTAGON_VERTEX_RADIUS = 16.747 / math.cos(math.radians(22.5)) # 18.127
+OCTAGON_ALCOVE_RADIUS = 19.747
+ALCOVE_HALF_WIDTH = 1.90
+ALCOVE_DEPTH = OCTAGON_ALCOVE_RADIUS - OCTAGON_WALLFACE_RADIUS
+
+
