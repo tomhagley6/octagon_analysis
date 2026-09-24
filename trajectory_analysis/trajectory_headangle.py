@@ -9,6 +9,7 @@ import plotting.plot_octagon as plot_octagon
 import data_extraction.extract_trial as extract_trial
 import math
 import trajectory_analysis.trajectory_vectors as trajectory_vectors
+import trajectory_analysis.visibility_occlusion as visibility_occlusion
 import data_extraction.get_indices as get_indices
 import utils.get_ordered_indices as get_ordered_indices
 import time
@@ -415,13 +416,17 @@ def head_angle_to_closest_wall_section_throughout_trajectory(trial_list=None, tr
 
 # %%
 def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, current_fov=110.36, debug=False,
-                     full_trial_window=False):
+                     full_trial_window=False, occlusion=True):
     ''' Returns wall visibility array (boolean array of whether each wall is visible for
-        the player at each timepoint, shape num_walls*timepoints), for a chosen player and 
+        the player at each timepoint, shape num_walls*timepoints), for a chosen player and
         chosen trial
         Frame 0 is always slice onset. full_trial_window computes over trial start -> trial end
         and then crops back to slice onset -> trigger, so that the head angle smoothing has enough
-        frames on trials shorter than window_size + 20. Those trials return np.nan otherwise '''
+        frames on trials shorter than window_size + 20. Those trials return np.nan otherwise
+        occlusion=True (default) uses physical wall positions and blocks lines of sight that cross a wall
+        (see trajectory_analysis/visibility_occlusion.py). A wall is then visible if any part of its
+        coloured face is in view. occlusion=False keeps the older angular test, which has no blocking,
+        uses reachable-space corners, and misses walls in view when close to a wall '''
     
     if debug:
         start_time = time.time()
@@ -454,16 +459,33 @@ def get_wall_visible(trial_list=None, trial_index=0, trial=None, player_id=0, cu
         trajectory = trajectory_vectors.extract_trial_player_trajectory_full(trial=trial, player_id=player_id)
         head_angles = trajectory_vectors.extract_trial_player_headangles_full(trial=trial, player_id=player_id)
 
-    thetas = head_angle_to_closest_wall_section_throughout_trajectory(trial=trial, player_id=player_id,
-                                                                     trajectory=trajectory, head_angles=head_angles)
-    if isinstance(thetas, float) and np.isnan(thetas):
-        if debug:
-            print(f"trial is too short to analyse. Returning np.nan instead of wall_visible array")
-        return np.nan
-    
-    thetas = np.rad2deg(thetas)
+    if occlusion:
+        # get the default slice onset -> trigger window unless the full window was taken above
+        if trajectory is None:
+            trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=player_id)
+            head_angles = trajectory_vectors.extract_trial_player_headangles(trial=trial, player_id=player_id)
+        smoothed_head_angle_vectors = get_smoothed_player_head_angle_vectors_for_trial(head_angles)
 
-    wall_visible = thetas < current_fov/2
+        # apply the same too-short rule as the angular method
+        if smoothed_head_angle_vectors.shape[1] < 20:
+            if debug:
+                print(f"trial is too short to analyse. Returning np.nan instead of wall_visible array")
+            return np.nan
+
+        # test each wall's coloured face for field of view and a clear line of sight
+        wall_visible = visibility_occlusion.get_wall_visible_occluded(trajectory, smoothed_head_angle_vectors,
+                                                                      current_fov=current_fov)
+    else:
+        thetas = head_angle_to_closest_wall_section_throughout_trajectory(trial=trial, player_id=player_id,
+                                                                         trajectory=trajectory, head_angles=head_angles)
+        if isinstance(thetas, float) and np.isnan(thetas):
+            if debug:
+                print(f"trial is too short to analyse. Returning np.nan instead of wall_visible array")
+            return np.nan
+
+        thetas = np.rad2deg(thetas)
+
+        wall_visible = thetas < current_fov/2
 
     # crop the wide window back to slice onset -> trigger, so frame 0 is slice onset either way
     if full_trial_window:

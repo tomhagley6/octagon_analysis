@@ -11,7 +11,7 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
                                                wall_initial_vis_only, inferred_choice, current_fov,
                                                  inverse_other_visible=False,
                                                return_trial_indices=False, data_size_cutoff=4,
-                                                 debug=False):
+                                                 view_trial_list=None, debug=False):
     ''' Take a trial list and filter based on existence of player_id player choice,
         Other visibility at trial start (if other_visible is not None,
         with inverse_other_visible=True returning Other non-visibility),
@@ -22,7 +22,11 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
         Else, the trials remaining will be set to all winning trials for this player.
         Returns probability of choosing a trial wall. 
         inferred_choice decides whether to include inferred choice for identifying retrievable choice and chosen wall.
-        visible_wall_index and chosen_wall_index control wall initial visibility and player choice filters respectively. '''
+        visible_wall_index and chosen_wall_index control wall initial visibility and player choice filters respectively.
+        view_trial_list optionally supplies the same session as this player's screen showed it, which is
+        what the opponent visibility test then uses. It must be the full unfiltered session, as it is cut
+        to match by the indices tracked here. Everything else stays on the logged trials, as choices,
+        walls and outcomes come from log events and did not go through the network. '''
     
     if debug:
       print(f"Next session, player_id {player_id}")
@@ -48,9 +52,13 @@ def probability_trial_outcome_given_conditions(trial_list, player_id,
 
     
     if other_visible:
-      # get Other visibility status for this session and player_id
-      orientation_angle_to_other_session = opponent_visibility.get_angle_of_opponent_from_player_session(player_id, trial_list_filtered)
-      other_visible_session = opponent_visibility.get_other_visible_session(orientation_angle_to_other_session, current_fov)
+      # measure visibility on this player's own screen when one is given, as a player can only act on
+      # what was drawn. The screen is cut to the trials kept so far
+      visibility_trials = ([view_trial_list[i] for i in original_indices] if view_trial_list is not None
+                           else trial_list_filtered)
+      # get Other visibility status for this session and player_id (walls block the line of sight)
+      other_visible_session = opponent_visibility.get_other_visible_session_from_trials(player_id, visibility_trials,
+                                                                                        current_fov)
       # filter Other initially visible
       (trial_list_filtered,
       original_indices) = trial_list_filters.filter_trials_other_visible(trial_list_filtered, other_visible_session,
@@ -125,7 +133,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                             other_visible=None, wall_initial_vis_only=False,
                                                              solo=False, wall_sep=None, inverse_other_visible=False,
                                                             trial_type=globals.HIGH_LOW,
-                                                             data_size_cutoff=4, debug=True):
+                                                             data_size_cutoff=4, screen_views=None, debug=True):
     
     ''' Returns two dictionaries: probabilities and trial_data.
         probabilities contains the probability of trial outcome given conditions for each session and player.
@@ -141,6 +149,10 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
         Also adapts to solo or social data. However, be aware whether solo sessions from an individual player
         have been combined or not before passing. If not, consecutive pairs of entries will be pre- and post-
         solo sessions for one player.
+        screen_views optionally supplies, per session, a dict from player id to that session as that
+        player's screen showed it, from human_characterisation.screen_view_trial_lists. Opponent
+        visibility is then measured on each player's own screen rather than on the host's copy of
+        player 1. Without it the behaviour is unchanged.
         '''
     
     if not solo:
@@ -160,11 +172,14 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
         # filter trial list for specified trial type (e.g., HIGH_LOW)
         trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
         trial_list_filtered = [trial_list[i] for i in trial_indices]
+        # keep the same indices against the unfiltered session, so a screen view can be cut to match
+        kept = list(trial_indices)
 
         # also filter trial list by specific wall separation if specified
         if wall_sep:
             trial_indices = get_indices.get_trials_with_wall_sep(trial_list_filtered, wall_sep=wall_sep)
             trial_list_filtered = [trial_list_filtered[i] for i in trial_indices]
+            kept = [kept[i] for i in trial_indices]
 
 
         # iterate over both player IDs (0 and 1)
@@ -175,13 +190,19 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                 if player_id == 1:
                     continue
 
+            # take this player's screen for the session, cut to the trials kept above
+            view = None
+            if screen_views is not None:
+                view = [screen_views[trial_list_index][player_id][i] for i in kept]
+
             # calculate probabilities and filtered indices for all specified conditions
             (probability,
             filtered_indices_visible,
             filtered_choice_indices_visible) = probability_trial_outcome_given_conditions(trial_list_filtered, player_id, 
                                                 visible_wall_index, chosen_wall_index, other_visible, wall_initial_vis_only,
                                                 inferred_choice, current_fov, inverse_other_visible,
-                                                return_trial_indices=True, data_size_cutoff=data_size_cutoff, debug=debug)
+                                                return_trial_indices=True, data_size_cutoff=data_size_cutoff,
+                                                view_trial_list=view, debug=debug)
 
             if not solo:
               # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)

@@ -22,12 +22,18 @@ PLAYER_1_XLOC = 'data.playerPosition.1.location.x'
 PLAYER_0_YLOC = 'data.playerPosition.0.location.z'
 PLAYER_1_YLOC = 'data.playerPosition.1.location.z'
 
+# Only yrot is a real per-player value. yrot is the body transform, which is networked (SyncRotAngleY on
+# FirstPersonPlayer.prefab). xrot and zrot are the camera, which is not networked and not held per player:
+# ArenaLogger.BuildPlayerPosition calls GetComponentInChildren<Camera>(), which finds the host's own camera
+# for both players, so in every social session player 1's xrot and zrot are an exact copy of player 0's.
+# Checked over all 100 social sessions in tests/test_log_data_properties.py. Player 1 head pitch does not
+# exist in the data and cannot be recovered. Solo logs have no player 1 columns at all.
 PLAYER_0_XROT = 'data.playerPosition.0.rotation.x'
-PLAYER_1_XROT = 'data.playerPosition.1.rotation.x'
+PLAYER_1_XROT = 'data.playerPosition.1.rotation.x'     # copy of player 0, see above
 PLAYER_0_YROT = 'data.playerPosition.0.rotation.y'
 PLAYER_1_YROT = 'data.playerPosition.1.rotation.y'
 PLAYER_0_ZROT = 'data.playerPosition.0.rotation.z'
-PLAYER_1_ZROT = 'data.playerPosition.1.rotation.z'
+PLAYER_1_ZROT = 'data.playerPosition.1.rotation.z'     # copy of player 0, see above
 
 PLAYER_0_SCORE = 'data.playerScores.0'
 PLAYER_1_SCORE = 'data.playerScores.1'
@@ -89,5 +95,9 @@ OCTAGON_VERTEX_RADIUS = 16.747 / math.cos(math.radians(22.5)) # 18.127
 OCTAGON_ALCOVE_RADIUS = 19.747
 ALCOVE_HALF_WIDTH = 1.90
 ALCOVE_DEPTH = OCTAGON_ALCOVE_RADIUS - OCTAGON_WALLFACE_RADIUS
+
+## player radius (fitted from alcove-mouth corners; CharacterController radius 0.6)
+## add to the reachable distances above to get physical wall positions, e.g. for line of sight
+PLAYER_RADIUS = 0.61
 
 

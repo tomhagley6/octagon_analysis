@@ -17,6 +17,7 @@ import io
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_timedelta64_dtype
 from scipy import stats
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
@@ -109,6 +110,7 @@ def iti_metrics(df, player_id, arena_radius=ARENA_RADIUS, keep_trials=None):
         no_rot = rot < STATIONARY_ROT                        # frame with no rotation
         rows.append(dict(
             player=player_id,
+            trial_num=float(upcoming.max()) if len(upcoming) else np.nan,   # the trial this ITI leads into
             n_frames=len(x),
             rot_range=float(unw.max() - unw.min()),
             rot_total=float(rot.sum()),
@@ -135,6 +137,30 @@ def winner_path_metrics(trial):
                 path_ratio=(actual / direct) if direct > 0 else np.nan)
 
 
+def window_times(trial, n_cols):
+    ''' Return the seconds since slice onset of each column of a visibility array, or None if the
+        trial's times cannot be read. Takes a trial and the array's column count.
+
+        Column k is the k-th logged row from slice onset, so the logged times convert it exactly.
+        Agent sims log at 50 Hz, but the human logs run at about 48, where dividing by FS would
+        report every latency about 3.5% short. '''
+
+    if 'timeApplication' not in trial.columns:
+        return None
+    # find the slice-onset row, which is column 0 of the array
+    onset = np.flatnonzero((trial['eventDescription'] == globals.SLICE_ONSET).to_numpy())
+    if not len(onset):
+        return None
+    t = trial['timeApplication'].iloc[onset[0]:onset[0] + n_cols]
+    if len(t) < n_cols:
+        return None
+    # take seconds from a timedelta column, or the values themselves if they are already seconds
+    t = t.dt.total_seconds().to_numpy(float) if is_timedelta64_dtype(t) else t.to_numpy(float)
+    if np.isnan(t).any():
+        return None
+    return t - t[0]
+
+
 def visibility_metrics(trial, player_id, fov=DEFAULT_FOV):
     ''' Return the latency (s) from slice onset until a trial wall first enters the FoV, plus
         visible-at-onset / ever-visible flags, for one agent on one trial. Takes a trial and
@@ -142,7 +168,10 @@ def visibility_metrics(trial, player_id, fov=DEFAULT_FOV):
 
         get_wall_visible runs from slice onset to trigger activation, so frame 0 is slice onset
         and every time here is referenced to it. full_trial_window keeps trials shorter than
-        25 frames, which agents parked on a trigger produce on about a quarter of their trials. '''
+        25 frames, which agents parked on a trigger produce on about a quarter of their trials.
+
+        Frame indices are converted to seconds with the trial's logged times, falling back to FS
+        when a trial carries none. '''
 
     with contextlib.redirect_stdout(io.StringIO()):        # get_wall_visible is chatty on debug paths
         wv = trajectory_headangle.get_wall_visible(trial=trial, player_id=player_id, current_fov=fov,
@@ -152,12 +181,17 @@ def visibility_metrics(trial, player_id, fov=DEFAULT_FOV):
     idxs = [w - 1 for w in get_indices.get_walls(trial=trial)]   # wall number -> row index
     any_vis = wv[idxs, :].any(axis=0)
     ever = bool(any_vis.any())
+
+    # put each column on the clock the trial was logged on, or on FS if it has no times
+    t = window_times(trial, len(any_vis))
+    if t is None:
+        t = np.arange(len(any_vis)) / FS
     return dict(
         player=player_id,
-        latency_to_wall_visible=(int(np.argmax(any_vis)) / FS) if ever else np.nan,
+        latency_to_wall_visible=float(t[int(np.argmax(any_vis))]) if ever else np.nan,
         visible_at_onset=bool(any_vis[0]),
         ever_visible=ever,
-        trial_s=len(any_vis) / FS,        # decision window length, slice onset -> trigger
+        trial_s=float(t[-1]),             # decision window length, slice onset -> trigger
     )
 
 

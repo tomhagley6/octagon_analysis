@@ -13,6 +13,7 @@ import utils.cosine_similarity as cosine_similarity
 import data_extraction.get_indices as get_indices
 import data_extraction.trial_list_filters as trial_list_filters
 import analysis.conditioned_player_choice as conditioned_player_choice
+import trajectory_analysis.visibility_occlusion as visibility_occlusion
 
 
 # ### Get positions and headangles
@@ -187,7 +188,9 @@ def get_angle_of_opponent_from_player_session(player_id, trial_list):
 def get_other_visible_session(orientation_angle_to_other_session, current_fov):
     ''' Return a boolean array for whether Other is visible to Self at trial start.
         Takes the angle of orientation from Self to Other as an array for the session (in radians)
-        and the visible fov for this dataset (in degrees) '''
+        and the visible fov for this dataset (in degrees)
+        Angle only, with no blocking by walls. Use get_other_visible_session_from_trials for
+        visibility that accounts for walls blocking the line of sight. '''
 
     # convert orientation_angle_to_other_session from radians to degrees to match current_fov
     orientation_angle_to_other_session = np.rad2deg(orientation_angle_to_other_session)
@@ -200,6 +203,68 @@ def get_other_visible_session(orientation_angle_to_other_session, current_fov):
     return other_visible_session
 
 
+# In[ ]:
+
+
+def is_line_of_sight_to_opponent_blocked(player_id, trial=None, trial_list=None, trial_index=None):
+    ''' Return True if a wall blocks the straight line from Self to Other at slice onset.
+        Takes the player_id of Self and a single trial.
+        Uses physical wall positions (see trajectory_analysis/visibility_occlusion.py). Walls can only
+        block when either player is inside an alcove. '''
+
+    # get Self and Other positions as 1*2 arrays
+    self_position, other_position = get_two_player_positions_slice_onset(player_id, trial=trial,
+                                                                        trial_list=trial_list,
+                                                                        trial_index=trial_index)
+    self_xz = np.asarray(self_position, dtype=float).T
+    other_xz = np.asarray(other_position, dtype=float).T
+
+    # test the line from Self to Other's centre against every wall segment
+    blocked = visibility_occlusion.is_line_of_sight_blocked(self_xz, other_xz)
+
+    return bool(blocked[0, 0])
+
+
+# In[ ]:
+
+
+def get_other_visible_trial(player_id, current_fov, trial=None, trial_list=None, trial_index=None, occlusion=True):
+    ''' Return True if Other is visible to Self at slice onset.
+        Takes the player_id of Self, the fov (degrees) and a single trial.
+        Other is visible when its centre is within half the fov of Self's head angle. With occlusion=True
+        (default) the line of sight must also cross no wall. Missing positions or head angle give False. '''
+
+    # find the angle from Self's head angle to Other
+    theta = get_angle_of_opponent_from_player_trial(player_id, trial=trial, trial_list=trial_list,
+                                                    trial_index=trial_index)
+
+    # test the field of view (a missing angle compares as False)
+    visible = bool(np.rad2deg(np.asarray(theta, dtype=float)).item() < current_fov / 2)
+
+    # then test the line of sight
+    if occlusion and visible:
+        visible = not is_line_of_sight_to_opponent_blocked(player_id, trial=trial, trial_list=trial_list,
+                                                           trial_index=trial_index)
+
+    return visible
+
+
+# In[ ]:
+
+
+def get_other_visible_session_from_trials(player_id, trial_list, current_fov, occlusion=True):
+    ''' Return a boolean array for whether Other is visible to Self at slice onset, for every trial in a session.
+        Takes the player_id of Self (persistent throughout session), the trial list and the fov (degrees).
+        occlusion=True (default) requires a clear line of sight. occlusion=False matches
+        get_angle_of_opponent_from_player_session followed by get_other_visible_session. '''
+
+    other_visible_session = np.zeros(len(trial_list), dtype=bool)
+    for i, trial in enumerate(trial_list):
+        other_visible_session[i] = get_other_visible_trial(player_id, current_fov, trial=trial, occlusion=occlusion)
+
+    return other_visible_session
+
+
 # ### Final, flexible function to get probabilities and original list-relative indices for trial outcomes for any given set of conditions, across and entire set of sessions
 
 # In[ ]:
@@ -208,7 +273,7 @@ def get_other_visible_session(orientation_angle_to_other_session, current_fov):
 def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferred_choice, current_fov,
                                                             chosen_wall_index=None, visible_wall_index=None,
                                                             wall_sep=None, trial_type=globals.HIGH_LOW,
-                                                            data_size_cutoff=6,
+                                                            data_size_cutoff=6, screen_views=None,
                                                             debug=False):
     ''' Returns two dictionaries: probabilities and trial_data.
         probabilities contains the probability of trial outcome given conditions for each session and player,
@@ -220,6 +285,10 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
         Takes a list of trial lists (one for each session), inferred choice, fov. 
         Optionally takes chosen_wall_index and visible_wall_index to specify choosing either High or Low,
         or see High or Low at the beginning of the session, respectively. Default is to not select on these.
+        screen_views optionally supplies, per session, a dict from player id to that session as that
+        player's screen showed it, from human_characterisation.screen_view_trial_lists. Opponent
+        visibility is then measured on each player's own screen rather than on the host's copy of
+        player 1. Without it the behaviour is unchanged.
         '''
 
     # initialize lists to store probabilities and indices for both visible and not visible conditions
@@ -241,15 +310,23 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
         # filter trial list for specified trial type (e.g., HIGH_LOW)
         trial_indices = get_indices.get_trials_trialtype(trial_list, trial_type=trial_type)
         trial_list_filtered = [trial_list[i] for i in trial_indices]
+        # keep the same indices against the unfiltered session, so a screen view can be cut to match
+        kept = list(trial_indices)
 
         # also filter trial list by specific wall separation if specified
         if wall_sep is not None:
             trial_indices = get_indices.get_trials_with_wall_sep(trial_list_filtered, wall_sep=wall_sep)
             trial_list_filtered = [trial_list_filtered[i] for i in trial_indices]
+            kept = [kept[i] for i in trial_indices]
 
 
         # iterate over both player IDs (0 and 1)
-        for player_id in [0,1]:            
+        for player_id in [0,1]:
+            # take this player's screen for the session, cut to the trials kept above
+            view = None
+            if screen_views is not None:
+                view = [screen_views[trial_list_index][player_id][i] for i in kept]
+
             # calculate probabilities and filtered indices for both visibility conditions (Other visible, Other not visible)
             (prob_visible,
             filtered_indices_visible,
@@ -259,7 +336,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                 other_visible=True, wall_initial_vis_only=True,
                                                 inferred_choice=inferred_choice, current_fov=current_fov,
                                                 inverse_other_visible=False, data_size_cutoff=data_size_cutoff,
-                                                return_trial_indices=True, debug=False)
+                                                return_trial_indices=True, view_trial_list=view, debug=False)
             (prob_not_visible,
             filtered_indices_not_visible,
             filtered_choice_indices_not_visible) = conditioned_player_choice.probability_trial_outcome_given_conditions(
@@ -268,7 +345,7 @@ def probability_trial_outcome_given_conditions_all_sessions(trial_lists, inferre
                                                     other_visible=True, wall_initial_vis_only=True,
                                                     inferred_choice=inferred_choice, current_fov=current_fov,
                                                     inverse_other_visible=True, data_size_cutoff=data_size_cutoff,
-                                                    return_trial_indices=True, debug=False)
+                                                    return_trial_indices=True, view_trial_list=view, debug=False)
             
             # store probabilities for each player in the respective column (player 0 -> col 0, player 1 -> col 1)
             probabilities['other_visible'][trial_list_index, player_id] = prob_visible

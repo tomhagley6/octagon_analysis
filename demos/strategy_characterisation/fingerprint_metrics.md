@@ -73,16 +73,27 @@ route. Over the window from slice onset to trigger:
 ## Wall visibility
 
 `get_wall_visible` returns an 8 x timepoints boolean array. Per frame it takes the smoothed
-head-angle vector and the vector to the closest point of each wall, and calls the wall
-visible when that angle is under FoV/2 (55 degrees at FoV 110). The test is purely angular,
-with no occlusion and no distance limit. Rows are indexed `wall - 1` for the two trial walls
-and OR'd together, so "visible" means either trial wall is in view.
+head-angle vector and calls a wall visible when any part of its coloured face (the wall face
+either side of the alcove) is within FoV/2 of it (55 degrees at FoV 110) with a clear line of
+sight. Walls sit at physical positions (reachable distance plus player radius), and alcove walls
+block sight when the player is inside an alcove. There is no distance limit. Rows are indexed
+`wall - 1` for the two trial walls and OR'd together, so "visible" means either trial wall is in view.
+
+Since 2026-09-15 this is the default (`occlusion=True`, in `trajectory_analysis/visibility_occlusion.py`).
+Earlier results used the angular test (`occlusion=False`). That test had no blocking, used
+reachable-space corners, and only checked one corner per wall, so it missed walls in view when the
+player was close to a wall.
 
 Frame 0 is slice onset and the window ends at the trigger, giving per trial:
 
 - `visible_at_onset` is `any_vis[0]`
 - `ever_visible` is `any_vis.any()`
-- `latency_to_wall_visible` is `argmax(any_vis) / 50` seconds, NaN if never visible
+- `latency_to_wall_visible` is the first visible frame's logged time, referenced to slice onset,
+  NaN if never visible
+
+`window_times` converts a frame index with the trial's own `timeApplication` rather than a fixed rate,
+so a session logged slowly still reads correctly. Agent sims log at exactly 50 Hz, but the human logs
+run at about 48.25, where dividing by 50 reported every latency 3.6% short.
 
 Aggregated per model:
 
@@ -241,3 +252,38 @@ peripheral ones, so ranking the central group mostly stretches noise to unit var
 labels come from a GMM fit to `onset_centrality` on the same data. The comparison is
 circular for every metric that tracks centrality, so read the eta^2 ordering and not the
 p-values. The function's docstring lists the specific metrics this misleads on.
+
+## Human players
+
+`humans/player_fingerprint.ipynb` computes the same metrics per player, with the code in
+[`analysis/human_characterisation.py`](../../analysis/human_characterisation.py)
+(`load_fingerprint_tables`, `build_player_fingerprint`). The differences:
+
+- **Groups.** Within each session (first solo, social, second solo), players are ranked by mean
+  slice-onset centrality. The top 20% are central and the bottom 20% peripheral (`extreme_groups`).
+  Sessions are never pooled.
+- **Trials** follow the human policy. The first solo loses its first 5 trials, and social and second
+  solo keep every trial. The ITI before a session's first trial is dropped, as no trial end precedes it.
+- **Own wins.** `latency_to_reach_wall`, `frac_trials_over_5s`, `winner_path_len`, `path_ratio` and
+  `p_high` use the trials the player won. In social play a lost trial ends on the opponent's trigger.
+  `win_rate` is added for social.
+- **Score.** 1.0 for High, 0.4 for Low, 0 for a loss. On a forced trial both walls pay the same, so it
+  scores from its type (`ForcedHigh` 1.0, `ForcedLow` 0.4), and `p_high` counts High/Low trials only.
+  The human builds log 50 and 20 in the cumulative score, and `score_logged / 50` matches the outcome
+  score on all but 4 trials.
+- **Visibility** uses the human FoV, 110.36 degrees. Latencies come from the logged frame times, as the
+  human logs run at about 48.25 Hz and 11 sessions slower still.
+- **Movement thresholds** are the agent ones and have not been checked against human input.
+- **Network recovery.** In social, player 1's transform is logged through Netcode's client interpolation
+  (30 Hz updates, rendered one tick late, then smoothed with a 0.1 s time constant), so its per-frame
+  movement is not comparable with player 0's. Player 1's real movement is reconstructed from the host's log
+  (`READMEs/network_compensation.md`).
+  - **Between-trial metrics** (`prop_no_translational`, `prop_no_rotational`, `proportion_resting`,
+    `iti_path_len`, `rot_total`, `iti_centrality`) are measured on the 30 Hz network tick grid for every
+    player, social and solo, by `hc.iti_metrics_ticks` via `hc.load_iti_table`. The cutoffs are the agent
+    per-frame thresholds rescaled to a 33 ms step: 0.8 degrees and 0.08 units per tick. Finer cutoffs do not
+    survive the recovery and must not be used.
+  - **Frame-level metrics** (wall visibility, head angle, routes, slice-onset position) keep the logged 48 Hz
+    frames, with social player 1's frames taken from the recovered trace.
+  - **Trial outcomes** never crossed the network and are unchanged.
+  - Group labels and `onset_centrality` still come from the logged onset table.

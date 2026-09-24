@@ -4,6 +4,7 @@
 - Verify claims with citations
 - Prompt with questions about implementation freely
 - Code changes should have clear tests before implementing
+- Important tests and validations should be stored in the tests or validations folder
 
 # octagon_analysis
 
