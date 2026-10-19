@@ -249,5 +249,51 @@ class TestStillnessCutoffs(unittest.TestCase):
         self.assertGreater(nr.STILL_ROT_PER_TICK, nr.MIN_SAFE_ROT_PER_TICK)
 
 
+class TestDownsamplingEffect(unittest.TestCase):
+    ''' The test that says whether a group can be downsampled without changing what a metric means. '''
+
+    def setUp(self):
+        self.keys = ['unit']
+        self.native = pd.DataFrame({'unit': [1, 2, 3, 4],
+                                    'survives': [1.0, 2.0, 3.0, 4.0],
+                                    'collapses': [1.0, 2.0, 3.0, 4.0]})
+        self.resampled = self.native.copy()
+        self.resampled['collapses'] = self.native['collapses'] * 0.3
+
+    def test_unchanged_metric_gives_ratio_one(self):
+        out = nr.downsampling_effect(self.native, self.resampled, self.keys,
+                                     ['survives', 'collapses']).set_index('metric')
+        self.assertAlmostEqual(out.loc['survives', 'ratio'], 1.0)
+
+    def test_changed_metric_recovers_its_ratio(self):
+        out = nr.downsampling_effect(self.native, self.resampled, self.keys,
+                                     ['survives', 'collapses']).set_index('metric')
+        self.assertAlmostEqual(out.loc['collapses', 'ratio'], 0.3)
+
+    def test_only_shared_units_are_compared(self):
+        # a unit missing from one side must not enter the comparison
+        out = nr.downsampling_effect(self.native, self.resampled[self.resampled['unit'] < 3],
+                                     self.keys, ['survives']).set_index('metric')
+        self.assertEqual(out.loc['survives', 'n_units'], 2)
+
+    def test_pairs_on_keys_not_row_order(self):
+        out = nr.downsampling_effect(self.native, self.resampled.iloc[::-1], self.keys,
+                                     ['collapses']).set_index('metric')
+        self.assertAlmostEqual(out.loc['collapses', 'ratio'], 0.3)
+
+    def test_nans_are_dropped_pairwise(self):
+        resampled = self.resampled.copy()
+        resampled.loc[0, 'survives'] = np.nan
+        out = nr.downsampling_effect(self.native, resampled, self.keys,
+                                     ['survives']).set_index('metric')
+        self.assertEqual(out.loc['survives', 'n_units'], 3)
+
+    def test_diff_matches_the_two_means(self):
+        out = nr.downsampling_effect(self.native, self.resampled, self.keys,
+                                     ['collapses']).set_index('metric')
+        self.assertAlmostEqual(out.loc['collapses', 'diff'],
+                               out.loc['collapses', 'resampled'] - out.loc['collapses', 'native'])
+
+
 if __name__ == '__main__':
     unittest.main()

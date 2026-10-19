@@ -117,32 +117,25 @@ def final_distance_to_wall(trajectory, average_most_aligned_wall_index):
 # In[ ]:
 
 
-# umbrella function to extract loser's choice for one trial
-def infer_loser_choice_trial(trial_list, trial_index, loser_ids, trial_walls, window_size=5):
-    ''' Given a trial list and index, and 1D array of loser id ints, find the most
-        aligned wall for the loser in the latter part of their trajectory, and decide
-        whether this most aligned wall should be considered their choice.
-        For a single trial.
-        Returns: scalar wall most aligned with on average, boolean confidence of loser's choice. '''
-    
-    # LVs 
-    losers_choice_accepted = False
-    
-    # get trial and loser id
-    trial = trial_list[trial_index]
-    loser_id = loser_ids[trial_index]
+# infer a loser's choice from a trajectory alone, so it can also run on a cut trajectory
+def infer_loser_choice_trajectory(trajectory, trial_walls, window_size=5):
+    ''' Return the wall most aligned with the end of a trajectory and whether to accept it as the choice.
+        Takes a 2*timepoints trajectory, the trial's walls and the smoothing window.
+        Returns (NaN, False) when the end of the trajectory has no movement to read. '''
 
-    # get trajectory for loser
-    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=loser_id)
-    
     # ignore first part of trajectory
     trajectory_end = extract_final_third_trajectory(trajectory)
-    
-    # fine cosine similarities between trajectory direction vector and player-alcove vectors for each wall
+
+    # find cosine similarities between trajectory direction vector and player-alcove vectors for each wall
     cosine_similarity_trajectory = trajectory_direction.cosine_similarity_throughout_trajectory(trajectory_end,
                                                                                             window_size=window_size,
                                                                                             num_walls=8,
                                                                                             calculate_thetas=False)
+
+    # make no call if the player never moved, as every alignment is then undefined (argmax would return wall 1)
+    if np.all(np.isnan(cosine_similarity_trajectory)):
+        return np.nan, False
+
     # find the most aligned wall (mean average)
     average_most_aligned_wall_index = average_most_aligned_wall_trajectory(cosine_similarity_trajectory)
     average_most_aligned_wall_num = average_most_aligned_wall_index + 1
@@ -165,12 +158,31 @@ def infer_loser_choice_trial(trial_list, trial_index, loser_ids, trial_walls, wi
     # decide whether to accept the loser's choice
     # based on average alignment to wall and final distance to wall
     # only if the wall is relevant to the trial
+    losers_choice_accepted = False
     if highest_alignment_val > 0.875 and average_most_aligned_wall_num in trial_walls:
         losers_choice_accepted = True
     elif final_distance_most_aligned_wall < 4 and average_most_aligned_wall_num in trial_walls:
         losers_choice_accepted = True
 
     return average_most_aligned_wall_num, losers_choice_accepted
+
+
+# umbrella function to extract loser's choice for one trial
+def infer_loser_choice_trial(trial_list, trial_index, loser_ids, trial_walls, window_size=5):
+    ''' Given a trial list and index, and 1D array of loser id ints, find the most
+        aligned wall for the loser in the latter part of their trajectory, and decide
+        whether this most aligned wall should be considered their choice.
+        For a single trial.
+        Returns: scalar wall most aligned with on average, boolean confidence of loser's choice. '''
+
+    # get trial and loser id
+    trial = trial_list[trial_index]
+    loser_id = loser_ids[trial_index]
+
+    # get trajectory for loser
+    trajectory = trajectory_vectors.extract_trial_player_trajectory(trial=trial, player_id=loser_id)
+
+    return infer_loser_choice_trajectory(trajectory, trial_walls, window_size=window_size)
 
     
     

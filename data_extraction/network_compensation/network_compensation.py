@@ -347,6 +347,52 @@ def local_tick_table(trial_list, experiment, player, session_type, tick_s=TICK_S
                              source='local'))
 
 
+# ---------------------------------------------------------------------------
+# testing what downsampling costs, before choosing to downsample
+# ---------------------------------------------------------------------------
+
+def downsampling_effect(native, resampled, keys, metrics):
+    ''' Return the change each metric takes from the native rate to the resampled one.
+        Takes a native table, a resampled table, the keys identifying one unit on both sides, and
+        the metrics to test.
+
+        Downsampling throws away the precision the high logging rate bought, so it is worth doing
+        only when it costs nothing. This measures the cost. Both tables must cover the SAME units
+        (the merge is an inner join on keys), so the ratio is a within-unit change rather than a
+        difference between two sets of rows.
+
+        Run it on any trace that has a native rate to compare against: locally logged player 0,
+        solo players, or agent sessions. Player 1 has no native trace, which is why the question
+        arises at all.
+
+        ratio near 1   the metric survives downsampling, so that group can be downsampled freely
+        ratio far from 1   it does not, and downsampling changes what the metric means
+
+        Ratios near each other but far from 1 are a third case: a shared factor cancels out of a
+        standardised effect or a between-group ratio, so the comparison survives while the absolute
+        values do not. That is weaker than every ratio being near 1, and which case holds should be
+        stated rather than left implied.
+
+        A ratio depends on the signal, not only on the two rates, so it has to be measured per
+        group and per metric rather than assumed to cancel. See READMEs/network_compensation.md,
+        "Downsampling: test it before you do it". '''
+
+    metrics = list(metrics)
+    merged = native[keys + metrics].merge(resampled[keys + metrics], on=keys,
+                                          suffixes=('_native', '_resampled'))
+    rows = []
+    for m in metrics:
+        a = merged[f'{m}_native'].to_numpy(float)
+        b = merged[f'{m}_resampled'].to_numpy(float)
+        ok = ~np.isnan(a) & ~np.isnan(b)
+        native_mean, resampled_mean = np.mean(a[ok]), np.mean(b[ok])
+        rows.append(dict(metric=m, native=native_mean, resampled=resampled_mean,
+                         diff=resampled_mean - native_mean,
+                         ratio=resampled_mean / native_mean if native_mean else np.nan,
+                         n_units=int(ok.sum())))
+    return pd.DataFrame(rows)
+
+
 def social_ticks_long(wide):
     ''' Return the saved social tick table as one row per player per tick. Takes the wide table.
 

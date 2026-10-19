@@ -413,6 +413,108 @@ the frame-level thresholds of the agent pipeline (0.5 degrees and 0.05 units per
 rescaled to a 33 ms step, so they keep the same physical meaning: about 24 degrees per second and about
 2.4 units per second. They also sit where recovery is faithful. Do not tighten them for recovered data.
 
+## Downsampling: test it before you do it
+
+Player 1's movement is only recoverable at 30 Hz, so any analysis that compares player 1 with anything
+else has to decide what to do about the other group's higher rate. **The default answer is not to
+downsample.** The 48 Hz logging and the agents' 50 Hz were chosen to buy precision, and putting a group
+on a coarser grid throws that away. Downsample a group only once it has been shown to cost nothing.
+
+### The test
+
+Measure the metric twice over the **same units**, once on the native trace and once resampled, and take
+the ratio. `network_compensation.downsampling_effect(native, resampled, keys, metrics)` does this; it
+inner-joins on `keys` so the ratio is a within-unit change and not a difference between two sets of rows.
+
+This can always be run, because two groups do have a native trace to compare against:
+
+- **Player 0**, and every solo player, is logged locally at about 48 Hz.
+- **Agent sessions** are logged at 50 Hz with no netcode at all.
+
+Player 1 is the only trace with no native version, which is the whole reason the question arises.
+
+Read it as:
+
+| ratio | meaning |
+|---|---|
+| near 1 | the metric survives the grid change, so that group can be downsampled freely |
+| far from 1 | it does not; downsampling changes what the metric measures for that group |
+
+**A ratio has to be measured per group and per metric. It does not follow from the two rates.** Two
+groups downsampled by a similar factor can be affected completely differently, because the cost depends
+on the signal rather than the ratio of the rates.
+
+### What it gave for the ITI metrics
+
+From `demos/strategy_characterisation/comparison/human_vs_agent_central.ipynb` part 3a, over the same
+ITIs on each side. Human is social player 0 (48.4 Hz), agent is the 260914 batch (50 Hz), both to 30 Hz:
+
+| metric | player 0 ratio | agent ratio |
+|---|---|---|
+| `prop_no_rotational` | 0.98 | **0.34** |
+| `proportion_resting` | 0.97 | **0.31** |
+| `prop_no_translational` | 0.99 | 0.73 |
+| `iti_path_len` | 1.00 | 0.81 |
+| `rot_total` | 1.00 | 0.88 |
+| `iti_centrality` | 1.00 | 1.00 |
+
+Player 0 is untouched; the agents are not. A human moves a mouse smoothly and is genuinely still for
+seconds at a time, so a 30 Hz chord across their trace loses almost nothing. An agent picks one of three
+discrete actions every 50 Hz frame and can switch on any of them, so interpolating across two frames
+averages a stop with a turn and the stillness disappears.
+
+`iti_centrality` sitting at 1.00 on both sides is the separate check that the resampling itself is
+faithful: a mean radius cannot move with the sampling rate, so anything else would mean a bug.
+
+**So when one group's ratio is near 1 and the other's is not, downsampling the second buys nothing.**
+The first group was going to survive the comparison at either rate, so keep the second at its own.
+
+### The options, and when each applies
+
+Decide case by case, after running the test:
+
+| option | when it fits |
+|---|---|
+| **Use player 0 only, everyone at native rate** | The cleanest. Costs the 15 of 40 social players logged as id 1, so it needs the remaining n to be enough |
+| **Keep the high-rate group native, downsample nobody** | When the other group's ratio is near 1, as above. Nothing is gained by matching grids |
+| **Downsample player 0 only, to match player 1** | When player 1 must be in the analysis and the group being compared has a ratio near 1 anyway |
+| **Downsample every group to 30 Hz** | Either of two different cases, below |
+| **Upsample player 1 instead** | Already the standard route for frame-level *values*. See below |
+
+**The two cases for downsampling everything are not the same, and which one holds has to be said.**
+
+- **Every ratio near 1.** Both the absolute values and the comparison survive. The numbers still mean
+  what they meant natively.
+- **Ratios near each other but not near 1.** The comparison survives, because a shared factor cancels
+  out of a standardised effect size or a between-group ratio, but the absolute values do not. A mean
+  reported under this case is not the quantity it names, and must not be read against a native number
+  from anywhere else.
+
+Neither is a default. **Which case applies, and whether it is good enough for the question being asked,
+is a decision to raise explicitly rather than settle in passing.** A difference that matters only as an
+effect size can live with the second case; anything quoting an absolute rate cannot.
+
+Whatever is chosen, **report the ratios**. A comparison that silently put two groups on one grid is not
+evidence that the grid was neutral.
+
+### Upsampling player 1
+
+This is not hypothetical, and it is not a fallback. `frames_from_ticks` interpolates the recovered 30 Hz
+trace back onto the logged frames, and `load_fingerprint_tables(recovered=True)` — the default — already
+uses it for **wall visibility, head angle, routes and slice-onset position** throughout the human
+fingerprint. Those metrics include all 200 players, not just the 100 logged as id 0.
+
+The split is between two kinds of metric, and it is the reason upsampling is not simply used everywhere:
+
+| metric is | upsampling | why |
+|---|---|---|
+| an **instantaneous value** (position at a frame, heading, whether a wall is in view) | **use it** | interpolating between ticks estimates a value that genuinely existed. It removes the lag and the smoothing, which is what these suffer from |
+| a **difference between steps** (per-frame translation, rotation, stillness, path and rotation sums) | **do not** | the between-tick detail is exactly what was lost. Interpolating invents smooth steps, which would read as movement that never happened and stillness that was never still |
+
+So for the ITI movement metrics there is no upsampling route, and the choice is only between the tick
+grid and holding player 1 out. For frame-level metrics the question does not arise, because the
+upsampled recovery is already what is used.
+
 ## The saved data
 
 `build_recovered_social` writes `social_recovered_ticks.pkl` to `data_strings.DATAFRAME_PATH`
@@ -468,7 +570,8 @@ Read it with `human_characterisation.load_opponent_views`.
 | Wall visibility and head direction in social | recovered for player 1. Logged heading errs 6.7 degrees at the median, 38 at the 95th percentile, enough to change whether a wall is in view. Subject to the whole-tick caveat in Limits |
 | Winner, scores, wall identities, trial structure | the session pickles |
 | Response times, and any margin between the two players | the session pickles, but read the note below first |
-| Agent (ML-Agents) sessions | as logged. There is no netcode in the inference builds |
+| Agent (ML-Agents) sessions | as logged, at 50 Hz. There is no netcode in the inference builds. Do **not** put them on the 30 Hz grid to match a human group without running the test in Downsampling first: their stillness metrics lose two thirds of their value |
+| Comparing any group against social player 1 | run `downsampling_effect` on player 0 and on the other group first, then pick from the options in Downsampling. Never assume a shared grid is neutral |
 
 ## What each player's data goes through
 

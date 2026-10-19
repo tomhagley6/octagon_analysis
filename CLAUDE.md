@@ -5,6 +5,10 @@
 - Prompt with questions about implementation freely
 - Code changes should have clear tests before implementing
 - Important tests and validations should be stored in the tests or validations folder
+- Check for and make clear any assumptions made in analyis or data processing, 
+  and query the user on the validity of holding those assumptions
+- Any recorded interpretations or conclusions on analysis should be immediately preceded 
+  by general data values and comparisons used to reach those interpretations and conclusions
 
 # octagon_analysis
 
@@ -78,6 +82,35 @@ low-jargon writing. When in doubt, cut words.
 
 - Markdown cells may stay readable prose, but keep them concise. Code comments should
   be the shortest form that is still clear.
+
+## Analysis notebook structure
+
+Use this markdown structure in every analysis notebook, including ones with only
+tables. The worked example is
+`demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb`
+(sections 4 and 5).
+
+- **Notebook top.** The question, a numbered plan of sections, the choices and
+  assumptions, and which modules compute the numbers.
+- **Top of each section or subsection.**
+  - Motivation. What question the section answers, and why this analysis answers it.
+  - Method, in short plain steps.
+  - A definition of every term and measure. Say what it is, its range, and how its
+    values read (e.g. `0 = no trend, 1 = every trial on the line`), with the column name.
+  - Choices and assumptions, each with its source (data anchor, simulation,
+    literature, or the user's choice).
+- **Before each figure.**
+  - "How to read the figure". Say what one point or row is, and explain every axis,
+    line, colour and panel, and why points may be missing.
+  - "Why it is plotted". Say what to look for, and what each pattern would mean.
+- **With each table.** "How to read the table" for any column that is not self-evident.
+- **Interpretation cell after the outputs.** Short bullets, each citing values shown in
+  the notebook. Compute reference or expected values and show them beside the data.
+  State limits plainly.
+- **Validate before applying.** A method that labels or classifies is first tested on
+  simulated data with a known answer, and that check is shown in the notebook.
+- **Figures.** Axis labels say exactly what is plotted. Short panel titles may stay as
+  intuitive names. Label reference lines inside their panel, not in the figure title.
 
 ## Environment
 

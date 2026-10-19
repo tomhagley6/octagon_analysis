@@ -422,6 +422,180 @@ def plot_overall_ranking(overall, metric='mean_score', palette=STRAT_PALETTE,
 
 
 # ---------------------------------------------------------------------------
+# score decomposition: winning often vs winning the valuable wall
+# ---------------------------------------------------------------------------
+
+def value_per_win(mats):
+    ''' Return the mean value of a win for every head-to-head pairing, as a DataFrame.
+        Takes the dict from head_to_head. Mean score divided by win rate, so 1.0 means every
+        win was taken at High and 0.4 means every win was taken at Low. A pair that never met,
+        or a model that never beat an opponent, gives NaN. '''
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return (mats['score'] / mats['win']).astype(float)
+
+
+def score_decomposition(selfless, strategy, models=None, order=STRAT_ORDER, verbose=True):
+    ''' Return one row per model: win rate, the mean value of a win, their product (mean
+        score), the share of wins taken at High, and the score rank against the win-rate rank.
+        Takes the self-excluded perspective table, a {model: group} dict and the model order.
+
+        A trial pays the winner 1.0 at High and 0.4 at Low, and the loser 0, so
+        mean score = win rate x value per win exactly. The two factors are different things:
+        win rate is how often the model gets to a wall first, value per win is which wall it
+        got to. A model that always races High trades one against the other, and a ranking on
+        mean score alone cannot tell the two apart.
+
+        High share is measured over won trials only. The log records the wall that ended the
+        trial, so the losing model's target is not observable here; inferring it from the
+        trajectory is what analysis/loser_inferred_choice.py does. '''
+
+    models = models or models_in_order(strategy, order)
+
+    # win rate and mean score over every trial the model played
+    d = selfless.groupby('focus').agg(
+        n_trials=('f_score', 'size'),
+        win_rate=('f_win', 'mean'),
+        mean_score=('f_score', 'mean')).reset_index().rename(columns={'focus': 'model'})
+
+    # value of a win and High share over won trials only
+    won = selfless[selfless.f_win == 1].groupby('focus').agg(
+        n_wins=('f_score', 'size'),
+        value_per_win=('f_score', 'mean'),
+        high_share=('f_score', lambda s: float(np.mean(s == HIGH)))).reset_index().rename(
+            columns={'focus': 'model'})
+    d = d.merge(won, on='model', how='left')                # left join keeps a model with no wins
+    d['n_wins'] = d['n_wins'].fillna(0).astype(int)
+
+    # binomial standard error on the win rate, to show which gaps are worth reading
+    d['win_rate_se'] = np.sqrt(d.win_rate * (1 - d.win_rate) / d.n_trials)
+
+    d['score_rank'] = d['mean_score'].rank(ascending=False).astype(int)
+    d['win_rate_rank'] = d['win_rate'].rank(ascending=False).astype(int)
+    d['rank_shift'] = d['score_rank'] - d['win_rate_rank']  # positive = climbs on win rate alone
+    d['strategy'] = d['model'].map(strategy)
+
+    d = d.set_index('model').reindex(models).reset_index().sort_values(
+        'mean_score', ascending=False).reset_index(drop=True)
+
+    if verbose:
+        cols = ['model', 'strategy', 'mean_score', 'win_rate', 'win_rate_se', 'value_per_win',
+                'high_share', 'score_rank', 'win_rate_rank', 'rank_shift', 'n_trials']
+        print("Mean score split into win rate x value per win:")
+        print(d[cols].round(3).to_string(index=False))
+        gap = float(np.nanmax(np.abs(d.win_rate * d.value_per_win - d.mean_score)))
+        print(f"\nidentity check, max |win_rate x value_per_win - mean_score|: {gap:.2e}")
+        shifted = d[d.rank_shift != 0]
+        if len(shifted):
+            print(f"{len(shifted)} of {len(d)} models rank differently on win rate alone: "
+                  f"{', '.join(f'{int(r.model)} ({r.rank_shift:+d})' for _, r in shifted.iterrows())}")
+        else:
+            print("Every model holds its rank on win rate alone, so the value of a win "
+                  "reorders nothing.")
+    return d
+
+
+def group_summary(selfless, strategy, order=STRAT_ORDER, verbose=True):
+    ''' Return one row per group: trial count, model count, win rate, value per win, High
+        share and mean score. Takes the self-excluded perspective table and a {model: group}
+        dict.
+
+        Every number is pooled over trials, not averaged over models, so a group whose models
+        played different numbers of trials is still weighted correctly. '''
+
+    s = selfless.assign(strategy=selfless.focus.map(strategy))
+    g = s.groupby('strategy').agg(
+        n_trials=('f_score', 'size'),
+        n_models=('focus', 'nunique'),
+        win_rate=('f_win', 'mean'),
+        mean_score=('f_score', 'mean')).reset_index()
+
+    won = s[s.f_win == 1].groupby('strategy').agg(
+        value_per_win=('f_score', 'mean'),
+        high_share=('f_score', lambda x: float(np.mean(x == HIGH)))).reset_index()
+    g = g.merge(won, on='strategy', how='left')
+
+    g = g.set_index('strategy').reindex([o for o in order if o in set(s.strategy)]).reset_index()
+    if verbose:
+        print("Pooled over trials, by group:")
+        print(g.round(3).to_string(index=False))
+    return g
+
+
+def plot_score_decomposition(decomp, palette=STRAT_PALETTE, strat_order=STRAT_ORDER,
+                             figsize=(14, 5)):
+    ''' Plot the two factors of mean score: win rate against value per win with iso-score
+        curves, and the same two factors as bars per model. Takes the table from
+        score_decomposition. Returns (fig, axes).
+
+        On the left panel a model moves right by winning more often and up by winning the
+        High wall, and every point on one curve earns the same mean score. '''
+
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    groups = [s for s in strat_order if s in set(decomp['strategy'])]
+
+    # iso-score curves: every (win rate, value per win) on one curve gives the same mean score
+    x = np.linspace(max(decomp.win_rate.min() - 0.08, 0.01), decomp.win_rate.max() + 0.08, 200)
+    for c in np.round(np.linspace(decomp.mean_score.min(), decomp.mean_score.max(), 5), 2):
+        y = c / x
+        keep = (y >= LOW - 0.03) & (y <= HIGH + 0.03)
+        axes[0].plot(x[keep], y[keep], color='0.8', lw=0.8, zorder=0)
+        if keep.any():
+            axes[0].annotate(f"{c:.2f}", (x[keep][-1], y[keep][-1]), fontsize=7, color='0.5',
+                             xytext=(2, 0), textcoords='offset points')
+
+    for s in groups:
+        sub = decomp[decomp.strategy == s]
+        axes[0].scatter(sub['win_rate'], sub['value_per_win'], s=90, color=palette[s],
+                        edgecolor='black', zorder=3, label=s)
+    for _, r in decomp.iterrows():
+        axes[0].annotate(int(r['model']), (r['win_rate'], r['value_per_win']), fontsize=8,
+                         xytext=(4, 4), textcoords='offset points')
+    axes[0].axhline(HIGH, color='k', ls=':', lw=0.8)        # every win taken at High
+    axes[0].axvline(0.5, color='k', ls=':', lw=0.8)         # an even split of wins
+    axes[0].set_xlabel('win rate')
+    axes[0].set_ylabel('value per win (1.0 = always High, 0.4 = always Low)')
+    axes[0].set_title('The two factors of mean score\n(grey curves = equal mean score)')
+    axes[0].legend(fontsize=8, loc='lower left')
+
+    # the same two factors as bars, in score order, so the trade-off is readable per model
+    order_df = decomp.sort_values('mean_score')
+    y = np.arange(len(order_df))
+    colours = [palette[s] for s in order_df['strategy']]
+    axes[1].barh(y + 0.2, order_df['win_rate'], height=0.38, color=colours, edgecolor='black',
+                 linewidth=0.4, label='win rate')
+    axes[1].barh(y - 0.2, order_df['value_per_win'], height=0.38, color=colours, edgecolor='black',
+                 linewidth=0.4, hatch='///', label='value per win')
+    axes[1].errorbar(order_df['win_rate'], y + 0.2, xerr=order_df['win_rate_se'], fmt='none',
+                     ecolor='black', elinewidth=0.8, capsize=2)
+    axes[1].set_yticks(y)
+    axes[1].set_yticklabels(order_df['model'])
+    axes[1].set_xlim(0, 1.2)                            # room for the legend clear of the bars
+    axes[1].set_xlabel('win rate (plain, with binomial SE) / value per win (hatched)')
+    axes[1].set_title('Both factors per model, in mean-score order')
+    axes[1].legend(fontsize=8, loc='lower right')
+
+    plt.tight_layout()
+    return fig, axes
+
+
+def plot_value_per_win(vpw, figsize=(8, 6.5)):
+    ''' Plot the head-to-head value of a win. Takes the matrix from value_per_win. Scaled
+        between the two payouts, so the colour reads as which wall the row model reached.
+        Returns (fig, ax). '''
+
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(vpw, annot=True, fmt='.2f', cmap='viridis', vmin=LOW, vmax=HIGH, ax=ax,
+                cbar_kws={'shrink': 0.8}, linewidths=0.5, linecolor='white')
+    ax.set_title('Value of a win (row model vs column opponent)\n'
+                 '1.0 = every win at High, 0.4 = every win at Low')
+    ax.set_xlabel('opponent')
+    ax.set_ylabel('model')
+    plt.tight_layout()
+    return fig, ax
+
+
+# ---------------------------------------------------------------------------
 # does the pairing matter? (interaction)
 # ---------------------------------------------------------------------------
 

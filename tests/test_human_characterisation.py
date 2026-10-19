@@ -220,6 +220,193 @@ class TestPlayerTable(unittest.TestCase):
                          ['central', 'central', 'mixed', 'mixed', 'peripheral', 'peripheral', 'unassigned'])
 
 
+class TestSpread(unittest.TestCase):
+
+    def test_spread_ratio_known_values(self):
+        # a player split evenly between the two bounds reaches the ceiling, one spot gives 0
+        ratio = hc.spread_ratio(np.array([0.5, 0.4]), np.array([0.5, 0.0]))
+        np.testing.assert_allclose(ratio, [1.0, 0.0])
+        # half at 0.1 and half at 0.84 (mean 0.47, SD 0.37)
+        np.testing.assert_allclose(hc.spread_ratio(0.47, 0.37), 0.37 / np.sqrt(0.47 * 0.53))
+
+    def test_spread_ratio_never_above_one(self):
+        # any set of values inside the bounds stays at or below the ceiling (Bhatia-Davis)
+        rng = np.random.default_rng(0)
+        for _ in range(200):
+            x = rng.uniform(0, 1, rng.integers(2, 30)) ** rng.uniform(0.2, 5)
+            self.assertLessEqual(hc.spread_ratio(x.mean(), x.std()), 1 + 1e-12)
+
+    def test_spread_ratio_outside_bounds_is_nan(self):
+        self.assertTrue(np.isnan(hc.spread_ratio(1.0, 0.0)))
+        self.assertTrue(np.isnan(hc.spread_ratio(-0.01, 0.0)))
+
+    def test_two_position_sd(self):
+        # a player using only the two peaks has SD sqrt((m - a)(b - m)), and none outside them
+        sd = hc.two_position_sd(np.array([0.1, 0.45, 0.8, 0.9]), 0.1, 0.8)
+        np.testing.assert_allclose(sd[:3], [0.0, 0.35, 0.0])
+        self.assertTrue(np.isnan(sd[3]))
+
+    def test_mode_peaks(self):
+        # peaks are the densest points either side of the boundary, not the component means
+        rng = np.random.default_rng(0)
+        vals = np.r_[rng.normal(0.1, 0.03, 2000), rng.uniform(0.15, 0.6, 1000), rng.normal(0.85, 0.03, 3000)]
+        onset = pd.DataFrame(dict(session_type='social', centrality=vals))
+        low, high = hc.mode_peaks(onset, boundary=0.45)
+        self.assertAlmostEqual(low, 0.1, delta=0.02)
+        self.assertAlmostEqual(high, 0.85, delta=0.02)
+
+    def test_side_positions_two_spots(self):
+        # a player alternating 0.1 / 0.8 has those two positions, a gap of 0.7 and no spread on either side
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=[0.1, 0.8] * 6))
+        row = hc.side_positions(onset, boundary=0.485).iloc[0]
+        self.assertAlmostEqual(row['wall_mean'], 0.1)
+        self.assertAlmostEqual(row['centre_mean'], 0.8)
+        self.assertAlmostEqual(row['gap'], 0.7)
+        self.assertAlmostEqual(row['gap_median'], 0.7)
+        self.assertAlmostEqual(row['sd_within'], 0.0)
+        self.assertEqual((row['n_wall'], row['n_centre']), (6, 6))
+
+    def test_side_positions_median_iqr(self):
+        # wall side 0.0-0.4 in steps of 0.1 (median 0.2, IQR 0.1-0.3), centre side always 0.9
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social',
+                                  centrality=[0.0, 0.1, 0.2, 0.3, 0.4] + [0.9] * 5))
+        row = hc.side_positions(onset, boundary=0.485).iloc[0]
+        self.assertAlmostEqual(row['wall_median'], 0.2)
+        self.assertAlmostEqual(row['wall_q25'], 0.1)
+        self.assertAlmostEqual(row['wall_q75'], 0.3)
+        self.assertAlmostEqual(row['wall_sd'], np.std([0.0, 0.1, 0.2, 0.3, 0.4]))
+        # pooled SD is the root mean square of the two side SDs
+        self.assertAlmostEqual(row['sd_within'], np.sqrt(row['wall_sd'] ** 2 / 2))
+
+    def test_side_positions_too_few_trials(self):
+        # 3 centre-side trials is below the minimum, so centre values and the gap are NaN
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=[0.1] * 10 + [0.8] * 3))
+        row = hc.side_positions(onset, boundary=0.485, min_trials=5).iloc[0]
+        self.assertAlmostEqual(row['wall_mean'], 0.1)
+        self.assertTrue(np.isnan(row['centre_mean']))
+        self.assertTrue(np.isnan(row['gap']))
+        self.assertEqual(row['n_centre'], 3)
+
+    def test_one_position_split_ratio(self):
+        # one normal distribution cut at its centre gives gap / within-side SD of about 2.65
+        rng = np.random.default_rng(0)
+        x = rng.normal(0.5, 0.1, 200000)
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=x))
+        row = hc.side_positions(onset, boundary=0.5).iloc[0]
+        self.assertAlmostEqual(row['gap'] / row['sd_within'], hc.ONE_POSITION_SPLIT_RATIO, delta=0.02)
+        self.assertAlmostEqual(hc.ONE_POSITION_SPLIT_RATIO, 2.65, delta=0.01)
+
+    def test_one_flat_spread_split_ratio(self):
+        # one flat (uniform) spread cut at its centre gives gap / within-side SD of sqrt(12)
+        x = np.linspace(0.2, 0.8, 100001)
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=x))
+        row = hc.side_positions(onset, boundary=0.5).iloc[0]
+        self.assertAlmostEqual(row['gap'] / row['sd_within'], hc.ONE_FLAT_SPLIT_RATIO, delta=0.01)
+
+    def test_one_spread_iqr_ratios(self):
+        # one normal or one flat spread cut at its centre, measured with medians and IQR
+        rng = np.random.default_rng(0)
+        for x, ref in ((rng.normal(0.5, 0.1, 400000), hc.ONE_POSITION_SPLIT_RATIO_IQR),
+                       (np.linspace(0.2, 0.8, 400001), hc.ONE_FLAT_SPLIT_RATIO_IQR)):
+            onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=x))
+            row = hc.side_positions(onset, boundary=0.5).iloc[0]
+            self.assertAlmostEqual(row['gap_median'] / row['iqr_within'], ref, delta=0.02)
+        self.assertAlmostEqual(hc.ONE_POSITION_SPLIT_RATIO_IQR, 1.62, delta=0.01)
+        self.assertAlmostEqual(hc.ONE_FLAT_SPLIT_RATIO_IQR, 2.0)
+
+    def test_switch_share(self):
+        # alternating between two fixed spots is all switching, one side only is none
+        onset = pd.DataFrame(dict(experiment=0, player=[0] * 10 + [1] * 10, session_type='social',
+                                  centrality=[0.1, 0.8] * 5 + list(np.linspace(0.05, 0.3, 10))))
+        out = hc.side_positions(onset, boundary=0.485).set_index('player')
+        self.assertAlmostEqual(out.loc[0, 'switch_share'], 1.0)
+        self.assertAlmostEqual(out.loc[1, 'switch_share'], 0.0)
+
+    def test_switch_share_matches_variance_split(self):
+        # the switching part is p(1 - p) x (gap between side means)^2, as a share of the total variance
+        x = np.array([0.1, 0.2, 0.3, 0.7, 0.9])
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', centrality=x))
+        row = hc.side_positions(onset, boundary=0.485, min_trials=1).iloc[0]
+        p, gap = 3 / 5, 0.8 - 0.2
+        self.assertAlmostEqual(row['switch_share'], p * (1 - p) * gap ** 2 / x.var())
+
+    def test_split_references(self):
+        # the two-position reference pairs peripheral players' wall trials with central players' centre trials
+        onset = pd.DataFrame(dict(
+            experiment=0, player=[0] * 6 + [1] * 6, session_type='social',
+            centrality=[0.1, 0.1, 0.1, 0.2, 0.2, 0.9] + [0.8, 0.8, 0.9, 0.9, 0.3, 0.3]))
+        players = pd.DataFrame(dict(experiment=0, player=[0, 1], session_type='social',
+                                    fixed=['peripheral', 'central']))
+        refs = hc.split_references(onset, players, boundary=0.485).set_index('reference')
+        wall, centre = np.array([0.1, 0.1, 0.1, 0.2, 0.2]), np.array([0.8, 0.8, 0.9, 0.9])
+        sd = np.sqrt((wall.var() + centre.var()) / 2)
+        self.assertAlmostEqual(refs.loc['two positions', 'gap'], centre.mean() - wall.mean())
+        self.assertAlmostEqual(refs.loc['two positions', 'gap_vs_sd'], (centre.mean() - wall.mean()) / sd)
+        self.assertAlmostEqual(refs.loc['one normal spread', 'gap_vs_sd'], hc.ONE_POSITION_SPLIT_RATIO)
+        self.assertAlmostEqual(refs.loc['one flat spread', 'gap_vs_iqr'], hc.ONE_FLAT_SPLIT_RATIO_IQR)
+
+    def test_gap_ratio_intervals_separate_positions(self):
+        # a player alternating in runs between two tight spots stays far above one spread cut in two
+        rng = np.random.default_rng(0)
+        spots = np.repeat(np.tile([0.1, 0.8], 6), 10)
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', trial_pos=np.arange(120),
+                                  centrality=spots + rng.normal(0, 0.03, 120)))
+        row = hc.gap_ratio_intervals(onset, boundary=0.485, n_boot=300).iloc[0]
+        self.assertGreater(row['gap_vs_sd_lo'], hc.ONE_FLAT_SPLIT_RATIO)
+        self.assertGreater(row['gap_vs_iqr_lo'], hc.ONE_FLAT_SPLIT_RATIO_IQR)
+        self.assertLessEqual(row['gap_vs_sd_lo'], row['gap_vs_sd'])
+        self.assertGreaterEqual(row['gap_vs_sd_hi'], row['gap_vs_sd'])
+
+    def test_gap_ratio_intervals_one_spread(self):
+        # one normal spread around the boundary gives an interval around 2.65, well below 5.87
+        rng = np.random.default_rng(1)
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', trial_pos=np.arange(150),
+                                  centrality=rng.normal(0.485, 0.1, 150)))
+        row = hc.gap_ratio_intervals(onset, boundary=0.485, n_boot=300).iloc[0]
+        self.assertLess(row['gap_vs_sd_lo'], hc.ONE_POSITION_SPLIT_RATIO)
+        self.assertLess(row['gap_vs_sd_hi'], 5.0)
+        self.assertGreater(row['valid_share'], 0.99)
+
+    def test_gap_ratio_intervals_matches_side_positions(self):
+        # the point values are the ones side_positions gives, and players without a gap are left out
+        rng = np.random.default_rng(2)
+        x = np.r_[rng.uniform(0, 0.4, 20), rng.uniform(0.6, 1, 20)]
+        onset = pd.DataFrame(dict(experiment=0, player=[0] * 40 + [1] * 40, session_type='social',
+                                  trial_pos=np.tile(np.arange(40), 2), centrality=np.r_[x, [0.9] * 37 + [0.1] * 3]))
+        out = hc.gap_ratio_intervals(onset, boundary=0.485, n_boot=50)
+        side = hc.side_positions(onset, boundary=0.485).iloc[0]
+        self.assertEqual(out['player'].tolist(), [0])
+        self.assertAlmostEqual(out.iloc[0]['gap_vs_sd'], side['gap'] / side['sd_within'])
+        self.assertAlmostEqual(out.iloc[0]['gap_vs_iqr'], side['gap_median'] / side['iqr_within'])
+
+    def test_gap_ratio_intervals_reproducible(self):
+        rng = np.random.default_rng(3)
+        onset = pd.DataFrame(dict(experiment=0, player=0, session_type='social', trial_pos=np.arange(60),
+                                  centrality=rng.uniform(0, 1, 60)))
+        a = hc.gap_ratio_intervals(onset, boundary=0.485, n_boot=100, random_state=5)
+        b = hc.gap_ratio_intervals(onset, boundary=0.485, n_boot=100, random_state=5)
+        pd.testing.assert_frame_equal(a, b)
+
+    def test_interval_position(self):
+        # an interval is above a reference only if its lower end clears it, below only if its upper end is under it
+        pos = hc.interval_position(np.array([6.0, 1.0, 3.0, np.nan]), np.array([7.0, 2.0, 7.0, np.nan]), 5.0)
+        self.assertEqual(pos.tolist(), ['above', 'below', 'overlaps', 'no interval'])
+
+    def test_player_table_spread(self):
+        # a player alternating 0.1 / 0.84 spreads widely, one waiting at 0.47 not at all
+        onset = pd.DataFrame(dict(
+            experiment=0, player=[0] * 10 + [1] * 10, session_type='social',
+            centrality=[0.1, 0.84] * 5 + [0.47] * 10, peripheral=[True, False] * 5 + [False] * 10))
+        players = hc.player_table(onset)
+        p0 = players.query('player == 0').iloc[0]
+        p1 = players.query('player == 1').iloc[0]
+        # spread uses the population SD, so it matches the bound
+        self.assertAlmostEqual(p0['sd_pop_centrality'], 0.37)
+        self.assertAlmostEqual(p0['spread_ratio'], 0.37 / np.sqrt(0.47 * 0.53))
+        self.assertAlmostEqual(p1['spread_ratio'], 0.0)
+        self.assertAlmostEqual(p0['mean_centrality'], p1['mean_centrality'])
+
+
 class TestPlayerMixtures(unittest.TestCase):
 
     @classmethod

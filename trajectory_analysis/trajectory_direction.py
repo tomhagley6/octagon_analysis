@@ -79,7 +79,7 @@ def get_smoothed_player_direction_vectors_for_trajectory(trajectory, window_size
     return direction_vectors_smoothed
 
 # %%
-2# Umbrella function for getting cosine similarities for player direction vector to player-to-alcove vectors
+# Umbrella function for getting cosine similarities for player direction vector to player-to-alcove vectors
 # for an entire trial
 # stored in a num_walls*timepoints shaped array
 

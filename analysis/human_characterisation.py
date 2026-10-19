@@ -20,6 +20,7 @@
 
 import os
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -45,6 +46,19 @@ FIRST_SOLO_CUT = 5          # trials cut from the start of the first solo (first
 FIXED_CUTS = (0.2, 0.8)     # fraction of peripheral trials: at or below = central, at or above = peripheral
 TRIAL_SPLIT_REFERENCE = 'social'    # session type whose trials set the one peripheral boundary
 WALL_SEPS = (1, 2, 3, 4)    # possible wall separations (in walls)
+CENTRALITY_BOUNDS = (0.0, 1.0)  # alcove back and arena centre, the limits of a player's spread
+PEAK_BW = 0.1               # KDE bandwidth (as a fraction of the data SD) used to find the two onset peaks
+SIDE_MIN_TRIALS = 5         # fewest trials on one side of the boundary to give that side a position
+# gap / within-side SD for one normal distribution cut at its centre (each half has mean 0.80 SD from the centre
+# and SD 0.60 of the whole), the value a player waiting in one spot near the boundary would give
+ONE_POSITION_SPLIT_RATIO = 2 * np.sqrt(2 / np.pi) / np.sqrt(1 - 2 / np.pi)
+# the same for one flat (uniform) spread cut at its centre
+ONE_FLAT_SPLIT_RATIO = np.sqrt(12)
+# the same two cuts measured with medians and IQR (gap between side medians / within-side IQR). Each half of a
+# normal has its median 0.67 SD from the centre and quartiles at 0.32 and 1.15 SD; each half of a flat spread has
+# its median at the middle of the half and an IQR of half its width
+ONE_POSITION_SPLIT_RATIO_IQR = 2 * stats.norm.ppf(0.75) / (stats.norm.ppf(0.875) - stats.norm.ppf(0.625))
+ONE_FLAT_SPLIT_RATIO_IQR = 2.0
 POSTERIOR_MIN = 0.8         # below this top posterior, a mixture label counts as uncertain
 DRIFT_BLOCK = 10            # trials per block when reordering a session to test for drift
 DRIFT_PERM = 1000           # reorderings per player
@@ -356,19 +370,200 @@ def fit_trial_split(onset, reference=TRIAL_SPLIT_REFERENCE, n_init=10, random_st
 
 def player_table(onset):
     ''' Return the player table, one row per player per session type, holding mean, SD and median onset
-        centrality, the trial count, and the fraction of trials flagged peripheral.
+        centrality, the trial count, the fraction of trials flagged peripheral and the spread ratio.
         Takes the onset table (with the peripheral flag from fit_trial_split).
 
         The mean and the fraction summarise the same trials two ways. The mean says where a player
-        waits on average, the fraction says how often they wait at a wall. '''
+        waits on average, the fraction says how often they wait at a wall. The spread ratio separates
+        players with the same mean who mix the centre and the wall from those who wait in between. '''
 
     agg = dict(mean_centrality=('centrality', 'mean'), sd_centrality=('centrality', 'std'),
+               sd_pop_centrality=('centrality', lambda x: x.std(ddof=0)),
                median_centrality=('centrality', 'median'), n_trials=('centrality', 'size'))
     if 'peripheral' in onset.columns:
         agg['frac_peripheral'] = ('peripheral', 'mean')
     players = onset.groupby(['experiment', 'player', 'session_type']).agg(**agg).reset_index()
     players['frac_peripheral'] = players['frac_peripheral'].astype(float) if 'frac_peripheral' in players else np.nan
+    players['spread_ratio'] = spread_ratio(players['mean_centrality'].to_numpy(),
+                                           players['sd_pop_centrality'].to_numpy())
     return players
+
+
+def spread_ratio(mean, sd, bounds=CENTRALITY_BOUNDS):
+    ''' Return a player's SD as a fraction of the largest SD possible at their mean.
+        Takes the mean, the population SD (ddof=0) and the (low, high) limits of centrality.
+
+        For values inside [lo, hi] the SD can be at most sqrt((mean - lo)(hi - mean)) (the
+        Bhatia-Davis bound), reached by a player split between the two limits. The ratio is 1 for that
+        player and 0 for one who always waits in the same spot, whatever their mean. Means on or
+        outside a limit leave no room to spread and give NaN. '''
+
+    lo, hi = bounds
+    mean, sd = np.asarray(mean, dtype=float), np.asarray(sd, dtype=float)
+    room = (mean - lo) * (hi - mean)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        return np.where(room > 0, sd / np.sqrt(np.where(room > 0, room, 1.0)), np.nan)
+
+
+def two_position_sd(mean, low, high):
+    ''' Return the SD of a player who only ever waits at the two peaks, given their mean.
+        Takes the mean and the two peak positions.
+
+        A player at low on a share p of trials and at high on the rest has SD sqrt((mean - low)(high - mean)).
+        It is a reference curve for plotting, not a limit, as spread within each peak adds to it.
+        Means outside the peaks give NaN. '''
+
+    mean = np.asarray(mean, dtype=float)
+    room = (mean - low) * (high - mean)
+    return np.where(room >= 0, np.sqrt(np.clip(room, 0, None)), np.nan)
+
+
+def mode_peaks(onset, boundary, reference=TRIAL_SPLIT_REFERENCE, bw=PEAK_BW, n_grid=1001):
+    ''' Return the onset centrality of the densest point below and above the boundary.
+        Takes the onset table, the trial-level boundary, the session type to use and the KDE bandwidth.
+
+        These are where players most often wait. They differ from the mixture means, which a skewed
+        wall peak and a flat middle pull toward each other. '''
+
+    x = onset.loc[onset['session_type'] == reference, 'centrality'].to_numpy()
+    # estimate the density on a grid, then take the highest point on each side
+    grid = np.linspace(x.min(), x.max(), n_grid)
+    dens = stats.gaussian_kde(x, bw_method=bw)(grid)
+    below, above = grid < boundary, grid >= boundary
+    return float(grid[below][np.argmax(dens[below])]), float(grid[above][np.argmax(dens[above])])
+
+
+def side_positions(onset, boundary, min_trials=SIDE_MIN_TRIALS):
+    ''' Return each player's own wall and centre positions per session type, and the gap between them.
+        Takes the onset table, the trial-level boundary and the fewest trials a side needs.
+
+        Trials below the boundary are the wall side, the rest the centre side. Each side gets its mean,
+        SD (population), median and quartiles. gap is centre mean minus wall mean, gap_median the same
+        with medians. sd_within is the root mean square of the two side SDs, to compare with the gap.
+        A side with fewer than min_trials trials gets NaN, as does every gap that needs it.
+
+        Cutting one spread of trials at the boundary always gives two sides some way apart. For one
+        normal distribution cut at its centre, gap / sd_within is ONE_POSITION_SPLIT_RATIO (about 2.65),
+        and for one flat spread ONE_FLAT_SPLIT_RATIO (about 3.46). iqr_within and gap_median give the same
+        comparison with medians (references ONE_POSITION_SPLIT_RATIO_IQR and ONE_FLAT_SPLIT_RATIO_IQR).
+
+        switch_share is the share of the player's variance that comes from moving between the two sides,
+        p(1 - p) x (centre mean - wall mean)^2 / variance, with p the share of wall-side trials. It uses
+        every trial, as the split is exact whatever the count. It is 0 for a player who stays on one side. '''
+
+    rows = []
+    for (e, p, st), grp in onset.groupby(['experiment', 'player', 'session_type']):
+        x = grp['centrality'].to_numpy()
+        row = dict(experiment=e, player=p, session_type=st)
+        # summarise each side of the boundary
+        for side, vals in (('wall', x[x < boundary]), ('centre', x[x >= boundary])):
+            row[f'n_{side}'] = len(vals)
+            ok = len(vals) >= min_trials
+            row[f'{side}_mean'] = vals.mean() if ok else np.nan
+            row[f'{side}_sd'] = vals.std() if ok else np.nan
+            q25, q50, q75 = np.percentile(vals, [25, 50, 75]) if ok else (np.nan,) * 3
+            row.update({f'{side}_q25': q25, f'{side}_median': q50, f'{side}_q75': q75})
+        # find the share of variance from moving between the sides (all trials, no minimum)
+        wall = x < boundary
+        share = wall.mean()
+        between = share * (1 - share) * (x[~wall].mean() - x[wall].mean()) ** 2 if 0 < share < 1 else 0.0
+        row['switch_share'] = between / x.var() if x.var() > 0 else np.nan
+        rows.append(row)
+    out = pd.DataFrame(rows)
+    # find the distance between the two positions, and the typical spread around each
+    out['gap'] = out['centre_mean'] - out['wall_mean']
+    out['gap_median'] = out['centre_median'] - out['wall_median']
+    out['sd_within'] = np.sqrt((out['wall_sd'] ** 2 + out['centre_sd'] ** 2) / 2)
+    out['iqr_within'] = np.sqrt(((out['wall_q75'] - out['wall_q25']) ** 2
+                                 + (out['centre_q75'] - out['centre_q25']) ** 2) / 2)
+    return out
+
+
+def split_references(onset, players, boundary, label_col='fixed', session_type=TRIAL_SPLIT_REFERENCE):
+    ''' Return the gap / within-side spread expected from one spread cut in two, and from two separate
+        positions built from real trials. Takes the onset table, the player table with labels, the
+        boundary, the label column and the session type.
+
+        One normal and one flat spread use the constants above. The two-position reference pairs the
+        wall-side trials of every peripheral player with the centre-side trials of every central player,
+        as a player who waits only where those players wait. Pooling players widens each side, so it is a
+        low estimate of a single two-position player. Ratios are given with means / SD and medians / IQR. '''
+
+    sub = onset[onset['session_type'] == session_type].merge(
+        players.loc[players['session_type'] == session_type, ['experiment', 'player', label_col]],
+        on=['experiment', 'player'])
+    x = sub['centrality'].to_numpy()
+    wall = x[(sub[label_col] == 'peripheral').to_numpy() & (x < boundary)]
+    centre = x[(sub[label_col] == 'central').to_numpy() & (x >= boundary)]
+    # measure the pooled two-position player the same way as a real one
+    iqr = lambda v: np.subtract(*np.percentile(v, [75, 25]))
+    gap, gap_median = centre.mean() - wall.mean(), np.median(centre) - np.median(wall)
+    sd_within = np.sqrt((wall.var() + centre.var()) / 2)
+    iqr_within = np.sqrt((iqr(wall) ** 2 + iqr(centre) ** 2) / 2)
+    return pd.DataFrame([
+        dict(reference='one normal spread', gap_vs_sd=ONE_POSITION_SPLIT_RATIO, gap_vs_iqr=ONE_POSITION_SPLIT_RATIO_IQR),
+        dict(reference='one flat spread', gap_vs_sd=ONE_FLAT_SPLIT_RATIO, gap_vs_iqr=ONE_FLAT_SPLIT_RATIO_IQR),
+        dict(reference='two positions', wall=wall.mean(), centre=centre.mean(), gap=gap, gap_median=gap_median,
+             sd_within=sd_within, iqr_within=iqr_within, gap_vs_sd=gap / sd_within, gap_vs_iqr=gap_median / iqr_within,
+             n_wall=len(wall), n_centre=len(centre))])
+
+
+def gap_ratio_intervals(onset, boundary, block=DRIFT_BLOCK, n_boot=DRIFT_PERM, min_trials=SIDE_MIN_TRIALS,
+                        random_state=0):
+    ''' Return each player's gap / within-side spread with a 95% resampling interval, as means / SD and as
+        medians / IQR. Takes the onset table, the boundary, the block length, the draw count, the fewest
+        trials a side needs and a seed.
+
+        Each session is redrawn from overlapping blocks of trials in play order (as in player_change),
+        which keeps a player's runs. Both sides and both ratios are recomputed on every redraw. The
+        interval asks whether the same player would give a similar ratio over a different set of their
+        trials. Redraws leaving a side with fewer than min_trials trials are dropped, and valid_share
+        records how many remained. Only players with a gap in their real trials are returned. '''
+
+    point = side_positions(onset, boundary, min_trials)
+    point = point[point['gap'].notna()].set_index(list(KEYS))
+    rng = np.random.default_rng(random_state)
+    rows = []
+    for key, grp in onset.sort_values('trial_pos').groupby(list(KEYS)):
+        if key not in point.index:
+            continue
+        y = grp['centrality'].to_numpy()
+        Y = y[_block_bootstrap_index(len(y), block, n_boot, rng)]
+        wall = Y < boundary
+        side_stats = {}
+        with np.errstate(invalid='ignore', divide='ignore'), warnings.catch_warnings():
+            warnings.simplefilter('ignore', RuntimeWarning)
+            for side, mask in (('wall', wall), ('centre', ~wall)):
+                # take each side's mean, population variance and quartiles on every redraw
+                vals = np.where(mask, Y, np.nan)
+                n_side = mask.sum(axis=1)
+                mean = np.nanmean(vals, axis=1)
+                var = np.nanmean((vals - mean[:, None]) ** 2, axis=1)
+                q25, q50, q75 = np.nanpercentile(vals, [25, 50, 75], axis=1)
+                side_stats[side] = dict(n=n_side, mean=mean, var=var, median=q50, iqr=q75 - q25)
+            w, c = side_stats['wall'], side_stats['centre']
+            valid = (w['n'] >= min_trials) & (c['n'] >= min_trials)
+            r_sd = (c['mean'] - w['mean']) / np.sqrt((w['var'] + c['var']) / 2)
+            r_iqr = (c['median'] - w['median']) / np.sqrt((w['iqr'] ** 2 + c['iqr'] ** 2) / 2)
+        row = dict(zip(KEYS, key), n_trials=len(y), valid_share=valid.mean(),
+                   gap_vs_sd=point.loc[key, 'gap'] / point.loc[key, 'sd_within'],
+                   gap_vs_iqr=point.loc[key, 'gap_median'] / point.loc[key, 'iqr_within'])
+        # take the 95% interval over the valid redraws
+        for name, r in (('gap_vs_sd', r_sd), ('gap_vs_iqr', r_iqr)):
+            lo, hi = np.percentile(r[valid], [2.5, 97.5]) if valid.any() else (np.nan, np.nan)
+            row.update({f'{name}_lo': lo, f'{name}_hi': hi})
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def interval_position(lo, hi, reference):
+    ''' Return 'above', 'below' or 'overlaps' for each interval against one reference value.
+        Takes the lower and upper ends and the reference. Missing intervals give 'no interval'. '''
+
+    lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
+    pos = np.select([lo >= reference, hi < reference], ['above', 'below'], 'overlaps').astype(object)
+    pos[np.isnan(lo) | np.isnan(hi)] = 'no interval'
+    return pos
 
 
 def fixed_cut_labels(frac_peripheral, cuts=FIXED_CUTS):
@@ -1012,6 +1207,17 @@ def partner_influence(wide, target='social', baseline='solo1', n_perm=2000, rand
                 x_resid=_residual(partner, own), y_resid=_residual(y, own))
 
 
+def _block_bootstrap_index(n, block, n_boot, rng):
+    ''' Return n_boot x n trial indices that redraw one session from overlapping blocks of trials.
+        Takes the trial count, the block length, the draw count and a generator. '''
+
+    block = min(block, n)
+    n_blocks = int(np.ceil(n / block))
+    starts = rng.integers(0, n - block + 1, size=(n_boot, n_blocks))
+    idx = starts[:, :, None] + np.arange(block)[None, None, :]
+    return idx.reshape(n_boot, -1)[:, :n]
+
+
 def _block_bootstrap_means(y, block, n_boot, rng):
     ''' Return bootstrap means of one session, drawing overlapping blocks of trials with replacement.
         Takes an array, the block length, the draw count and a generator.
@@ -1019,12 +1225,7 @@ def _block_bootstrap_means(y, block, n_boot, rng):
         Drawing blocks rather than single trials keeps a player's runs, so the noise on a session mean
         is not understated by pretending consecutive trials are independent. '''
 
-    n = len(y)
-    block = min(block, n)
-    n_blocks = int(np.ceil(n / block))
-    starts = rng.integers(0, n - block + 1, size=(n_boot, n_blocks))
-    idx = starts[:, :, None] + np.arange(block)[None, None, :]
-    return y[idx.reshape(n_boot, -1)[:, :n]].mean(axis=1)
+    return y[_block_bootstrap_index(len(y), block, n_boot, rng)].mean(axis=1)
 
 
 def player_change(onset, from_type='solo1', to_type='solo2', block=DRIFT_BLOCK, n_boot=DRIFT_PERM,
