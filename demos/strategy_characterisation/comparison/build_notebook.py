@@ -71,7 +71,14 @@ trials, which agents never see.
 
 **Between-trial metrics.** Nothing is resampled. Each side stays at its own logging rate, for the
 reason part 3a measures: the humans survive the tick grid untouched and the agents do not, so
-matching grids would distort only the side that did not need it."""),
+matching grids would distort only the side that did not need it.
+
+**Wall sensing.** Each side is measured on its own sensor. A human sees a continuous 110.36 degree
+view, so the wedge model fits them. An agent does not: `SelectivePassThroughRaycast` casts **7 rays**
+at 0, +/-18.3, +/-36.7 and +/-55 degrees, and a wall is sensed only where a ray lands on it, though a
+ray hitting any part of a lit wall identifies the whole wall. Applying the wedge to agents would
+credit them with a field of view they do not have, so the agent side uses
+`analysis/agent_raycast.py`."""),
 
 (CODE, r"""# build the human fingerprint: one row per player per session
 onset = hc.load_tables()['onset']
@@ -101,6 +108,17 @@ model_meta = mc.build_model_meta(usable, onset_by_model, strategy_col='strategy'
 model_meta['group'] = np.where(model_meta['onset_centrality'] < OUTLIER_CUT, 'off-cluster', 'main')
 
 agent_fp = mc.build_fingerprint(model_meta, tables)            # ITI metrics stay at 50 Hz, see part 3a
+
+# measure agent wall-sensing with the ray sensor, not the human wedge. The agents have no continuous
+# field of view: 7 rays at 0, +/-18.3, +/-36.7 and +/-55 degrees, and a wall counts as sensed only
+# where a ray lands on it (analysis/agent_raycast.py)
+ray_vis = hac.load_agent_ray_visibility(SIM_DATA_FOLDER, models, recompute=RECOMPUTE)
+ray_by_model = hac.visibility_by_model(ray_vis).set_index('model')
+PERCEPTION = [c for c in hac.PERCEPTION_METRICS if c in ray_by_model.columns]
+agent_fp = agent_fp.set_index('model')
+agent_fp.loc[ray_by_model.index, PERCEPTION] = ray_by_model[PERCEPTION]
+agent_fp = agent_fp.reset_index()
+
 a_score = hac.agent_own_score_metrics(tables['score'], tables['rt'])
 agent_fp = agent_fp.merge(a_score[['model', 'score_rate_own']], on='model', how='left')
 agent_fp['score_rate'] = agent_fp['score_rate_own']            # own score, not the winner's
@@ -156,10 +174,15 @@ print(f"{len(METRICS)} metrics compared "
   seeing a wall.
 """),
 
-(MD, r"""## 2. Position and perception
+(MD, r"""## 2. Position and sensing
 
-Whether the two groups are standing in the same place, and whether they see the same amount when
-the walls appear. If these differ, nothing downstream can be read as a difference in play."""),
+Whether the two groups are standing in the same place, and whether they pick up the walls equally
+fast when they light. If these differ, nothing downstream can be read as a difference in play.
+
+Each side is measured on its own sensor, so "sensed" means something different for each: a wall
+inside a human's 110.36 degree view, or a wall any of an agent's 7 rays lands on. The cell below
+also shows what the agents would have scored under the human wedge, since that is what the batch
+notebooks report and the gap is the size of the error in using it."""),
 
 (CODE, r"""def forest(comp, groups, title, ax=None):
     ''' Plot each metric's standardised difference with its bootstrap interval, grouped by reading.
@@ -183,24 +206,39 @@ the walls appear. If these differ, nothing downstream can be read as a differenc
     ax.set_xlim(-lim, lim)
     return ax
 
-forest(comparison, ['position', 'perception'], 'Position and perception: central humans vs central agents')
+forest(comparison, ['position', 'perception'], 'Position and sensing: central humans vs central agents')
 plt.tight_layout(); plt.show()
 
 display(comparison[comparison['reading'].isin(['position', 'perception'])]
-        [['metric', 'human_mean', 'agent_mean', 'diff', 'd', 'ci_lo', 'ci_hi']].round(3))"""),
+        [['metric', 'human_mean', 'agent_mean', 'diff', 'd', 'ci_lo', 'ci_hi']].round(3))
+
+# show how much the sensor model moves the agent numbers, as the batch notebooks use the wedge
+wedge_by_model = hac.visibility_by_model(tables['vis']).set_index('model')
+sensor = pd.DataFrame({
+    'agent, 7 rays': ray_by_model.loc[agent['model'], PERCEPTION].mean(),
+    'agent, 110 deg wedge': wedge_by_model.loc[agent['model'], PERCEPTION].mean(),
+    'human, 110 deg wedge': human[PERCEPTION].mean()})
+sensor['wedge error on agents'] = sensor['agent, 110 deg wedge'] - sensor['agent, 7 rays']
+display(sensor.round(3))"""),
 
 (MD, r"""**Interpretation**
 
 - **They stand in nearly the same place.** Onset centrality 0.834 against 0.873. The gap is small
   but the interval excludes zero, so agents do sit slightly further in.
-- **They see the same amount when the walls appear.** `frac_visible_at_onset` 0.671 against 0.684,
-  and `frac_never_visible` is near zero on both sides with an interval covering zero. This is the
-  result that constrains everything below: whatever else differs, it is not what the two groups
-  have in view at the moment of the decision.
-- **Humans are slower to find a wall when they have to look for it.** On trials with no wall in
-  view at onset, humans take 0.59 s against the agents' 0.34 s.
+- **They pick up a wall equally often when it lights.** `frac_visible_at_onset` 0.671 for humans
+  against 0.661 for agents, and `frac_never_visible` is near zero on both sides. Whatever else
+  differs, it is not how often a wall is available to be acted on at the moment of the decision.
+- **Humans are slower to find a wall when they have to look for it.** On trials with nothing sensed
+  at onset, humans take 0.59 s against the agents' 0.34 s.
 
-The first two together say the difference is not perceptual access. The third says it is about
+**The sensor model matters for correctness but not for the conclusion.** The wedge credits agents
+with 0.684 at onset against the rays' 0.661, so it overstates them by about two points: a wall can
+fall between two rays, and the rays read the raw heading where the wedge reads a 5-frame smoothed
+one. Using it would have put agents just above humans instead of just below. Either way the two are
+within about one point of each other, so the finding is that they are level, and it is now measured
+on what each side actually senses.
+
+The first two points together say the difference is not sensory access. The third says it is about
 recovery, which is what part 3 is about."""),
 
 (MD, r"""## 3. Between trials
@@ -237,7 +275,7 @@ print(f"human logged frame rate: median {native['fs'].median():.2f} Hz, "
       f"{(native['fs'] <= FAST_HZ).groupby(native['experiment']).any().sum()} session(s) held out below {FAST_HZ} Hz")
 
 h_ticks = human_tables['iti'].query("session_type == 'social' and player == 0")
-h_effect = hac.resample_effect(native_fast, h_ticks, list(hc.KEYS))
+h_effect = hac.resample_effect(native_fast, h_ticks, list(hc.KEYS) + ['trial_num'])
 a_effect = hac.resample_effect(tables['iti'], iti_ticks, ['model', 'player', 'trial_num'])
 
 effect = h_effect.merge(a_effect, on='metric', suffixes=('_human', '_agent'))

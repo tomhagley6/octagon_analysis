@@ -317,10 +317,87 @@ class TestHumanNativeIti(unittest.TestCase):
                                    verbose=False)
         self.assertAlmostEqual(out['prop_no_translational'].iloc[0], 0.0)
 
+    def test_end_of_session_wait_is_dropped(self):
+        # append a motionless run carrying the last trial's number, which is the wait after the final
+        # trial. It has no trial after it, so it is not an ITI and must not give a row
+        trials = self.make_social_session(n_trials=2)
+        tail = trials[-1].copy()
+        tail['trial_epoch'] = globals.ITI
+        for pid in (0, 1):
+            tail[globals.PLAYER_LOC_DICT[pid]['xloc']] = 0.0
+            tail[globals.PLAYER_ROT_DICT[pid]['yrot']] = 0.0
+        out = hac.human_native_iti([trials + [tail]], kind='social', players=(0,), verbose=False)
+        self.assertEqual(len(out), 2)
+        self.assertEqual(sorted(out['trial_num']), [1.0, 2.0])
+
+    def test_one_row_per_trial_per_player(self):
+        out = hac.human_native_iti([self.make_social_session()], kind='social', players=(0, 1),
+                                   verbose=False)
+        self.assertEqual(out.duplicated(subset=['experiment', 'player', 'session_type',
+                                                'trial_num']).sum(), 0)
+
+    def test_keep_map_is_looked_up_per_player(self):
+        # one player's keep set must never carry over to the next, which a shared variable would do
+        session = self.make_social_session(n_trials=3)
+        keep_map = {(0, 0, 'social'): {1.0}, (0, 1, 'social'): {3.0}}
+        out = hac.human_native_iti([session], kind='social', players=(0, 1), keep_map=keep_map,
+                                   verbose=False)
+        self.assertEqual(sorted(out[out['player'] == 0]['trial_num']), [1.0])
+        self.assertEqual(sorted(out[out['player'] == 1]['trial_num']), [3.0])
+
+    def test_missing_keep_map_entry_falls_back_to_every_logged_trial(self):
+        session = self.make_social_session(n_trials=3)
+        out = hac.human_native_iti([session], kind='social', players=(0,), keep_map={},
+                                   verbose=False)
+        self.assertEqual(sorted(out['trial_num']), [1.0, 2.0, 3.0])
+
     def test_both_log_ids_can_be_measured(self):
         out = hac.human_native_iti([self.make_social_session()], kind='social', players=(0, 1),
                                    verbose=False)
         self.assertEqual(sorted(out['player'].unique()), [0, 1])
+
+
+class TestVisibilityByModel(unittest.TestCase):
+    ''' Reducing a trial-level visibility table, for the ray sensor and the wedge alike. '''
+
+    def setUp(self):
+        # 4 trials: seen at onset, seen late at 0.2 s, seen late at 0.4 s, never seen
+        self.vis = pd.DataFrame(dict(
+            model=1, player=0, trial_num=[1.0, 2.0, 3.0, 4.0],
+            visible_at_onset=[True, False, False, False],
+            ever_visible=[True, True, True, False],
+            latency_to_wall_visible=[0.0, 0.2, 0.4, np.nan]))
+
+    def test_frac_visible_at_onset(self):
+        self.assertAlmostEqual(hac.visibility_by_model(self.vis)['frac_visible_at_onset'].iloc[0], 0.25)
+
+    def test_frac_never_visible(self):
+        self.assertAlmostEqual(hac.visibility_by_model(self.vis)['frac_never_visible'].iloc[0], 0.25)
+
+    def test_late_latency_uses_only_late_trials(self):
+        # trials 2 and 3, so (0.2 + 0.4) / 2
+        out = hac.visibility_by_model(self.vis).iloc[0]
+        self.assertAlmostEqual(out['late_latency_to_wall_visible'], 0.3)
+        self.assertEqual(out['n_late'], 2)
+
+    def test_all_latency_scores_onset_as_zero(self):
+        # trials 1, 2 and 3, so (0 + 0.2 + 0.4) / 3
+        out = hac.visibility_by_model(self.vis).iloc[0]
+        self.assertAlmostEqual(out['all_latency_to_wall_visible'], 0.2)
+
+    def test_never_seen_trials_are_excluded_from_both_latencies(self):
+        # trial 4 has no latency, so it must not be counted as a zero
+        out = hac.visibility_by_model(self.vis).iloc[0]
+        self.assertFalse(np.isnan(out['all_latency_to_wall_visible']))
+        self.assertAlmostEqual(out['all_latency_to_wall_visible'], 0.2)
+
+    def test_late_latency_is_nan_when_no_late_trials(self):
+        vis = self.vis[self.vis['visible_at_onset']]
+        self.assertTrue(np.isnan(hac.visibility_by_model(vis)['late_latency_to_wall_visible'].iloc[0]))
+
+    def test_one_row_per_model(self):
+        vis = pd.concat([self.vis, self.vis.assign(model=2)])
+        self.assertEqual(sorted(hac.visibility_by_model(vis)['model']), [1, 2])
 
 
 class TestAgentOwnScoreMetrics(unittest.TestCase):

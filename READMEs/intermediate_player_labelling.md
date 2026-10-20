@@ -108,7 +108,7 @@ Thresholds come from central players, who wait in one place, wherever possible.
 | anchor | how it is set | social |
 |---|---|---|
 | narrow cut | 75th percentile of central players' leftover spread | 0.145 |
-| middle range | between the typical (median) mean centrality of peripheral and central players | 0.151 to 0.760 |
+| middle range | above peripheral players' 95th percentile mean and below central players' 5th percentile mean (`ml.middle_range`) | 0.309 to 0.645 |
 | shift cut | 95th percentile of central players' trial-to-trial differences, counting only pairs where both trials sit on the centre side | 0.272 |
 | shift reference | 95th percentile of central players' own shift shares | 0.21 |
 
@@ -153,8 +153,8 @@ Only intermediate players are labelled. Each gets the first label they fit, in t
 |---|---|
 | **one switch** | the two-section fit passes its shuffle test, the section gap is at least the shift cut, each section is stable (purity at least 0.80 and no excursion over 5 trials), and two sections explain more than a straight line (`two_section_r2` > `trend_r2`) |
 | **long runs** | runs pass the shuffle test and are at least 0.46 (runs of about 5 or more trials, once spread within a position is allowed for) |
-| **drifter** | the trend passes its shuffle test, and trend strength at least 0.10 |
-| **hoverer** | no significant trend, leftover spread at or below the narrow cut, and mean inside the middle range |
+| **drifter** | the trend passes its shuffle test, trend strength at least 0.10, and a robust (Theil-Sen) change of at least 0.135 in size |
+| **hoverer** | no significant trend, leftover spread at or below the narrow cut, and mean inside the middle range (between the two groups, near the boundary) |
 | **mixer** | no significant trend, wider than the narrow cut, and a shift share above the shift reference |
 | **short runs** | runs pass the shuffle test, but the player fits none of the labels above |
 | **unclear** | anything else (weak or mixed signals) |
@@ -162,6 +162,9 @@ Only intermediate players are labelled. Each gets the first label they fit, in t
 **Where the cut points come from.**
 - Purity 0.80 sits just above where simulated noisy one switch (10th percentile 0.77 in social) and long
   runs (90th percentile 0.75) meet.
+- The robust change (`drift_change`, Theil-Sen slope times session length) keeps out players whose usual position
+  stays put while trips bunched early or late tilt the straight line. 0.135 is about half the shift cut (user's
+  choice). Every intermediate drifter is above it.
 - Trend 0.10 sits above simulated mixers and hoverers (90th percentile 0.02 to 0.06), so players with no
   steady trend stay out. It is low enough to include players whose line clearly moves but whose trials
   scatter widely around it (examples in the notebook's sandbox).
@@ -200,7 +203,7 @@ Share of each simulated kind given its own label.
 
 - **Social is clean.** Most errors are small (no simulated mixer is called one switch, 0.01 of long runs
   are, and 0.00 to 0.02 of mixers and hoverers are called drifters).
-- **Noisy one switch** loses most of the rest (0.16 to 0.20) to drifter, where a section falls just below
+- **Noisy one switch** loses most of the rest (0.15 to 0.20) to drifter, where a section falls just below
   the purity cut but the line still moves.
 - **The solos are weaker for long runs.** With 54 to 60 trials, 0.17 to 0.24 of simulated long runs are
   called one switch, as fewer trials hold fewer runs.
@@ -259,6 +262,15 @@ Each change was made after checking on simulated players or real examples.
 6. **Drifter cut lowered from 0.30 to 0.10.** Plots of individual players showed clear moves toward the
    wall at trend strengths of 0.11 to 0.25, which had been labelled short runs.
 7. **Every label passed is recorded** beside the priority label, as players often show several patterns.
+8. **Middle range narrowed (2026-10-19).** It was the typical (median) peripheral to central mean (0.151 to
+   0.760 in social). Run on central and peripheral players (`strategy_labelling.ipynb`), that let narrow
+   one-position players inside their own group count as hoverers (15 social central players). It is now
+   peripheral players' 95th to central players' 5th percentile mean (0.309 to 0.645 in social). No
+   intermediate player's label changed, and simulated hoverer recovery stayed at 0.95 to 0.96.
+9. **Drifters need a robust change (2026-10-19).** Peripheral players were called drifters when trips toward the
+   boundary, bunched early or late, tilted their straight line while their usual position stayed put (e.g. social
+   exp 99 p1: line change +0.16, Theil-Sen change +0.004). Drifters now also need a Theil-Sen change of at least
+   0.135. No intermediate priority label changed. Social peripheral drifters fell from 16 to 6.
 
 ## Open decisions
 

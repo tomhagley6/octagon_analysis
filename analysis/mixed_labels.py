@@ -14,6 +14,7 @@
 
 import numpy as np
 import pandas as pd
+from scipy.stats import theilslopes
 
 import analysis.human_characterisation as hc
 
@@ -25,6 +26,7 @@ SEQUENCE_KINDS = ('mixer', 'one switch', 'noisy one switch', 'long runs', 'drift
 ALPHA = 0.05                # shuffle-test p below which order structure counts as present
 RUNS_MIN = 0.46             # runs_r1 for runs of about 5+ trials, allowing for real players' spread within a position
 TREND_MIN = 0.10            # trend_r2 for a drifter (above simulated mixers' and hoverers' 90th percentile)
+DRIFT_MIN = 0.135           # robust (Theil-Sen) change over the session a drifter needs (about half the shift cut)
 JUMP_MIN = 0.30             # local jump size for a single switch (below simulated one-switch players, above mixers)
 MIN_SECTION = 5             # fewest trials in each stable section of a one-switch player
 MAX_TRANSITION = 0.2        # longest transition between the two sections, as a share of the session
@@ -36,6 +38,7 @@ SIM_EXCURSION_LEN = (1, 3)  # its trips last 1 to 3 trials
 SIM_CLOSENESS = 0.2         # its correlation between consecutive trials' scatter within a position
 FLAT_SPLIT_RATIO = hc.ONE_FLAT_SPLIT_RATIO  # gap_vs_sd above this counted as two positions in the first rules
 SHIFT_Q = 0.95              # a shift is a trial-to-trial difference bigger than this share of central players' within-centre ones
+MIDDLE_Q = 0.05             # near the middle = above peripheral players' 95th and below central players' 5th percentile mean
 LABELS = ('one switch', 'long runs', 'drifter', 'hoverer', 'mixer', 'short runs', 'unclear')
 
 
@@ -242,6 +245,24 @@ def sequence_table(onset, n_shuffle=N_SHUFFLE, window=JUMP_WINDOW, min_trials=MI
     return pd.DataFrame(rows)
 
 
+def robust_trend_table(onset, min_trials=MIN_SEQ_TRIALS):
+    ''' Return each player's robust change over the session, per session type. Takes the onset table and
+        the fewest trials.
+
+        drift_change is the Theil-Sen slope (median of the slopes between every pair of trials) times the
+        session length, i.e. how far the usual position moves from the first trial to the last (negative =
+        toward the wall). Brief trips barely move it, so trips bunched early or late do not count as drift. '''
+
+    rows = []
+    for key, grp in onset.sort_values('trial_pos').groupby(list(hc.KEYS)):
+        y = grp['centrality'].to_numpy(dtype=float)
+        if len(y) < min_trials:
+            continue
+        slope = theilslopes(y, np.arange(len(y)))[0]
+        rows.append(dict(zip(hc.KEYS, key), drift_change=slope * (len(y) - 1)))
+    return pd.DataFrame(rows)
+
+
 # ---------------------------------------------------------------------------
 # labels
 # ---------------------------------------------------------------------------
@@ -297,7 +318,22 @@ def shift_reference(shifts, labels, q=SHIFT_Q, label_col='fixed'):
     return shifts.merge(central, on=list(hc.KEYS)).groupby('session_type')['shift_share'].quantile(q)
 
 
+def middle_range(seq, q=MIDDLE_Q, label_col='fixed'):
+    ''' Return, per session type, the (low, high) range of mean centrality that counts as near the middle.
+        Takes a table with session_type, mean_centrality and labels, the quantile and the label column.
+
+        low is the 1 - q quantile of peripheral players' means, high the q quantile of central players'
+        means. So only about q of each group sits inside the range, and a hoverer waits between the two
+        groups. q = 0 gives the group extremes. '''
+
+    means = seq.groupby(['session_type', label_col])['mean_centrality']
+    lo = means.quantile(1 - q).xs('peripheral', level=label_col)
+    hi = means.quantile(q).xs('central', level=label_col)
+    return {st: (float(lo[st]), float(hi[st])) for st in lo.index}
+
+
 def assign_labels(seq, narrow_cut, middle, shift_ref=None, gap_min=None, runs_min=RUNS_MIN, trend_min=TREND_MIN,
+                  drift_min=None,
                   jump_min=None, one_switch_rule='sections', stable_rule='purity', purity_min=PURITY_MIN,
                   excursion_max=EXCURSION_MAX, short_runs=True, allow_short_runs=True, mixer_rule='shifts',
                   alpha=ALPHA, flat_ratio=FLAT_SPLIT_RATIO):
@@ -317,7 +353,9 @@ def assign_labels(seq, narrow_cut, middle, shift_ref=None, gap_min=None, runs_mi
         - long runs: runs pass the shuffle test and runs_r1 >= runs_min. With jump_min set, a significant
           local jump of at least jump_min also counts (the earlier rules). By default the jump only
           describes switchers.
-        - drifter: the trend passes the shuffle test and trend_r2 >= trend_min.
+        - drifter: the trend passes the shuffle test and trend_r2 >= trend_min. With drift_min set, the robust
+          change (drift_change, from robust_trend_table) must also be at least drift_min in size, so trips
+          bunched early or late that tilt the straight line do not count as drift.
         - hoverer: the trend test not passed, resid_sd <= the narrow cut, and the mean inside the middle range.
         - mixer: the trend test not passed, wider than the narrow cut, and (mixer_rule='shifts') shift_share
           above the shift reference, so the player shifts beyond noise more often than nearly all
@@ -360,7 +398,8 @@ def assign_labels(seq, narrow_cut, middle, shift_ref=None, gap_min=None, runs_mi
     else:
         out['is_one_switch'] = False
     out['is_trend'] = (trend_sig & (out['trend_r2'] >= trend_min - 1e-12)
-                       & (True if allow_short_runs else ~runs_sig))
+                       & (True if allow_short_runs else ~runs_sig)
+                       & ((out['drift_change'].abs() >= drift_min - 1e-12) if drift_min is not None else True))
     out['no_order'] = ~runs_sig & ~trend_sig
     # let runs sit alongside hoverer and mixer, unless the earlier rules are asked for
     open_to = ~trend_sig & (True if allow_short_runs else ~runs_sig)

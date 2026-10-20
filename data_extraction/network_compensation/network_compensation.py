@@ -378,6 +378,14 @@ def downsampling_effect(native, resampled, keys, metrics):
         "Downsampling: test it before you do it". '''
 
     metrics = list(metrics)
+    # keys that do not identify one unit give a many-to-many join, which silently reweights every
+    # mean by how many rows each group holds and makes n_units meaningless
+    for name, table in (('native', native), ('resampled', resampled)):
+        dup = table.duplicated(subset=keys).sum()
+        if dup:
+            raise ValueError(f"{keys} identifies {dup} duplicate rows in the {name} table, so the "
+                             f"join would be many-to-many. Add the column that separates units "
+                             f"(usually trial_num)")
     merged = native[keys + metrics].merge(resampled[keys + metrics], on=keys,
                                           suffixes=('_native', '_resampled'))
     rows = []

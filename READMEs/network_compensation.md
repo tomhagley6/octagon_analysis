@@ -446,28 +446,63 @@ on the signal rather than the ratio of the rates.
 
 ### What it gave for the ITI metrics
 
-From `demos/strategy_characterisation/comparison/human_vs_agent_central.ipynb` part 3a, over the same
-ITIs on each side. Human is social player 0 (48.4 Hz), agent is the 260914 batch (50 Hz), both to 30 Hz:
+Over the same ITIs on each side, every group taken to 30 Hz. Social player 0 (13,015 ITIs, 48.4 Hz),
+solo players (20,898 ITIs, 48.3 Hz), and the 260914 agent batch (11,590 ITIs, 50 Hz):
 
-| metric | player 0 ratio | agent ratio |
-|---|---|---|
-| `prop_no_rotational` | 0.98 | **0.34** |
-| `proportion_resting` | 0.97 | **0.31** |
-| `prop_no_translational` | 0.99 | 0.73 |
-| `iti_path_len` | 1.00 | 0.81 |
-| `rot_total` | 1.00 | 0.88 |
-| `iti_centrality` | 1.00 | 1.00 |
+| metric | social player 0 | solo players | agent |
+|---|---|---|---|
+| `prop_no_rotational` | 0.984 | 0.986 | **0.339** |
+| `proportion_resting` | 0.979 | 0.983 | **0.310** |
+| `prop_no_translational` | 0.998 | 0.997 | 0.733 |
+| `iti_path_len` | 0.994 | 0.995 | 0.812 |
+| `rot_total` | 0.990 | 0.991 | 0.880 |
+| `iti_centrality` | 1.000 | 1.000 | 1.000 |
 
-Player 0 is untouched; the agents are not. A human moves a mouse smoothly and is genuinely still for
-seconds at a time, so a 30 Hz chord across their trace loses almost nothing. An agent picks one of three
-discrete actions every 50 Hz frame and can switch on any of them, so interpolating across two frames
-averages a stop with a turn and the stillness disappears.
+Every human group is untouched, social and solo alike; the agents are not. A human moves a mouse
+smoothly and is genuinely still for seconds at a time, so a 30 Hz chord across their trace loses almost
+nothing. An agent picks one of three discrete actions every 50 Hz frame and can switch on any of them,
+so interpolating across two frames averages a stop with a turn and the stillness disappears.
+
+Two things to get right when running this test, both of which went wrong the first time:
+
+- **Join on keys that identify one ITI** (`experiment`, `player`, `session_type`, `trial_num`), not on
+  the session keys alone. Session keys give a many-to-many join, which reweights every mean by how many
+  rows each session holds. `downsampling_effect` now refuses non-unique keys.
+- **Drop the wait after the last trial.** It carries the final trial's number and no movement, so it
+  duplicates a real ITI's key and drags the stillness measures up. `iti_metrics_ticks` drops it by
+  requiring a run to span more than one trial number; the native path must drop it too. Agent sessions
+  stop on a trigger and have none.
 
 `iti_centrality` sitting at 1.00 on both sides is the separate check that the resampling itself is
 faithful: a mean radius cannot move with the sampling rate, so anything else would mean a bug.
 
 **So when one group's ratio is near 1 and the other's is not, downsampling the second buys nothing.**
 The first group was going to survive the comparison at either rate, so keep the second at its own.
+
+### Where each group is measured, and why
+
+Every place a trace is put on a rate other than the one it was logged at. **Default is the native
+rate**; a row that leaves it needs the reason given here.
+
+| Group | Metric | Rate used | Why |
+|---|---|---|---|
+| social player 1 | all | 30 Hz | Not a choice. The recovery solves at tick rate because that is where the information is; nothing finer exists |
+| social player 0 | between-trial movement | 30 Hz | To match player 1 in the same analysis. Ratios 0.979-1.000, so it costs under 2% |
+| social player 0 | frame-level values | native ~48 Hz | Nothing to match. Player 1 is brought **up** to frames instead |
+| social player 1 | frame-level values | native ~48 Hz (upsampled) | `frames_from_ticks`. Sound for a value, not for a step difference |
+| solo players | between-trial movement, **compared with social** | 30 Hz | To match social in the same analysis. Ratios 0.983-1.000 |
+| solo players | between-trial movement, **solo only** | **native ~48 Hz** | Never touched the network, nothing to match. Use `human_agent_comparison.load_solo_native_iti` |
+| solo players | everything else | native ~48 Hz | Local logging, no netcode |
+| agents | between-trial movement | **native 50 Hz** | Downsampling costs them up to two thirds of a metric while the humans lose nothing, so matching grids would distort only the side that did not need it |
+| agents | everything else | native 50 Hz | No netcode in the inference builds |
+| anyone | trial outcomes, scores, wall identities, response times | event rows, no resampling | Events carry their own timestamps |
+
+**Solo sessions used to go on the 30 Hz grid unconditionally**, because `load_iti_table` builds every
+between-trial metric from the tick traces. That is right when solo and social are read together and
+wasteful otherwise, so `load_solo_native_iti` now gives the native version for solo-only questions.
+Besides the ≤2% on each metric, the grid also drops about 1% of solo ITIs outright (21,010 rows
+against 21,210): a short ITI yields fewer than the two tick pairs a row needs, while still having
+enough frames.
 
 ### The options, and when each applies
 
@@ -564,7 +599,7 @@ Read it with `human_characterisation.load_opponent_views`.
 | Per-frame stillness, resting, scanning in **social** | recovered ticks, with the cutoffs above |
 | ITI **rotation** totals in **social** | recovered. The logged total is 6 to 7% low by construction, as the smoothing can only take angular change out of a trace |
 | ITI **distance** totals in **social** | either, they agree within about 2%. Recovered is still the better of the two |
-| **Solo** sessions, anything | the session pickles as logged. Solo players are local, so there is nothing to recover. Sample onto a 30 Hz grid only when comparing against social |
+| **Solo** sessions, anything | the session pickles as logged. Solo players are local, so there is nothing to recover. Sample onto a 30 Hz grid **only** when comparing against social; for solo-only questions use `human_agent_comparison.load_solo_native_iti` |
 | Position at one instant in social (slice-onset centrality, occupancy) | recovered for player 1 if precision matters. The logged trace lags 33 ms plus smoothing, which is 0 error at the median but 1.2 units at the 95th percentile when a player is moving. Subject to the whole-tick caveat in Limits |
 | Opponent visibility used as a condition on choice or outcome | each player's own screen, not the true geometry. A player can only act on what was drawn. Pass `screen_views=hc.screen_view_trial_lists(...)` to `conditioned_player_choice`. Player 0's screen is the session as logged, so only player 1's is built |
 | Wall visibility and head direction in social | recovered for player 1. Logged heading errs 6.7 degrees at the median, 38 at the 95th percentile, enough to change whether a wall is in view. Subject to the whole-tick caveat in Limits |

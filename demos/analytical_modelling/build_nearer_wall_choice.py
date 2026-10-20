@@ -1,41 +1,47 @@
-''' Build demos/analytical_modelling/nearer_wall_choice.ipynb. '''
+''' Build nearer_wall_choice.ipynb beside this script. Edit this script, not the notebook.
+    Run with the conda env python, then execute the notebook with the octagon_analysis kernel. '''
 
-import sys
+import os
+
 import nbformat as nbf
 
-OUT = '/home/tom/repos/octagon_analysis/demos/analytical_modelling/nearer_wall_choice.ipynb'
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nearer_wall_choice.ipynb')
 cells = []
 md = lambda s: cells.append(nbf.v4.new_markdown_cell(s.strip()))
 code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip()))
 
 md(r'''
-# Peripheral models: would choosing the nearer wall raise their score rate?
+# Peripheral wall choice: a geometric race model
 
-Central models beat peripheral models in every tournament so far. Human peripheral players, by contrast, score at about the same rate as human central players. One candidate reason is wall choice. Peripheral models almost always head for High, even when Low is next to their alcove and High is far away.
+Central models beat peripheral models in every tournament so far. Human peripheral players, by contrast, score at about the same rate as human central players. This notebook asks how much of that could come from wall choice alone, using only arena geometry.
 
-**Question.** Against a central opponent that always goes High, would a peripheral agent score more per second if it took the nearer wall more often?
-
-This notebook answers it with a geometric race model. Both agents' times come from path length, a fixed speed and a shared start-up delay. Nothing about perception is modelled yet.
+**Question.** A peripheral agent races a central agent that waits at the centre and always goes High. How do both agents' score rates change if the peripheral agent follows each of these rules?
+1. Always move to the High wall.
+2. Always move to the closest lit wall.
+3. Move to High, unless High takes more than Δ seconds longer to reach than Low. Then move to the closest wall.
 
 **Plan**
-1. Inputs measured from the 260929 logs (speed, trigger depth, trial overhead, start-up delay and timing spread).
-2. Shortest paths from an alcove back and from the arena centre.
-3. Validation of the race model on cases with a known answer.
-4. Outcome of each layout when the peripheral agent goes High or Low.
-5. Score per second and per trial under each wall-choice policy.
-6. Check against the real peripheral-vs-central tournament matchups, and the extra delay that matches them.
-7. The value of choosing the nearer wall as the peripheral agent's handicap grows.
+1. Inputs from the logs (speed, and the fixed time per trial outside the race).
+2. Peripheral slice-onset positions.
+3. Travel times to High and Low from those positions, against the central agent's.
+4. Score rate as the threshold Δ changes.
+5. The three rules side by side, including the margin over the opponent.
+6. The three rules for each peripheral model.
+7. How central agents turn to face High in the logs. These are the inputs for the central field of view, which sections 3-6 do not include yet.
 
 **Choices and assumptions**
-- Score per second is the primary measure (players are told to maximise score over time). It is total expected score over total expected trial time, including the fixed time between triggers (user's choice). Score per trial is secondary.
-- The central opponent always goes High (260929 central p_high 0.998).
-- Layouts follow `OctagonArenaSettings.cs`. High is uniform over the 8 walls. Low is 1, 2 or 4 walls away (weights 0.5/0.25/0.25) on a random side. So the peripheral agent's alcove is uniform relative to High (user agreed).
-- Both agents share speed, start-up delay and timing spread (section 1). Perception, inference of unseen walls and blocking are ignored until section 6.
-- An agent whose body overlaps a lit trigger at slice onset wins that wall at once, whatever it intended (logged: 0.992 of such agents win instantly).
-- The peripheral agent waits at the centre of an alcove back. The central agent is placed either at the exact centre ("idealised") or at onset positions sampled from the 260929 central models ("empirical").
-- Trials follow the repo convention (first logged trial dropped, incomplete final trial dropped). Agent sims have no spawn trial at the arena centre to drop.
+- Geometry only (user's choice). Each agent's time to a wall is its shortest path to the wall's trigger divided by the speed. No start-up delay and no timing noise, as neither is justified by geometry.
+- Visibility of walls and of the opponent is ignored for now. Both agents know both lit walls at slice onset (user's choice, to be added later).
+- The central agent waits at the exact centre and always goes High. Its behaviour never changes: only the peripheral agent's rule (and its threshold Δ) varies. The central agent's *score* still changes with the peripheral rule, because it depends on how many races the central agent wins. The fixed reference is central-vs-central play. 260929 central models took High on 0.998 of 5,344 won trials, and on 0.975 even when Low was more than 6 units nearer (checked 2026-10-19). This does not test lost trials, where the destination is not logged.
+- Peripheral positions are the logged slice-onset positions of the 260929 peripheral models (mean onset centrality below 0.5). Each position meets all 40 layouts.
+- Layouts follow `OctagonArenaSettings.cs`. High is uniform over the 8 walls. Low is 1, 2 or 4 walls away (weights 0.5/0.25/0.25) on a random side.
+- An agent whose body overlaps a lit trigger at slice onset wins that wall at once, whatever its rule (game rule).
+- Neither agent blocks the other. Equal travel times split the win.
+- Score per second is the primary measure (players are told to maximise score over time). It is total expected score over total expected trial time. Trial time is the race plus the fixed time per trial outside it (trial start to slice onset, trigger to trial end, and the ITI). Score per trial is secondary.
+- Relative score is also reported (user's choice). It is the peripheral agent's score per second minus its opponent's. Human players may try to beat the other player as well as to maximise their own score. A central player facing a central opponent ties every race, so its margin is 0.
+- Trials follow the repo convention (first logged trial dropped, incomplete final trial dropped). Agent sims have no spawn trial at the arena centre.
 
-**Modules.** All numbers come from `analysis/analytical_race.py` (tests in `tests/test_analytical_race.py`). Tournament outcomes come from `analysis/tournament_analysis.py`.
+**Modules.** All numbers come from `analysis/analytical_race.py`. The geometry and the race scoring are checked against hand-counted answers in `tests/test_analytical_race.py` (20 tests). For example, from the eight alcove backs, "always High" wins 7/16 of trials and scores 0.3625 per trial, and "closest" scores 0.425. Decisions are logged in `READMEs/analytical_modelling_notes.md`.
 ''')
 
 code(r'''
@@ -44,51 +50,38 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from IPython.display import display
 
 import data_strings
-import globals
 import data_extraction.data_saving as data_saving
 import analysis.analytical_race as ar
-import analysis.race_estimate as rc
-import analysis.tournament_analysis as ta
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.width', 220)
 
 RECOMPUTE = False                   # rebuild the cached tables
 BATCH = '260929'
 SIM_DATA_FOLDER = os.path.join(data_strings.SIM_DATA_FOLDER, '2609', BATCH)
-SPEED = 10.0                        # units per second (moveSpeed in OctagonAgent.cs, checked in section 1)
-N_CENTRAL_POS = 400                 # central onset positions sampled for the empirical opponent
-N_RESID = 1500                      # timing residuals kept (all pairs are used)
 CUT = 0.5                           # peripheral below this mean onset centrality
-rng = np.random.default_rng(0)
+DELTAS = np.round(np.arange(0, 3.81, 0.05), 2)     # thresholds swept (s); 3.8 s is the longest gap possible
 
-# colours: peripheral policies in fixed order, central opponent in grey
-C_HIGH, C_NEARER, C_BEST, C_OPP = '#2a78d6', '#eb6834', '#1baf7a', '#6b6b6b'
+# colours: peripheral agent and its rules in fixed order, central agent in grey
+C_HIGH, C_CLOSEST, C_THRESH, C_CENTRAL = '#2a78d6', '#eb6834', '#1baf7a', '#6b6b6b'
+C_PERIPH = C_HIGH
 ''')
 
 md(r'''
 ## 1. Inputs from the logs
 
-**Motivation.** The model needs a speed, a start-up delay, a timing spread and the time each trial costs outside the race. Each is measured from 260929 self-play rather than assumed.
+**Motivation.** The model needs two numbers from the game: how fast an agent moves, and how much time each trial costs outside the race. Both are measured from 260929 self-play.
 
-**Method**
-1. Split 260929 models into central and peripheral by mean onset centrality (cut 0.5).
-2. For five central models, take each trial's onset-to-trigger time, whole trial length, the winner's depth into the alcove at the trigger, and both agents' moving speeds.
-3. For every central won trial, take the shortest path from the winner's onset position to the wall it triggered. Start-up delay is the median of (trial time − path / speed). The residual is each trial's remainder.
+**Method.** For five central models, take each trial's median moving speed (both agents, slice onset to trigger, frames moving faster than 0.5 units/s) and its overhead.
 
 **Terms**
-- `rt_s`: slice onset to trigger, in seconds.
-- `overhead_s`: whole trial length less `rt_s`. This is the fixed cost of a trial (trial start to slice onset, trigger to trial end, and the ITI).
-- `trigger_p`: the winner's distance from the arena centre along the chosen wall's axis at the trigger. The model's trigger line is `ar.TRIGGER_REACH` (box front 18.857 less body radius 0.61).
-- `delay`: start-up delay in seconds, shared by both agents.
-- `resid`: per-trial timing residual (s). 0 = exactly on the model. Positive = slower.
+- Moving speed in units/s. The code sets `moveSpeed` to 10.
+- `overhead_s` is the whole trial length less the slice-onset-to-trigger time, in seconds. It covers trial start to slice onset, trigger to trial end, and the ITI. These delays were set to match the human task.
 
-**Assumptions**
-- The delay and residuals come from won trials only, as a loser's time is not logged. Won trials are the faster ones, so the delay is an underestimate. It is the same for both agents, so it mostly cancels.
-- Speed is fixed at the measured value. Any extra time that grows with distance (e.g. turning) goes into the residual. A free regression slope is shown as a check.
+**Choices.** The mean overhead is used for every trial, whatever the outcome (sd shown in the figure).
+
+**How to read the figure.** Left: one count per trial, the trial's median moving speed. Right: one count per trial, its overhead. The dashed line and its label give the value used in the model.
+
+**Why it is plotted.** The speed should sit at 10 in every trial, so that path length converts directly to time. The overhead spread shows how far a single fixed value is from the real trials.
 ''')
 
 code(r'''
@@ -97,430 +90,461 @@ tables = data_saving.load_data(f'model_characterisation_{BATCH}', data_saving.ca
 centrality = tables['slice'].groupby('model')['centrality'].mean()
 PERIPHERAL = sorted(centrality[centrality < CUT].index)
 CENTRAL = sorted(centrality[centrality >= CUT].index)
-print(f"central {len(CENTRAL)}, peripheral {len(PERIPHERAL)}: {PERIPHERAL}")
 
-# get per-trial timing for five central models
+# get per-trial speed and overhead for five central models
 timing_df = data_saving.cached(f'trial_timing_{BATCH}_central5',
                                lambda: ar.collect_trial_timing(SIM_DATA_FOLDER, CENTRAL[:5], verbose=False),
                                recompute=RECOMPUTE, stamp=(tuple(CENTRAL[:5]), 'v2'))
 OVERHEAD = timing_df['overhead_s'].mean()
 
-# fit the delay and residuals on central won trials
-race_df = data_saving.load_data(f'race_table_{BATCH}', data_saving.cache_dir)['result']
-won = race_df[race_df['model'].isin(CENTRAL) & race_df['won'] & (race_df['rt_s'] >= 0.05)]
-timing_full, d_won = ar.fit_timing(won, SPEED, OVERHEAD)
-slope, intercept = np.polyfit(d_won, won['rt_s'], 1)
-timing = ar.Timing(timing_full.delay, SPEED, OVERHEAD, rng.choice(timing_full.resid, N_RESID, replace=False))
-exact = ar.Timing(timing.delay, SPEED, OVERHEAD, np.zeros(1))
-
-inputs = pd.Series({
-    'moving speed, median (units/s)': timing_df['speed_median'].median(),
-    'moving speed, 99th percentile (units/s)': timing_df['speed_p99'].median(),
-    'trigger line in model (units)': ar.TRIGGER_REACH,
-    'trigger_p, minimum logged (units)': timing_df['trigger_p'].min(),
-    'overhead_s, mean': OVERHEAD,
-    'overhead_s, sd': timing_df['overhead_s'].std(),
-    'central won trials used': len(won),
-    'path to triggered wall, 5-95% (units)': f"{np.percentile(d_won, 5):.2f}-{np.percentile(d_won, 95):.2f}",
-    'delay (s)': timing.delay,
-    'resid sd (s)': timing_full.resid.std(),
-    'resid 5 / 50 / 95% (s)': ' / '.join(f"{v:.2f}" for v in np.percentile(timing_full.resid, [5, 50, 95])),
-    'free-fit slope (s/unit), check': slope,
-    'fixed-speed slope (s/unit)': 1 / SPEED,
-})
-inputs.to_frame('value')
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
+ax = axes[0]
+ax.hist(timing_df['speed_median'], bins=np.linspace(9.9, 10.1, 41), color=C_CENTRAL)
+ax.axvline(ar.SPEED, color='black', ls='--', lw=1)
+ax.text(ar.SPEED, ax.get_ylim()[1] * 0.95, f"  model speed {ar.SPEED:.1f}\n  trials {len(timing_df)}", va='top', fontsize=9)
+ax.set_xlabel('median moving speed in the trial (units/s)')
+ax.set_ylabel('trials')
+ax.set_title('Speed')
+ax = axes[1]
+ax.hist(timing_df['overhead_s'], bins=30, color=C_CENTRAL)
+ax.axvline(OVERHEAD, color='black', ls='--', lw=1)
+ax.text(OVERHEAD, ax.get_ylim()[1] * 0.95, f"  mean {OVERHEAD:.2f} s\n  sd {timing_df['overhead_s'].std():.2f} s",
+        va='top', fontsize=9)
+ax.set_xlabel('overhead: whole trial less slice onset to trigger (s)')
+ax.set_ylabel('trials')
+ax.set_title('Time per trial outside the race')
+for ax in axes:
+    ax.spines[['top', 'right']].set_visible(False)
+plt.tight_layout(); plt.show()
 ''')
 
 md(r'''
-**How to read the table.** Speed and trigger rows check the code values against the logs. The path row shows the range of distances the delay was fitted over. The free-fit slope regresses trial time on path length across those trials. It is shown only as a check against 1 / speed.
-''')
+## 2. Peripheral slice-onset positions
 
-md(r'''
-## 2. Shortest paths
+**Motivation.** A peripheral agent's start position decides every travel time in the model. This section shows where the peripheral models actually wait.
 
-**Motivation.** A peripheral agent's advantage is distance. Straight lines understate distance from inside an alcove, because the path has to leave through the alcove mouth.
+**Method.** Take both agents' slice-onset positions on every trial of each peripheral model (first logged trial dropped).
 
-**Method.** Shortest path from a start point to the nearest point of a wall's trigger line, inside the space an agent's centre can reach. Paths may bend only at the 16 alcove mouth corners.
+**Terms**
+- Onset radius is the distance from the arena centre in units. The alcove back is at 19.75 and the wall face at 16.75.
+- The trigger line (18.25) is where an agent's body first overlaps a trigger box. An agent beyond it, inside a lit alcove, wins at once.
 
-**Terms.** Wall offset is the number of walls from the peripheral agent's own alcove to the target (0 = own alcove, 4 = opposite). Path length is in arena units (wall face to wall face = 33.5).
+**How to read the figure.** Left: the reachable space (grey outline), one dot per agent-trial at slice onset (blue, semi-transparent), and the central agent's fixed start (black). Right: the onset radius of the same positions, with the trigger line, wall face and alcove back marked in the panel.
 
-**How to read the figure.** Left: the reachable space (grey outline), the alcove back where the peripheral agent waits (black square), the centre (black dot), and the shortest path to walls at offsets 1 to 4 (coloured lines, one per offset). Right: path length by wall offset from the alcove back (bars), with the path from the centre to any wall (dashed line).
-
-**Why it is plotted.** A target is reachable before a central agent only where its bar falls below the dashed line. This shows which walls a peripheral agent can win if both agents move equally well.
+**Why it is plotted.** Positions past the trigger line can win their own alcove instantly. Positions short of it, such as the alcove mouth, have to move even to reach their own wall. That changes which rule is best.
 ''')
 
 code(r'''
-# get path lengths from the alcove back of wall row 0, and from the centre
-back = ar.alcove_back_positions()[0]
-d_back = ar.path_lengths(back[None])[0]
-d_centre = ar.path_lengths(np.zeros((1, 2)))[0, 0]
-offsets = pd.Series(d_back[[0, 1, 2, 3, 4]], index=pd.Index([0, 1, 2, 3, 4], name='wall offset'))
+# get the peripheral onset positions from the race table (both agents, first trial already dropped)
+race_df = data_saving.load_data(f'race_table_{BATCH}', data_saving.cache_dir)['result']
+periph = race_df[race_df['model'].isin(PERIPHERAL)].reset_index(drop=True)
+pos = periph[['x', 'z']].to_numpy(float)
+radius = np.hypot(pos[:, 0], pos[:, 1])
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 5.2), gridspec_kw=dict(width_ratios=[1, 1.1]))
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), gridspec_kw=dict(width_ratios=[1, 1.2]))
 ax = axes[0]
 poly = np.vstack([ar.reach_polygon(), ar.reach_polygon()[:1]])
 ax.plot(poly[:, 0], poly[:, 1], color='#999999', lw=1)
-for off, col in zip((1, 2, 3, 4), ('#2a78d6', '#eb6834', '#1baf7a', '#eda100')):
-    p = ar.path_points(back, off)
-    ax.plot(p[:, 0], p[:, 1], color=col, lw=2, label=f"offset {off}: {d_back[off]:.1f}")
-ax.plot(*back, 'ks', ms=8)
+ax.scatter(pos[:, 0], pos[:, 1], s=6, color=C_PERIPH, alpha=0.25, lw=0)
 ax.plot(0, 0, 'ko', ms=6)
+ax.text(0.8, 0.8, 'central agent', fontsize=9)
 ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([])
-ax.legend(loc='lower left', fontsize=8, frameon=False, title='path length (units)', title_fontsize=8)
-ax.set_title('Shortest paths from an alcove back')
-
+ax.set_title(f'Onset positions ({len(pos)} agent-trials, models {PERIPHERAL})', fontsize=10)
 ax = axes[1]
-ax.bar(offsets.index, offsets.values, color='#2a78d6', width=0.6)
-ax.axhline(d_centre, color=C_OPP, ls='--', lw=1.5)
-ax.text(-0.4, d_centre + 0.6, f"from centre {d_centre:.2f}", ha='left', color=C_OPP, fontsize=9)
-for x, v in offsets.items():
-    ax.text(x, v + 0.5, f"{v:.1f}", ha='center', fontsize=9)
-ax.set_xlabel('walls from own alcove to target (0 = own, 4 = opposite)')
-ax.set_ylabel('shortest path to the trigger (units)')
-ax.set_title('Path length by wall offset')
+ax.hist(radius, bins=np.linspace(radius.min() - 0.1, 19.85, 50), color=C_PERIPH)
+for r, lab in ((ar.W, 'wall face'), (ar.TRIGGER_REACH, 'trigger line'), (ar.BACK, 'alcove back')):
+    ax.axvline(r, color='black', ls='--', lw=1)
+    ax.text(r, ax.get_ylim()[1] * 0.97, f' {lab} {r:.2f}', rotation=90, va='top', ha='right', fontsize=8)
+past = (radius >= ar.TRIGGER_REACH).mean()
+ax.text(0.03, 0.95, f"past the trigger line: {past:.3f}", transform=ax.transAxes, va='top', fontsize=9)
+ax.set_xlabel('onset distance from the arena centre (units)')
+ax.set_ylabel('agent-trials')
+ax.set_title('Onset radius')
 ax.spines[['top', 'right']].set_visible(False)
 plt.tight_layout(); plt.show()
-offsets.round(3).to_frame('path from alcove back (units)').T
 ''')
 
 md(r'''
-## 3. Validation on known answers
+## 3. Travel times to High and Low
 
-**Motivation.** Before applying the race model, check it on cases whose answer is known by hand.
+**Motivation.** A rule can only change the outcome where the walls differ in whether they can be reached first. This section shows how often each case occurs.
 
-**Method.** Four checks, each computed by the model and by hand.
-- Two agents at the same point tie. Win share = 0.5, with and without timing noise.
-- Peripheral at the alcove back, central at the exact centre, no timing noise, always High. The peripheral agent wins its own alcove (High 1/8, Low 1/8, both instant) and an adjacent High unless it stands on Low (2/8 × 3/4). Win share = 7/16 = 0.4375. Score per trial = 1/8 + 0.4/8 + 3/16 = 0.3625.
-- Same, nearer wall. This adds an adjacent Low whenever High is 2 or more walls away (probability 5/32). Score per trial = 0.3625 + 0.4 × 5/32 = 0.425.
-- With timing noise, the model's win probability and race time for one adjacent-High layout, against 200,000 simulated races.
-
-The same checks (and the path geometry) are unit tests in `tests/test_analytical_race.py`.
-''')
-
-code(r'''
-centre, periph = np.zeros((1, 2)), ar.alcove_back_positions()
-same = ar.build_races(centre, centre)
-ideal = ar.build_races(periph, centre)
-
-# simulate one adjacent-High race (High one wall away, Low not under the agent)
-row = ideal.index[(ideal['high_off'].abs() == 1) & (ideal['focal_d_low'] > 0)][0]
-sim = np.random.default_rng(1)
-tf = timing.delay + ideal.loc[row, 'focal_d_high'] / SPEED + sim.choice(timing.resid, 200000)
-to = timing.delay + ideal.loc[row, 'opp_d_high'] / SPEED + sim.choice(timing.resid, 200000)
-model_row = ar.evaluate(ideal, timing, 'high').loc[row]
-
-checks = pd.DataFrame([
-    ('same point, no noise: win share', ar.race_summary(same, exact)['focal_win'], 0.5),
-    ('same point, noise: win share', ar.race_summary(same, timing)['focal_win'], 0.5),
-    ('always High, no noise: win share', ar.race_summary(ideal, exact, 'high')['focal_win'], 7 / 16),
-    ('always High, no noise: score per trial', ar.race_summary(ideal, exact, 'high')['focal_score_trial'], 0.3625),
-    ('nearer, no noise: score per trial', ar.race_summary(ideal, exact, 'nearer')['focal_score_trial'], 0.425),
-    ('adjacent High, noise: win probability', model_row['focal_win'], (tf < to).mean()),
-    ('adjacent High, noise: race time (s)', model_row['race_s'], np.minimum(tf, to).mean()),
-], columns=['check', 'model', 'expected']).set_index('check')
-checks['difference'] = checks['model'] - checks['expected']
-checks.round(4)
-''')
-
-md(r'''
-**How to read the table.** `expected` is the hand count, or the simulated value for the two noise rows. `difference` should be 0 for hand counts and within simulation error (about 0.002) for the simulated rows.
-''')
-
-md(r'''
-## 4. Outcome of each layout
-
-**Motivation.** Policy differences can only come from layouts where heading High and heading Low give different expected scores. This section lists those layouts.
-
-**Method.** Peripheral agent at the alcove back. Central opponent at the exact centre, always High. Timing noise included. Mirror-image layouts are pooled (High at +1 with Low at +2 joins High at −1 with Low at −2).
+**Method.** Pair every peripheral position with all 40 layouts. Take the peripheral agent's travel time to High and to Low, and the central agent's travel time to High. Weight each pair by its layout probability, with every position counting equally.
 
 **Terms**
-- `high_off`, `low_off`: walls from the peripheral agent's alcove to High and to Low (0 = own alcove, sign set so High is at 0 or clockwise).
-- `prob`: probability of the layout.
-- `win_if_high`, `win_if_low`: peripheral win probability when it heads for High or for Low (0 to 1).
-- `score_if_high`, `score_if_low`: expected peripheral score per trial for each choice (win probability × 1.0 or × 0.4).
-- `nearer`: the wall with the shorter path. `best`: the choice with the higher expected score.
+- `t_high`, `t_low`: peripheral shortest path to that wall's trigger / 10 units/s, in seconds. 0 = already on the trigger.
+- Central time: 18.25 / 10 = 1.82 s to any wall, from the centre.
+- A wall is winnable when the peripheral time to it is below the central time.
 
-**How to read the table.** Rows with `best` = Low are the only layouts where turning away from High gains score. The `gain` column is that gain weighted by the layout's probability. Its sum is the most score per trial that wall choice alone can add.
+**How to read the figure.** Each cell is a combination of peripheral time to High (x) and to Low (y). Shading is the probability of that combination (darker = more likely, log scale). The dashed lines mark the central agent's time, splitting the panel into four regions. The label in each region gives its total probability. The dotted diagonal marks equal times.
+
+**Why it is plotted.** "Only Low winnable" (bottom right) is where heading Low adds score that "always High" misses. "Both winnable" is where heading Low throws away a High win. All three rules agree in "neither winnable" and "only High winnable", unless the rule sends the agent to a losing Low.
 ''')
 
 code(r'''
-# evaluate both choices for every layout
-go_high = ar.evaluate(ideal, timing, 'high')
-go_low = ar.evaluate(ideal, timing, np.ones(len(ideal)))
-lay = ideal[['high_off', 'low_off', 'prob', 'focal_d_high', 'focal_d_low']].copy()
-lay['win_if_high'], lay['score_if_high'] = go_high['focal_win'], go_high['focal_score']
-lay['win_if_low'], lay['score_if_low'] = go_low['focal_win'], go_low['focal_score']
+# build the races once per model (each model weighs its own positions equally) and pooled (every position equal)
+races = ar.build_races(pos, groups=periph['model'].to_numpy())
+pooled = races.assign(group=0, prob=races['prob'] * races.groupby('group')['pos'].transform('nunique') / len(pos))
+w = pooled['prob'].to_numpy()
+tC = ar.TRIGGER_REACH / ar.SPEED
+tH, tL = races['t_high'].to_numpy(), races['t_low'].to_numpy()
+regions = {'both winnable': (tH < tC) & (tL < tC), 'only High winnable': (tH < tC) & (tL >= tC),
+           'only Low winnable': (tH >= tC) & (tL < tC), 'neither winnable': (tH >= tC) & (tL >= tC)}
+share = {k: w[m].sum() for k, m in regions.items()}
 
-# fold mirror images so High sits at 0 or clockwise
-flip = (lay['high_off'] < 0) | ((lay['high_off'] == 0) & (lay['low_off'] < 0)) | ((lay['high_off'] == 4) & (lay['low_off'] < 0))
-lay.loc[flip, ['high_off', 'low_off']] = -lay.loc[flip, ['high_off', 'low_off']]
-lay['low_off'] = ar.signed_offset(lay['low_off'])
-lay['high_off'] = ar.signed_offset(lay['high_off'])
-by_layout = lay.groupby(['high_off', 'low_off']).agg(
-    prob=('prob', 'sum'), path_high=('focal_d_high', 'mean'), path_low=('focal_d_low', 'mean'),
-    win_if_high=('win_if_high', 'mean'), win_if_low=('win_if_low', 'mean'),
-    score_if_high=('score_if_high', 'mean'), score_if_low=('score_if_low', 'mean'))
-by_layout['nearer'] = np.where(by_layout['path_low'] < by_layout['path_high'] - 1e-9, 'Low', 'High')
-by_layout['best'] = np.where(by_layout['score_if_low'] > by_layout['score_if_high'], 'Low', 'High')
-by_layout['gain'] = by_layout['prob'] * (by_layout[['score_if_high', 'score_if_low']].max(1) - by_layout['score_if_high'])
-display(by_layout.round(3))
-print(f"layouts where Low is best: probability {by_layout.loc[by_layout.best == 'Low', 'prob'].sum():.4f}, "
-      f"score gain per trial {by_layout['gain'].sum():.4f}")
-print(f"layouts where Low is nearer but High is best: probability "
-      f"{by_layout.loc[(by_layout.nearer == 'Low') & (by_layout.best == 'High'), 'prob'].sum():.4f}")
-''')
-
-md(r'''
-## 5. Score under each wall-choice policy
-
-**Motivation.** This answers the question directly. Each policy is scored against the always-High central opponent, and set beside central-vs-central play.
-
-**Method.** Average over all layouts and starting positions, with timing noise.
-- Opponent placement: idealised (exact centre) and empirical (400 central onset positions).
-- Reference: central vs central, both agents always High.
-
-**Policies (peripheral agent)**
-- `high`: always head for High (close to current peripheral models, apart from instant wins).
-- `nearer`: head for whichever lit wall has the shorter path.
-- `best_trial`: per layout, the choice with the higher expected score per trial.
-- `best_rate`: the per-layout choices that maximise score per second over the whole session (found by Dinkelbach iteration). This is the ceiling for wall choice alone.
-- q sweep: take Low with probability q when Low is nearer (q = 0 is `high`, q = 1 is `nearer`).
-
-**Terms**
-- `focal_score_s`: peripheral score per second over whole trials (primary). `opp_score_s`: the central opponent's.
-- `focal_score_s_race`: peripheral score per second of race time only (slice onset to trigger), leaving out the fixed overhead.
-- `focal_score_trial`, `opp_score_trial`: score per trial (secondary).
-- `focal_win`: peripheral win share. `race_s`: mean onset-to-trigger time. `trial_s`: mean whole trial length.
-- `p_go_low`: share of trials in which the peripheral agent heads for Low (instant wins count by their intended wall).
-''')
-
-code(r'''
-# build the races with the central opponent at the centre and at logged onset positions
-cpos = race_df[race_df['model'].isin(CENTRAL)][['x', 'z']].to_numpy(float)
-cpos = cpos[rng.choice(len(cpos), N_CENTRAL_POS, replace=False)]
-setups = {'idealised': ar.build_races(periph, centre), 'empirical': ar.build_races(periph, cpos)}
-refs = {'idealised': ar.build_races(centre, centre), 'empirical': ar.build_races(cpos[:150], cpos[150:300])}
-
-POLICIES = ('high', 'nearer', 'best_trial', 'best_rate')
-COLS = ['focal_score_s', 'opp_score_s', 'focal_score_s_race', 'focal_score_trial', 'opp_score_trial', 'focal_win', 'race_s', 'trial_s', 'p_go_low']
-rows = []
-for name, races in setups.items():
-    for pol in POLICIES:
-        rows.append(dict(opponent=name, policy=pol, **ar.race_summary(races, timing, pol)))
-    rows.append(dict(opponent=name, policy='central vs central', **ar.race_summary(refs[name], timing, 'high')))
-policy_table = pd.DataFrame(rows).set_index(['opponent', 'policy'])[COLS]
-policy_table.round(4)
-''')
-
-md(r'''
-**How to read the table.** Within each opponent placement, compare the four policy rows to each other, and the `focal_score_s` column to the `central vs central` row. In that row "focal" is just one of two central agents.
-
-**How to read the figure.** One line per agent, against q (the probability of taking Low when Low is nearer). Peripheral agent in blue, its central opponent in grey. The dashed line is central-vs-central score. The dotted line is the peripheral `best_rate` ceiling. Left panel: score per second (primary). Right panel: score per trial. Idealised placement, with timing noise.
-
-**Why it is plotted.** If choosing the nearer wall helps, the blue line rises with q. Where it ends relative to the dashed line shows how much of the gap to central play wall choice can close. Where it ends relative to the grey line shows whether the peripheral agent can out-score its opponent head to head.
-''')
-
-code(r'''
-Q = np.linspace(0, 1, 11)
-sweep = pd.DataFrame([dict(q=q, **ar.race_summary(setups['idealised'], timing, q)) for q in Q])
-ref = policy_table.loc[('idealised', 'central vs central')]
-best = policy_table.loc[('idealised', 'best_rate')]
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
-for ax, (f, o, lab) in zip(axes, (('focal_score_s', 'opp_score_s', 'score per second'),
-                                  ('focal_score_trial', 'opp_score_trial', 'score per trial'))):
-    ax.plot(sweep['q'], sweep[f], color=C_HIGH, lw=2, marker='o', ms=4)
-    ax.plot(sweep['q'], sweep[o], color=C_OPP, lw=2, marker='o', ms=4)
-    ax.axhline(ref[f], color='black', ls='--', lw=1)
-    ax.axhline(best[f], color=C_HIGH, ls=':', lw=1)
-    ax.text(0.02, ref[f], 'central vs central', va='bottom', fontsize=8)
-    ax.text(0.02, best[f], 'peripheral best_rate', va='bottom', fontsize=8, color=C_HIGH)
-    ax.text(1.0, sweep[f].iloc[-1], ' peripheral', va='center', fontsize=9, color=C_HIGH)
-    ax.text(1.0, sweep[o].iloc[-1], ' central opponent', va='center', fontsize=9, color=C_OPP)
-    ax.set_xlabel('P(take Low | Low is nearer)')
-    ax.set_ylabel(f'{lab} (expected)')
-    ax.set_xlim(-0.02, 1.3)
-    ax.spines[['top', 'right']].set_visible(False)
-axes[0].set_title('Score per second (whole trials)')
-axes[1].set_title('Score per trial')
+fig, ax = plt.subplots(figsize=(6.4, 5.6))
+bins = np.linspace(0, 3.9, 79)
+h, xe, ye = np.histogram2d(tH, tL, bins=[bins, bins], weights=w)
+im = ax.pcolormesh(xe, ye, np.ma.masked_equal(h.T, 0), cmap='Blues',
+                   norm=plt.matplotlib.colors.LogNorm(vmin=1e-5, vmax=h.max()))
+ax.axvline(tC, color='black', ls='--', lw=1); ax.axhline(tC, color='black', ls='--', lw=1)
+ax.plot([0, 3.9], [0, 3.9], color='#999999', ls=':', lw=1)
+for k, (x, y) in {'both winnable': (0.08, 0.08), 'only High winnable': (0.08, 3.75),
+                  'only Low winnable': (2.0, 0.08), 'neither winnable': (2.0, 3.75)}.items():
+    ax.text(x, y, f"{k}\n{share[k]:.3f}", va='bottom' if y < 1 else 'top', fontsize=9)
+ax.text(tC + 0.03, 1.0, f'central time {tC:.2f} s', rotation=90, fontsize=8)
+ax.set_xlabel('peripheral travel time to High (s)')
+ax.set_ylabel('peripheral travel time to Low (s)')
+ax.set_title('Peripheral travel times, all layouts')
+fig.colorbar(im, ax=ax, label='probability of the combination')
 plt.tight_layout(); plt.show()
 ''')
 
 md(r'''
-## 6. Check against the tournaments
+## 4. Score rate as the threshold changes
 
-**Motivation.** The model assumes a peripheral agent starts and moves as well as a central one. The real peripheral-vs-central tournament matchups show how far that holds.
+**Motivation.** Rule 3 depends on its threshold Δ. Sweeping Δ shows which values work best, and how the rule moves between "closest" and "always High".
 
-**Method**
-1. Take every peripheral-vs-central pair in the 260715 and 260914-vs-260723 tournaments (13 ordered pairs). Its observed peripheral win share and score per trial come from `ta.perspective_table`.
-2. Predict each pair with the race model. Use the peripheral entrant's own onset positions (40 sampled), the central entrant's onset positions (150 sampled), and the central entrant's own p_high. The peripheral agent always heads for High. Timing is the 260929 fit.
-3. Add an extra start-up delay to the peripheral agent only, and find the single value (0 to 2 s, step 0.05) that best matches observed win share over all pairs.
+**Method.** For Δ from 0 to 3.8 s (step 0.05), apply rule 3 to every position and layout, and compute both agents' expected scores.
 
 **Terms**
-- `observed_win`, `observed_score`: real tournament peripheral win share and score per trial.
-- `pred_win_geometry`: predicted win share with no extra delay.
-- `extra_delay_s`: extra seconds added to every non-instant peripheral time. It stands in for everything the geometry leaves out (slower perception from the alcove, unseen adjacent walls, slower starts, longer paths).
+- Δ: the extra travel time to High (over Low) at which the peripheral agent gives up on High, in seconds. Δ belongs to the peripheral rule only. The central agent goes High from the centre (1.82 s) at every Δ. Δ = 0 is "closest". Δ ≥ 3.8 s is "always High", as no gap is longer.
+- Score per second: total expected score / total expected trial time, with trial time = race + overhead.
+- Share heading Low: fraction of trials in which the rule sends the agent to Low. Instant wins count by the rule's choice.
+- Central score: the central agent's behaviour is fixed, so its score moves only because the peripheral agent wins more or fewer races. Per trial it equals 1 − the peripheral win share (every central win is at High). Per second it also shifts slightly with race length.
+- Central vs central: both agents at the centre going High, so every race ties (0.5 per trial). It does not depend on Δ, and is the fixed reference for a central player.
 
-**Assumptions.** Entrant self-play onset positions stand for their tournament positions. The 260929 timing applies to 260715, 260723 and 260914 models (same agent prefab and speed). Entrant positions come from the cached race tables used in the 260929 notebook.
+**How to read the figure.** x is Δ in all panels. Left: score per second for the peripheral agent (blue) and the central agent (grey). The grey line moves only because the peripheral rule changes who wins; central behaviour is the same at every Δ. The dashed line is central vs central (both at the centre, every race tied), the fixed reference. Middle: the same for score per trial. Right: the share of trials in which the peripheral agent heads for Low. The dotted vertical line marks the Δ with the highest peripheral score per second, labelled in the panel.
+
+**Why it is plotted.** Steps in the curves happen where Δ passes the time gap of a common layout. A wide flat top means the exact threshold matters little.
 ''')
 
 code(r'''
-race_entrants = data_saving.load_data('race_tables_tournament_entrants', data_saving.cache_dir)['result']
-tournament_trials = data_saving.load_data('tournament_trials_260715_260914', data_saving.cache_dir)['result']
-STRATEGY = {('260715', m): 'central' for m in (2, 20, 22)}
-STRATEGY.update({('260715', m): 'peripheral' for m in (15, 26, 36)})
-STRATEGY.update({('260914', 14): 'central', ('260914', 20): 'central', ('260914', 17): 'peripheral',
-                 ('260723', 34): 'central', ('260723', 39): 'central'})
+sweep = pd.concat([ar.summarise(pooled, OVERHEAD, 'threshold', d) for d in DELTAS], ignore_index=True)
+best = sweep.iloc[sweep['periph_score_s'].to_numpy().argmax()]
+D_BEST = float(best['delta'])
+# find the flat top (within 0.5% of the best peripheral score per second)
+top = sweep.loc[sweep['periph_score_s'] >= 0.995 * best['periph_score_s'], 'delta']
+ref = ar.central_reference(OVERHEAD)
 
-
-def entrant_batch(tournament, model):
-    """ Return the batch an entrant came from. Takes the tournament name and model number. """
-
-    if tournament == '260715':
-        return '260715'
-    return '260723' if model in (34, 39) else '260914'
-
-
-# get the observed peripheral-vs-central pairs, and build each pair's races
-pairs, pair_races = [], []
-for name, trials in tournament_trials.items():
-    real = ta.perspective_table(trials).groupby(['focus', 'opp'])[['f_win', 'f_score']].mean()
-    for (f, o), r in real.iterrows():
-        kf, ko = (entrant_batch(name, f), f), (entrant_batch(name, o), o)
-        if STRATEGY.get(kf) != 'peripheral' or STRATEGY.get(ko) != 'central':
-            continue
-        rf = race_entrants[(race_entrants['batch'] == kf[0]) & (race_entrants['model'] == f)]
-        ro = race_entrants[(race_entrants['batch'] == ko[0]) & (race_entrants['model'] == o)]
-        fpos = rf[['x', 'z']].to_numpy(float)[rng.choice(len(rf), 40, replace=False)]
-        opos = ro[['x', 'z']].to_numpy(float)[rng.choice(len(ro), 150, replace=False)]
-        p_opp = ro.loc[ro['won'], 'chose_high'].mean()
-        pairs.append(dict(tournament=name, peripheral=f'{kf[0]}_{f}', central=f'{ko[0]}_{o}', opp_p_high=p_opp,
-                          peripheral_onset_radius=np.median(np.hypot(rf['x'], rf['z'])),
-                          observed_win=r['f_win'], observed_score=r['f_score']))
-        pair_races.append(ar.build_races(fpos, opos))
-pairs = pd.DataFrame(pairs)
-
-# predict every pair across a grid of extra peripheral delays
-GRID = np.round(np.arange(0, 2.01, 0.05), 2)
-pred = {x: [ar.race_summary(r, timing, 'high', p, focal_extra_s=x) for r, p in zip(pair_races, pairs['opp_p_high'])]
-        for x in GRID}
-sse = pd.Series({x: sum((p['focal_win'] - w) ** 2 for p, w in zip(pred[x], pairs['observed_win'])) for x in GRID})
-EXTRA = float(sse.idxmin())
-pairs['pred_win_geometry'] = [p['focal_win'] for p in pred[0.0]]
-pairs['pred_score_geometry'] = [p['focal_score_trial'] for p in pred[0.0]]
-pairs['pred_win_fitted'] = [p['focal_win'] for p in pred[EXTRA]]
-pairs['pred_score_fitted'] = [p['focal_score_trial'] for p in pred[EXTRA]]
-# find each pair's own matching delay
-pairs['pair_extra_delay_s'] = [GRID[np.argmin([abs(pred[x][i]['focal_win'] - w) for x in GRID])]
-                               for i, w in enumerate(pairs['observed_win'])]
-display(pairs.round(3))
-summary = pd.Series({
-    'pooled extra_delay_s': EXTRA,
-    'mean observed win': pairs['observed_win'].mean(),
-    'mean predicted win, geometry only': pairs['pred_win_geometry'].mean(),
-    'mean predicted win, fitted delay': pairs['pred_win_fitted'].mean(),
-    'win MAE, fitted delay': (pairs['pred_win_fitted'] - pairs['observed_win']).abs().mean(),
-    'mean observed score per trial': pairs['observed_score'].mean(),
-    'mean predicted score per trial, fitted delay': pairs['pred_score_fitted'].mean(),
-    'score MAE, fitted delay': (pairs['pred_score_fitted'] - pairs['observed_score']).abs().mean(),
-})
-summary.round(3).to_frame('value')
-''')
-
-md(r'''
-**How to read the tables.** One row per ordered tournament pair. `peripheral_onset_radius` is the peripheral entrant's median onset distance from the centre (alcove back = 19.75). `pair_extra_delay_s` is the delay that best matches that pair alone. The summary compares mean predictions with the observed means, and gives the mean absolute error (MAE) at the pooled delay.
-''')
-
-md(r'''
-## 7. Does the nearer wall still pay with a handicap?
-
-**Motivation.** Section 5 assumes the peripheral agent moves as well as a central one. Section 6 says real peripheral models lose time. Low only wins when the peripheral agent is clearly closer, so a handicap could erase the gain. This section reruns the policy comparison across extra delays.
-
-**Method.** Section 5 setup with the empirical central opponent and timing noise. Add an extra delay of 0 to 1.5 s (step 0.1) to the peripheral agent, and score each policy.
-
-**How to read the figure.** x is the peripheral agent's extra delay (s). Left: peripheral score per second for `high` (blue), `nearer` (orange) and `best_rate` (aqua). The dashed line is central-vs-central. The vertical line marks the delay fitted in section 6. `nearer` and `best_rate` almost coincide, so the orange line is mostly hidden. Right: the gain in peripheral score per second from `nearer` and `best_rate` over `high`, as a percentage of the `high` score. The table below gives the values at selected delays.
-
-**Why it is plotted.** If the gain stays positive at the fitted delay, then taking the nearer wall would still help today's peripheral models. If it vanishes, their timing problem has to be fixed first.
-''')
-
-code(r'''
-EXTRAS = np.round(np.arange(0, 1.51, 0.1), 2)
-emp = setups['empirical']
-handicap = pd.DataFrame([dict(extra_s=x, policy=p, **ar.race_summary(emp, timing, p, focal_extra_s=x))
-                         for x in EXTRAS for p in ('high', 'nearer', 'best_rate')])
-wide = handicap.pivot(index='extra_s', columns='policy', values='focal_score_s')
-gain = (wide[['nearer', 'best_rate']].sub(wide['high'], axis=0)).div(wide['high'], axis=0) * 100
-
-fig, axes = plt.subplots(1, 2, figsize=(12, 4.4))
-ax = axes[0]
-for p, c in (('high', C_HIGH), ('nearer', C_NEARER), ('best_rate', C_BEST)):
-    ax.plot(wide.index, wide[p], color=c, lw=2, marker='o', ms=4, label=p)
-ax.axhline(policy_table.loc[('empirical', 'central vs central'), 'focal_score_s'], color='black', ls='--', lw=1)
-ax.text(1.5, policy_table.loc[('empirical', 'central vs central'), 'focal_score_s'], 'central vs central',
-        ha='right', va='bottom', fontsize=8)
-ax.set_ylabel('peripheral score per second (expected)')
-ax.legend(frameon=False, fontsize=9, title='peripheral policy', title_fontsize=9)
-ax = axes[1]
-for p, c in (('nearer', C_NEARER), ('best_rate', C_BEST)):
-    ax.plot(gain.index, gain[p], color=c, lw=2, marker='o', ms=4, label=p)
-ax.axhline(0, color='#999999', lw=1)
-ax.set_ylabel('gain in score per second over always High (%)')
-ax.legend(frameon=False, fontsize=9)
+fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
+for ax, (p, c, ylab, r) in zip(axes[:2], (('periph_score_s', 'central_score_s', 'score per second', ref['score_s']),
+                                         ('periph_score_trial', 'central_score_trial', 'score per trial', ref['score_trial']))):
+    ax.plot(sweep['delta'], sweep[p], color=C_PERIPH, lw=2)
+    ax.plot(sweep['delta'], sweep[c], color=C_CENTRAL, lw=2)
+    ax.axhline(r, color='black', ls='--', lw=1)
+    ax.text(3.8, r, f'central vs central {r:.4f}', ha='right', va='bottom', fontsize=8)
+    ax.text(3.82, sweep[p].iloc[-1], ' peripheral', va='center', fontsize=9, color=C_PERIPH)
+    ax.text(3.82, sweep[c].iloc[-1], ' central', va='center', fontsize=9, color=C_CENTRAL)
+    ax.set_ylabel(f'{ylab} (expected)')
+ax = axes[2]
+ax.plot(sweep['delta'], sweep['p_go_low'], color=C_PERIPH, lw=2)
+ax.set_ylabel('share of trials heading Low')
 for ax in axes:
-    ax.axvline(EXTRA, color='#999999', ls=':', lw=1.5)
-    ax.text(EXTRA, ax.get_ylim()[1], f' fitted delay {EXTRA:.2f} s', va='top', fontsize=8, color='#555555')
-    ax.set_xlabel('extra start-up delay of the peripheral agent (s)')
+    ax.axvline(D_BEST, color='#999999', ls=':', lw=1.5)
+    ax.set_xlabel('threshold Δ: extra time to High before giving up on it (s)')
+    ax.set_xlim(0, 4.4)
     ax.spines[['top', 'right']].set_visible(False)
-axes[0].set_title('Peripheral score per second')
-axes[1].set_title('Gain from wall choice')
+axes[0].text(D_BEST, axes[0].get_ylim()[1], f" best Δ {D_BEST:.2f} s: {best['periph_score_s']:.4f}\n"
+             f" within 0.5%: Δ {top.min():.2f}-{top.max():.2f} s", va='top', fontsize=8)
+axes[0].set_title('Score per second')
+axes[1].set_title('Score per trial')
+axes[2].set_title('Peripheral choice of Low')
 plt.tight_layout(); plt.show()
+''')
 
-at_fit = handicap[np.isclose(handicap['extra_s'], np.round(EXTRA, 1))].set_index('policy')[COLS]
-display(pd.concat([wide, gain.add_suffix(' gain %')], axis=1).loc[[0.0, 0.3, 0.6, 1.0, 1.5]].round(4))
-print(f"at extra delay {np.round(EXTRA, 1)} s (nearest grid step to the fitted delay):")
-at_fit.round(4)
+md(r'''
+## 5. The three rules side by side
+
+**Motivation.** This answers the question directly, for the pooled peripheral positions. Players may care about beating the other player as well as about their own score. So the margin over the opponent is shown beside the two score measures. It compares going peripheral (under each rule) with going central, against the same central opponent.
+
+**Method.** Compute both agents' scores under "always High", "closest" and "threshold" (at the best Δ from section 4).
+
+**Terms**
+- Margin over the opponent: peripheral score per second minus central score per second. Positive = the peripheral agent finishes ahead.
+- Central strategy margin: a central player against the same central opponent ties every race, so its margin is 0. Its own score is the central-vs-central value.
+
+**How to read the figure.** One column per rule. Blue dots are the peripheral agent, grey dots its central opponent, each labelled with its value. The central agent behaves the same under every rule; its dot moves only because the peripheral rule changes who wins. The dashed line is central vs central, the fixed reference for a central player. Left: score per second. Middle: score per trial. Right: the peripheral agent's margin over its opponent per second (blue dots, labelled). The dashed line at 0 is the margin a central player gets against the same opponent.
+
+**Why it is plotted.** The left two panels show how far each rule moves the peripheral agent toward, or past, the central agent and central-vs-central play, and what the central agent loses in return. The right panel shows whether going peripheral leaves a player further ahead of a central opponent than going central would. If its dots sit above 0, a player who cares about relative score does better by going peripheral, even when its own score per second is lower.
+''')
+
+code(r'''
+RULES = [('always High', 'high', None), ('closest', 'closest', None), (f'threshold\nΔ = {D_BEST:.2f} s', 'threshold', D_BEST)]
+rules = pd.concat([ar.summarise(pooled, OVERHEAD, pol, d).assign(rule=lab) for lab, pol, d in RULES],
+                  ignore_index=True)
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 4.4))
+for ax, (p, c, ylab, r) in zip(axes[:2], (('periph_score_s', 'central_score_s', 'score per second', ref['score_s']),
+                                      ('periph_score_trial', 'central_score_trial', 'score per trial', ref['score_trial']))):
+    x = np.arange(len(rules))
+    ax.plot(x, rules[p], 'o', color=C_PERIPH, ms=9)
+    ax.plot(x, rules[c], 'o', color=C_CENTRAL, ms=9)
+    for xi, vp, vc in zip(x, rules[p], rules[c]):
+        ax.text(xi + 0.08, vp, f'{vp:.4f}', va='center', fontsize=9, color=C_PERIPH)
+        ax.text(xi + 0.08, vc, f'{vc:.4f}', va='center', fontsize=9, color=C_CENTRAL)
+    ax.axhline(r, color='black', ls='--', lw=1)
+    ax.text(-0.3, r, f'central vs central {r:.4f}', va='bottom', fontsize=8)
+    ax.set_xticks(x, rules['rule'])
+    ax.set_xlim(-0.4, len(rules) - 0.3)
+    ax.set_ylabel(f'{ylab} (expected)')
+    ax.spines[['top', 'right']].set_visible(False)
+axes[0].plot([], [], 'o', color=C_PERIPH, label='peripheral agent')
+axes[0].plot([], [], 'o', color=C_CENTRAL, label='central agent')
+axes[0].legend(frameon=False, fontsize=9, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2)
+axes[0].set_title('Score per second')
+axes[1].set_title('Score per trial')
+# plot the peripheral margin over the opponent, against the central strategy's tie
+ax = axes[2]
+margin = rules['periph_score_s'] - rules['central_score_s']
+x = np.arange(len(rules))
+ax.plot(x, margin, 'o', color=C_PERIPH, ms=9)
+for xi, v in zip(x, margin):
+    ax.text(xi + 0.08, v, f'{v:+.4f}', va='center', fontsize=9, color=C_PERIPH)
+ax.axhline(0, color='black', ls='--', lw=1)
+ax.text(-0.3, 0, 'central strategy (tied) 0', va='bottom', fontsize=8)
+ax.set_xticks(x, rules['rule'])
+ax.set_xlim(-0.4, len(rules) - 0.3)
+ax.set_ylabel('peripheral minus central score per second')
+ax.spines[['top', 'right']].set_visible(False)
+ax.set_title('Margin over the opponent')
+plt.tight_layout(); plt.show()
+''')
+
+md(r'''
+## 6. The three rules for each peripheral model
+
+**Motivation.** The pooled result could hide models whose waiting positions differ. This section repeats section 5 for each model's own positions.
+
+**How to read the figure.** One column per peripheral model. Dots are the peripheral agent's score per second under each rule (colours in the legend). The grey crosses are the central opponent's score when the peripheral agent plays "always High" and "threshold" (central behaviour is the same in both). The dashed line is central vs central, the fixed reference.
+
+**Why it is plotted.** If the dots line up across models, the result depends on where peripheral models wait in general, not on any one model.
+''')
+
+code(r'''
+per_model = pd.concat([ar.summarise(races, OVERHEAD, pol, d).assign(rule=lab.split('\n')[0]) for lab, pol, d in RULES],
+                      ignore_index=True)
+
+fig, ax = plt.subplots(figsize=(10, 4.2))
+models = sorted(per_model['group'].unique())
+for k, (rule, col) in enumerate(zip(('always High', 'closest', 'threshold'), (C_HIGH, C_CLOSEST, C_THRESH))):
+    s = per_model[per_model['rule'] == rule].set_index('group').loc[models]
+    ax.plot(np.arange(len(models)) + (k - 1) * 0.15, s['periph_score_s'], 'o', color=col, ms=8, label=f'peripheral, {rule}')
+for rule, mk in (('always High', 'x'), ('threshold', '+')):
+    s = per_model[per_model['rule'] == rule].set_index('group').loc[models]
+    ax.plot(np.arange(len(models)), s['central_score_s'], mk, color=C_CENTRAL, ms=9, label=f'central, peripheral {rule}')
+ax.axhline(ref['score_s'], color='black', ls='--', lw=1)
+ax.text(-0.4, ref['score_s'], 'central vs central', ha='left', va='bottom', fontsize=8)
+ax.set_xticks(np.arange(len(models)), [f'model {m}' for m in models])
+ax.set_ylabel('score per second (expected)')
+ax.legend(frameon=False, fontsize=8, ncol=2, loc='center left', bbox_to_anchor=(1.0, 0.5))
+ax.spines[['top', 'right']].set_visible(False)
+ax.set_title('Score per second by peripheral model')
+plt.tight_layout(); plt.show()
+''')
+
+md(r'''
+## 7. Central agents turning to face High (logs)
+
+**Motivation.** The next version of the model gives the central agent its ray sensor. It must turn to face High before travelling straight to it, and it can close on High while turning once High is in view. This section measures how central agents do this in the logs. It sets the model's turning rate and closing speed, and records where the model's turn differs from what agents do.
+
+**Method.** For every agent-trial of five central 260929 models (1, 2, 4, 5, 6; both agents), follow the agent from slice onset until it faces High within ±10°. Agent-trials that never face High before the trigger, or face it at onset, are left out.
+
+**Terms**
+- Angle to High (φ): High's bearing from the agent minus its heading at onset, 0-180°.
+- Sensed (in view): at least one of the agent's 7 rays (0, ±18.3, ±36.7, ±55° from the heading, first hit only) hits any part of High or its trigger box. This uses `analysis/agent_raycast.py`, the replica of the agents' sensor. From the centre, High is sensed when φ < 77.5° (the ±55° ray reaching High's vertex). In these 260929 logs, player 1's rays are blocked by player 0's body (builds before 261014). This changes sensing at onset in 1.1% of player-1 agent-trials. The model's rays pass through the opponent, as in current builds.
+- Turning rate: total heading change, counting back-and-forth, over the time to face High (°/s). The rate while rotating counts only frames where the heading changed by more than 0.5°.
+- Short way: the agent's net turn went the shorter way round to High. 0.5 = no better than a random direction.
+- Rotating / still time: time in frames with / without a heading change above 0.5°.
+- Closing speed: reduction in straight-line distance to High's trigger line in frames with High in view before facing it, over the time in those frames (units/s).
+
+**Choices and assumptions**
+- The model's turning rate is the median per-agent-trial turning rate (user's choice). It reflects how fast agents turn while they are turning.
+- The model's agent turns straight to High, with no back-and-forth. It turns the short way when High is in view at onset, and in a random direction when it is not (user's choice). The logged short-way bias is likely due to inferring High from the Low wall's position (user). That is not in the model yet.
+- The model's agent moves only while High is in view (user's choice), at the median closing speed. Logged agents also move while High is out of view.
+
+**How to read the figure.**
+- (a) Turning rate per agent-trial (bars). Lines mark the model's rate (median), the pooled rate while rotating, and the code maximum.
+- (b) Short-way share by angle to High at onset (dots, with agent-trial counts), for High not sensed at onset. The dashed line is a random direction (0.5). The square is the share when High is in view at onset.
+- (c) Mean time to face High, split into rotating (dark) and still (light), for the logs and the model, with High in view or out of view at onset.
+- (d) Mean angle turned to face High. Logs: net angle, and total angle counting back-and-forth. Model: the angle it turns.
+- (e) Closing speed per agent-trial (bars). Lines mark the model's value (median) and full speed (10 units/s). The text gives the mean distance moved, and how much closer to High the agent got, before facing High.
+- (f) Mean race time from slice onset to trigger in central-vs-central play (the faster agent): logs, model with turn-then-move, and model with moving while turning. The dashed line is straight travel from the centre with no turn.
+
+**Why it is plotted.** Panels (a) and (e) set the model's two new inputs and show how consistent they are. Panels (b) to (d) show what agents do that the model leaves out (turning toward High more often than chance, turning back and forth, pausing). Panel (f) shows the net effect of these choices on race time.
+''')
+
+code(r'''
+# get how each central agent-trial turns to face High
+alignment = data_saving.cached(f'central_alignment_{BATCH}_central5',
+                               lambda: ar.collect_central_alignment(SIM_DATA_FOLDER, CENTRAL[:5], verbose=False),
+                               recompute=RECOMPUTE, stamp=(tuple(CENTRAL[:5]), ar.ALIGN_TOL, 'rays', 'v4'))
+ROT = ar.rotation_speed(alignment)
+CLOSE = ar.closing_speed(alignment)
+ok = alignment[alignment['t_align'] > 0]
+inv, outv = ok[ok['visible']], ok[~ok['visible']]
+V = ar.central_visible_half_angle()
+
+fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+# (a) turning rate per agent-trial
+ax = axes[0, 0]
+rate = ok['turned'] / ok['t_align']
+ax.hist(rate.clip(upper=600), bins=np.arange(0, 610, 15), color=C_CENTRAL)
+rot_pooled = ok['turned'].sum() / ok['t_rotating'].sum()
+for v, lab, ls in ((ROT, f'model (median) {ROT:.0f}', '-'), (rot_pooled, f'while rotating {rot_pooled:.0f}', ':'),
+                   (360, 'code maximum 360', '--')):
+    ax.axvline(v, color='black', ls=ls, lw=1.2, label=lab)
+ax.legend(frameon=False, fontsize=8, loc='upper left')
+ax.set_xlabel('turning rate per agent-trial, onset to facing High\n(deg/s; above 600 shown at 600)')
+ax.set_ylabel('agent-trials')
+ax.set_title(f'(a) Turning rate (n = {len(ok)})')
+
+# (b) short-way share by angle to High, out of view
+ax = axes[0, 1]
+bins = [V, 100, 120, 140, 160, 180]
+grp = outv.groupby(pd.cut(outv['phi'].abs(), bins), observed=True)['short_way']
+mids = [(a + b) / 2 for a, b in zip(bins[:-1], bins[1:])]
+ax.plot(mids, grp.mean().to_numpy(), 'o-', color=C_CENTRAL, ms=7)
+for x, m, n_ in zip(mids, grp.mean(), grp.size()):
+    ax.text(x, m + 0.02, f'{m:.2f}\nn {n_}', ha='center', fontsize=8)
+in_short = inv['short_way'].astype(float).mean()
+ax.plot(V / 2, in_short, 's', color=C_CENTRAL, ms=8)
+ax.text(V / 2 + 4, in_short, f'in view {in_short:.2f}\nn {len(inv)}', va='center', fontsize=8)
+ax.axhline(0.5, color='black', ls='--', lw=1)
+ax.text(178, 0.485, 'random direction', ha='right', va='top', fontsize=8)
+ax.axvline(V, color='#999999', ls=':', lw=1)
+ax.text(V + 1, 0.42, 'edge of view', fontsize=8, color='#555555')
+ax.set_ylim(0.4, 1.02)
+ax.set_xlabel('angle to High at onset (deg)')
+ax.set_ylabel('share turning the short way')
+ax.set_title(f"(b) Turn direction (out of view overall {outv['short_way'].astype(float).mean():.2f})")
+
+# (c) time to face High, rotating vs still
+ax = axes[0, 2]
+model_turn = {'in view': (V / 2) / ROT, 'out of view': 180 / ROT}
+labels, rot_t, still_t = [], [], []
+for name, g in (('in view', inv), ('out of view', outv)):
+    labels += [f'logs\n{name}', f'model\n{name}']
+    rot_t += [g['t_rotating'].mean(), model_turn[name]]
+    still_t += [g['t_still'].mean(), 0.0]
+x = np.arange(len(labels))
+ax.bar(x, rot_t, color=C_CENTRAL, width=0.6, label='rotating')
+ax.bar(x, still_t, bottom=rot_t, color='#c8c8c8', width=0.6, label='still')
+for xi, r_, s_ in zip(x, rot_t, still_t):
+    ax.text(xi, r_ + s_ + 0.01, f'{r_ + s_:.2f} s', ha='center', fontsize=9)
+ax.set_xticks(x, labels, fontsize=8)
+ax.set_ylabel('mean time from onset to facing High (s)')
+ax.legend(frameon=False, fontsize=8, loc='upper left')
+ax.set_title('(c) Time to face High')
+
+# (d) angle turned
+ax = axes[1, 0]
+vals = [inv['net_turn'].abs().mean(), inv['turned'].mean(), V / 2,
+        outv['net_turn'].abs().mean(), outv['turned'].mean(), 180.0]
+labs = ['logs net', 'logs total', 'model', 'logs net', 'logs total', 'model']
+xs = np.array([0, 1, 2, 4, 5, 6])
+ax.bar(xs, vals, color=[C_CENTRAL, '#c8c8c8', C_PERIPH] * 2, width=0.7)
+for xi, v in zip(xs, vals):
+    ax.text(xi, v + 3, f'{v:.0f}', ha='center', fontsize=9)
+ax.set_xticks(xs, labs, fontsize=8)
+ax.text(1, max(vals) * 1.06, f"in view at onset\n(reversals in {(inv['reversals'] > 0).mean():.2f})", ha='center', fontsize=8)
+ax.text(5, max(vals) * 1.06, f"out of view\n(reversals in {(outv['reversals'] > 0).mean():.2f})", ha='center', fontsize=8)
+ax.set_ylim(0, max(vals) * 1.22)
+ax.set_ylabel('mean angle turned to face High (deg)')
+ax.set_title('(d) Angle turned')
+
+# (e) closing speed per agent-trial
+ax = axes[1, 1]
+has_view = ok['t_inview'] > 0
+cl = ok.loc[has_view, 'closing_inview'] / ok.loc[has_view, 't_inview']
+ax.hist(cl.clip(-5, 15), bins=np.arange(-5, 15.25, 0.5), color=C_CENTRAL)
+ax.axvline(CLOSE, color='black', lw=1.2, label=f'model (median) {CLOSE:.2f}')
+ax.axvline(ar.SPEED, color='black', ls='--', lw=1.2, label=f'full speed {ar.SPEED:.0f}')
+ax.legend(frameon=False, fontsize=8, loc='upper left')
+# note how far agents move before facing High, in view and out of view at onset
+ax.text(0.98, 0.97, '\n'.join(f"{n_} at onset: moved {g['path_moved'].mean():.1f} units,\n  {g['closer'].mean():.1f} closer to High"
+                              for n_, g in (('in view', inv), ('out of view', outv))) + '\n(before facing High)',
+        transform=ax.transAxes, ha='right', va='top', fontsize=8)
+ax.set_xlabel('closing speed on High while turning with High in view\n(units/s; clipped to -5 to 15)')
+ax.set_ylabel('agent-trials')
+ax.set_title(f'(e) Closing speed (n = {len(cl)})')
+
+# (f) central-vs-central race time
+ax = axes[1, 2]
+race_vals = [timing_df['rt_s'].mean(),
+             ar.central_reference(OVERHEAD, central_t=ar.central_times(ROT))['race_s'],
+             ar.central_reference(OVERHEAD, central_t=ar.central_times(ROT, close_speed=CLOSE))['race_s']]
+labs = ['logs', 'model\nturn then move', 'model\nmove while turning']
+ax.bar(range(3), race_vals, color=[C_CENTRAL, C_PERIPH, C_PERIPH], width=0.6)
+for xi, v in enumerate(race_vals):
+    ax.text(xi, v + 0.03, f'{v:.2f} s', ha='center', fontsize=9)
+ax.axhline(ar.TRIGGER_REACH / ar.SPEED, color='black', ls='--', lw=1)
+ax.text(2.4, ar.TRIGGER_REACH / ar.SPEED + 0.03, f'straight travel only {ar.TRIGGER_REACH / ar.SPEED:.2f} s', ha='right', fontsize=8)
+ax.set_xticks(range(3), labs, fontsize=8)
+ax.set_ylim(0, max(race_vals) * 1.2)
+ax.set_ylabel('mean central-vs-central race, onset to trigger (s)')
+ax.set_title('(f) Race time')
+for a_ in axes.ravel():
+    a_.spines[['top', 'right']].set_visible(False)
+plt.tight_layout(); plt.show()
 ''')
 
 md(r'''
 ## Interpretation
 
-**Inputs and checks**
-- Logged moving speed is 10.0 units/s (median and 99th percentile), matching `moveSpeed`. The lowest logged trigger depth is 18.20 against the model's 18.25. That 0.05 difference is within one frame of movement (0.2 units at 50 Hz).
-- The free-fit slope of time on path (0.170 s/unit) is steeper than 1 / speed (0.100). Central won trials cover only 14.6-20.2 units of path, so the slope is poorly pinned. It is kept as a check, not used. A steeper slope would favour the peripheral agent at adjacent walls (larger time gap per unit), so the fixed speed is the cautious choice for the question asked.
-- All seven known-answer checks match: hand counts exactly, simulated rows within 0.0005.
+**Inputs**
+- Every one of the 990 measured trials has a median moving speed of 10.0 units/s (section 1). Path length therefore converts directly to time.
+- The overhead is 7.09 s per trial (sd 0.91 s), against a race of at most 1.82 s. So score per second is driven mostly by score per trial.
 
-**Where wall choice can matter**
-- From an alcove back, the adjacent wall is 14.36 units away. That is shorter than the 18.25 from the centre. Every other wall is 26.05 or more. With equal timing, a peripheral agent wins its own alcove (instantly) and the adjacent ones (win probability 0.896 with noise), and almost nothing else (0.034 at 2 walls).
-- Going Low beats going High only when Low is adjacent and High is 2 or more walls away. These layouts have total probability 0.25 and add at most 0.054 score per trial. In another 0.1875 of layouts Low is nearer but the choice changes nothing (instant wins, or both walls out of reach).
+**Where the choice matters (section 3)**
+- 0.939 of peripheral onset positions are past the trigger line, mostly at the alcove back.
+- Only Low is winnable in 0.219 of position-layouts. This is the score that "always High" leaves behind.
+- Both walls are winnable in 0.156. Here, heading Low gives up a High win. Most of these are an adjacent High with the agent close to, but not on, its own Low trigger.
+- In the remaining 0.626 (only High winnable 0.219, neither 0.407), the rules can only differ by sending the agent to a losing Low.
 
-**Policy result, equal timing (section 5)**
-- Taking the nearer wall raises peripheral score per second from 0.0407 to 0.0474 (idealised opponent, +16%) and from 0.0403 to 0.0467 (empirical opponent). `best_rate` gives the same 0.0474 and 0.0467. So the simple nearer-wall rule captures essentially all the gain available from wall choice.
-- Score per trial moves the same way: 0.352 to 0.406 (idealised).
-- The central opponent drops from 0.0663 to 0.0504 per second. Even so, the peripheral agent stays below central-vs-central play (0.0474 vs 0.0547, 87%). It also stays below its own opponent (0.0474 vs 0.0504).
-- The fixed overhead decides this comparison. Counting race time only (`focal_score_s_race`), the nearer-wall peripheral agent scores 0.274 per second, above central-vs-central (0.244). Peripheral wins are short, but every trial also costs 7.09 s of overhead, which dilutes that advantage.
+**The three rules (sections 4 and 5)**
+- **Always High.** Peripheral 0.0432 score/s against central 0.0675 (score per trial 0.363 vs 0.567).
+- **Closest.** Peripheral 0.0499 against central 0.0488 (+16% for the peripheral agent). The peripheral agent now out-scores its opponent.
+- **Threshold.** The best Δ is 1.00 s, and any Δ from 0.20 to 1.15 s comes within 0.5% of it. It gives peripheral 0.0510 against central 0.0488 (+18% over always High). Score per trial is 0.425 vs 0.407.
+- Why the threshold rule beats "closest": below Δ = 0.2 s, the agent gives up winnable Highs that are only slightly further than Low.
+- Above Δ = 1.15 s, the agent stops taking the adjacent Low when High is two walls away (a 1.17 s gap). Its score drops to 0.048, and the central agent rises to 0.056.
+- Even the best rule leaves the peripheral agent below central-vs-central play (0.0510 vs 0.0561, 91%). Head to head, though, it scores slightly more than the central agent (0.0510 vs 0.0488).
 
-**Tournament check (section 6)**
-- With equal timing, the model overrates peripheral entrants. It predicts a mean win share of 0.401 against an observed 0.276. A single extra peripheral delay of 0.60 s matches win share (MAE 0.032) and score per trial (0.223 observed vs 0.235 predicted, MAE 0.022).
-- The per-pair delays range from 0.40 to 1.30 s. The largest (0.90-1.30 s) belong to 260715_15, which waits nearer the alcove mouth (median onset radius 18.81).
+**Relative score (section 5, right panel)**
+- Against a central opponent, going central ties (margin 0). Going peripheral gives a margin of +0.0010 per second with "closest" and +0.0022 with the threshold rule. With "always High" the margin is −0.0243.
+- Peripheral play with a good wall rule costs the player some of its own score (0.0510 vs 0.0561). It costs the central opponent more (0.0488 vs 0.0561). A player trying to finish ahead of the other player therefore does better peripheral, while a player trying to maximise its own score does better central.
+- The margin is small and depends on the wall rule. It is also a geometric upper limit, so visibility may remove it.
 
-**Policy result with the fitted handicap (section 7)**
-- At 0.6 s extra delay, the nearer wall raises peripheral score per second from 0.0259 to 0.0276 (+6.7%). The central opponent scores 0.0759-0.0803 per second, and central-vs-central is 0.0549.
-- The handicap costs far more than wall choice can return. Going from 0 to 0.6 s drops the always-High score from 0.0403 to 0.0259 (-36%).
-- The gain from wall choice shrinks as the handicap grows. Adjacent Low only wins while the peripheral agent's 0.39 s distance lead survives the delay.
+**By model (section 6).** All six peripheral models give the same scores under each rule (always High 0.043, closest 0.050, threshold 0.051). Model 20's central opponent scores more under "always High" (0.0695 vs 0.067 for the others). So the result depends on the general peripheral waiting position, not on any one model.
 
-**Answer.** Yes, choosing the nearer wall would raise peripheral score rate against a central opponent. The gain is modest: about +16% if peripheral agents moved as well as central ones, and about +7% at the handicap today's peripheral models show. It does not close the gap to central play in either case. The larger loss is the 0.6 s the geometry does not explain.
+**Answer.** On geometry alone, a peripheral agent that keeps going High unless it is about 0.2-1.15 s further than Low scores 18% more per second than one that always goes High. It then out-scores a central opponent. Most of the gain is already captured by simply going to the closest wall (+16%).
 
 **Limits**
-- The 0.6 s handicap is one lump standing for everything left out (perception from the alcove, unseen adjacent walls, slow starts, path inefficiency). It was fitted on 260715 and 260914 entrants, not 260929 models.
-- Timing comes from central won trials only, so the shared delay is an underestimate and the spread may be narrow.
-- The agent overhead (ITI and trial start/end delays) was set to match the human task, so the 7.09 s overhead applies to humans too. Human movement speed and start-up timing were not measured here, so these numbers do not yet explain why human peripheral players keep pace.
+- Both agents know both lit walls at onset and move along shortest paths at full speed from onset. Real peripheral agents can't see adjacent walls from the alcove back, so these are upper limits for the peripheral agent.
+- The central agent's rule is checked on won trials only.
+- The model says nothing yet about how human players choose, or how fast they move.
+
+**Central agents turning to face High (section 7).** These are inputs for the next version of the model, not yet used in sections 3-6.
+- Turning rate: median 331°/s per agent-trial (n 1,799). While actually rotating it is 365°/s, at the code maximum of 360°/s. The model uses 331°/s.
+- Turn direction (High sensed by the rays or not): with High out of view, agents turn the short way on 0.62 of agent-trials. The share is 0.77 just outside the view (77.5-100°) and 0.51-0.54 when High is behind (140-180°). With High in view it is 0.92. The model turns at random when High is out of view. The bias is likely from inferring High from the Low wall's position (to be added later).
+- Agents take longer to face High than the model's agent: 0.36 s vs 0.12 s with High in view, 0.78 s vs 0.54 s out of view. They turn back and forth (reversals in 0.31 and 0.65 of agent-trials). They turn 71° in total for a net 37° (in view) and 229° for a net 157° (out of view). They also spend 0.17 s and 0.15 s not rotating. Their net turn (157°) is smaller than the model's random-direction turn (180°), but the back-and-forth more than cancels this.
+- Agents move while turning. Before facing High they move 3.5 units and get 3.0 closer to High (in view at onset), or 7.1 units and 3.4 closer (out of view). With High in view they close on it at a median 7.57 units/s (full speed 10). The model's agent closes at 7.57 units/s only while High is in view, and stands still while High is out of view.
+- Net effect on race time: central-vs-central races last 2.10 s in the logs. The model gives 2.04 s with turn-then-move and 1.93 s with moving while turning (straight travel alone 1.82 s). The model's central agent is therefore 0.17 s faster than logged agents, because it turns without back-and-forth or pauses.
 ''')
 
 nb = nbf.v4.new_notebook()
 nb['cells'] = cells
 nb['metadata'] = {'kernelspec': {'display_name': 'octagon_analysis', 'language': 'python', 'name': 'octagon_analysis'},
                   'language_info': {'name': 'python'}}
-import os
-os.makedirs(os.path.dirname(OUT), exist_ok=True)
 nbf.write(nb, OUT)
 print('written', OUT)

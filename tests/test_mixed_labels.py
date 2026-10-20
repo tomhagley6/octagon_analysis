@@ -231,6 +231,63 @@ class TestLabels(unittest.TestCase):
         self.assertEqual(out['label'].tolist(), ['long runs', 'drifter', 'hoverer'])
 
 
+class TestRobustDrift(unittest.TestCase):
+
+    def test_clean_line(self):
+        # a clean line gives its full change
+        out = ml.robust_trend_table(session(np.linspace(0.2, 0.6, 100)))
+        self.assertAlmostEqual(out['drift_change'].iloc[0], 0.4)
+
+    def test_late_trips_do_not_drift(self):
+        # a flat position with trips bunched late tilts the straight line but not the robust change
+        y = np.full(100, 0.1) + np.random.default_rng(0).normal(0, 0.01, 100)
+        y[[80, 84, 88, 92, 96, 99]] = 0.7
+        out = ml.robust_trend_table(session(y))
+        line = np.polyval(np.polyfit(np.arange(100), y, 1), [0, 99])
+        self.assertGreater(line[1] - line[0], 0.08)
+        self.assertLess(abs(out['drift_change'].iloc[0]), 0.02)
+
+    def test_drift_min_blocks_small_drift(self):
+        base = dict(experiment=0, session_type='social', p_trend=0.001, trend_r2=0.3, p_runs=0.5, runs_r1=0.0,
+                    p_jump=0.5, local_jump=0.0, resid_sd=0.2, shift_share=0.1, mean_centrality=0.45,
+                    p_two_section=0.5, section_gap=0.0, p_resid_runs=0.5, two_section_r2=0.0, purity_min=1.0,
+                    longest_excursion=0)
+        rows = pd.DataFrame([dict(base, player=0, drift_change=-0.3), dict(base, player=1, drift_change=0.05)])
+        kw = dict(narrow_cut={'social': 0.15}, middle={'social': (0.16, 0.76)}, shift_ref={'social': 0.2},
+                  gap_min={'social': 0.27})
+        # without drift_min both are drifters, with it only the large robust change is
+        self.assertEqual(ml.assign_labels(rows, **kw)['label'].tolist(), ['drifter', 'drifter'])
+        out = ml.assign_labels(rows, drift_min=0.135, **kw)
+        self.assertEqual(out['label'].tolist(), ['drifter', 'unclear'])
+        self.assertEqual(out['fits_drifter'].tolist(), [True, False])
+
+
+class TestMiddleRange(unittest.TestCase):
+
+    def test_band_between_group_percentiles(self):
+        # peripheral means 0.00-0.30 and central means 0.60-0.90, 31 players each
+        peripheral = np.linspace(0.0, 0.3, 31)
+        central = np.linspace(0.6, 0.9, 31)
+        seq = pd.DataFrame(dict(session_type='social', fixed=['peripheral'] * 31 + ['central'] * 31 + ['intermediate'],
+                                mean_centrality=np.r_[peripheral, central, 0.45]))
+        lo, hi = ml.middle_range(seq)['social']
+        # the band runs from the peripheral 95th to the central 5th percentile
+        self.assertAlmostEqual(lo, np.quantile(peripheral, 0.95))
+        self.assertAlmostEqual(hi, np.quantile(central, 0.05))
+        # 5% of each group's means fall inside it (here the top 1.5 of 31 peripheral, bottom 1.5 central)
+        self.assertGreater(lo, 0.28)
+        self.assertLess(hi, 0.62)
+
+    def test_per_session(self):
+        seq = pd.DataFrame(dict(session_type=['social'] * 4 + ['solo1'] * 4,
+                                fixed=['peripheral', 'peripheral', 'central', 'central'] * 2,
+                                mean_centrality=[0.1, 0.2, 0.7, 0.8, 0.2, 0.3, 0.6, 0.7]))
+        out = ml.middle_range(seq, q=0.0)
+        # q = 0 gives the group extremes
+        self.assertEqual(out['social'], (0.2, 0.7))
+        self.assertEqual(out['solo1'], (0.3, 0.6))
+
+
 class TestShifts(unittest.TestCase):
 
     def test_noise_cut_from_central_trials(self):

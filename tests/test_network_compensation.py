@@ -288,6 +288,23 @@ class TestDownsamplingEffect(unittest.TestCase):
                                      ['survives']).set_index('metric')
         self.assertEqual(out.loc['survives', 'n_units'], 3)
 
+    def test_non_unique_keys_raise(self):
+        # keys that do not identify one unit give a many-to-many join, which silently reweights the
+        # means and makes n_units meaningless. It must fail loudly instead
+        native = pd.concat([self.native, self.native])
+        with self.assertRaises(ValueError):
+            nr.downsampling_effect(native, self.resampled, self.keys, ['survives'])
+
+    def test_non_unique_keys_on_the_resampled_side_raise(self):
+        resampled = pd.concat([self.resampled, self.resampled])
+        with self.assertRaises(ValueError):
+            nr.downsampling_effect(self.native, resampled, self.keys, ['survives'])
+
+    def test_the_error_names_the_offending_side(self):
+        native = pd.concat([self.native, self.native])
+        with self.assertRaisesRegex(ValueError, 'native'):
+            nr.downsampling_effect(native, self.resampled, self.keys, ['survives'])
+
     def test_diff_matches_the_two_means(self):
         out = nr.downsampling_effect(self.native, self.resampled, self.keys,
                                      ['collapses']).set_index('metric')

@@ -25,9 +25,11 @@ import pandas as pd
 
 import data_strings
 import globals
+import analysis.agent_raycast as agent_raycast
 import analysis.human_characterisation as hc
 import analysis.model_characterisation as mc
 import data_extraction.data_saving as data_saving
+import data_extraction.get_indices as get_indices
 import data_extraction.network_compensation.network_compensation as nc
 import parse_data.prepare_sim_data as prepare_sim_data
 
@@ -43,6 +45,7 @@ AGENT_TIME_COL = 'timeApplication'          # the agent's clean 50 Hz applicatio
 
 AGENT_TICK_CACHE = 'agent_iti_ticks'        # per-batch cache of the resampled agent ITI table
 AGENT_TABLE_CACHE = 'agent_tables'          # per-batch cache of collect_model_data's long tables
+AGENT_RAY_CACHE = 'agent_ray_visibility'    # per-batch cache of the ray-sensor visibility table
 
 # the agent band the value-matched human group is cut to, taken from the 260914 main cluster
 HIGH_SCORE, LOW_SCORE = hc.HIGH_SCORE, hc.LOW_SCORE
@@ -60,10 +63,10 @@ HIGH_SCORE, LOW_SCORE = hc.HIGH_SCORE, hc.LOW_SCORE
 COMPARABILITY = {
     'onset_centrality': ('direct', 'position at one frame; sampling rate does not enter'),
     'iti_centrality': ('direct', 'mean radius over the ITI; a mean is insensitive to the grid'),
-    'frac_visible_at_onset': ('direct', 'yaw-only FoV test, 110.36 vs 110.0 degrees'),
-    'frac_never_visible': ('direct', 'same, but partly measures trial length on both sides'),
-    'late_latency_to_wall_visible': ('direct', 'logged frame times on both sides'),
-    'all_latency_to_wall_visible': ('direct', 'logged frame times on both sides'),
+    'frac_visible_at_onset': ('rebuilt', 'each side on its own sensor: human 110 deg wedge, agent 7 rays'),
+    'frac_never_visible': ('rebuilt', 'same; partly measures trial length on both sides'),
+    'late_latency_to_wall_visible': ('rebuilt', 'same sensors, logged frame times on both sides'),
+    'all_latency_to_wall_visible': ('rebuilt', 'same sensors, logged frame times on both sides'),
     'winner_path_len': ('direct', 'own wins on both sides, summed over logged frames'),
     'path_ratio': ('direct', 'own wins on both sides; per-trial ratio then averaged'),
     'latency_to_reach_wall': ('direct', 'median over own wins, from logged times'),
@@ -272,16 +275,21 @@ def human_native_iti(trial_lists, kind='social', players=(0,), keep_map=None, ve
         span = (df['timeLocal'].iloc[-1] - df['timeLocal'].iloc[0]).total_seconds()
         fs = (len(df) - 1) / span if span > 0 else np.nan
 
-        keep = {float(t[globals.TRIAL_NUM].dropna().iloc[0]) for t in trial_list
-                if len(t[globals.TRIAL_NUM].dropna())}
+        logged = {float(t[globals.TRIAL_NUM].dropna().iloc[0]) for t in trial_list
+                  if len(t[globals.TRIAL_NUM].dropna())}
         for pid in players:
             # a solo session logs its player as id 0, so the log id and the player number differ
             player = pid if kind == 'social' else player_no
-            if keep_map is not None:
-                keep = keep_map.get((experiment, player, session_type), keep)
+            # look the keep set up per player, never carrying one player's set over to the next
+            keep = logged if keep_map is None else keep_map.get(
+                (experiment, player, session_type), logged)
             w = mc.iti_metrics(df, pid, keep_trials=keep)
             if not len(w):
                 continue
+            # an ITI is named by the trial it leads into, so two runs sharing a trial number means the
+            # later one had no trial after it. That is the wait at the end of the session, which
+            # iti_metrics_ticks drops by the same logic. Agent sessions stop on a trigger and have none
+            w = w.drop_duplicates(subset='trial_num', keep='first')
             w['experiment'] = experiment
             w['player'] = player
             w['session_type'] = session_type
@@ -310,6 +318,141 @@ def load_human_native_iti(cache_name='human_iti_native', players=(0,), recompute
     def compute():
         trial_lists = data_saving.load_data(data_strings.FILENAME_SOCIAL)
         out = human_native_iti(trial_lists, kind='social', players=players)
+        del trial_lists
+        return out
+
+    return data_saving.cached(cache_name, compute, recompute=recompute, stamp=stamp)
+
+
+def ray_visibility_metrics(trial, player_id):
+    """Return an agent's wall-sensing latency and flags for one trial, from its ray sensor.
+    Takes a trial and an agent id.
+
+    The agent counterpart of `model_characterisation.visibility_metrics`, which applies the human
+    110 degree wedge. Agents have no continuous field of view: `SelectivePassThroughRaycast` casts
+    7 rays at 0, +/-18.3, +/-36.7 and +/-55 degrees, and a wall is sensed only when a ray lands on
+    it, so the wedge overstates what an agent detects. A ray hitting any part of a lit wall
+    identifies that wall, which is why a sensed wall is a whole wall rather than a point on it.
+
+    Every field matches the wedge version, so the two can be read against each other. Frame 0 is
+    slice onset and the window ends at the trigger."""
+
+    sensed, *_ = agent_raycast.trial_sensing(trial, player_id)
+    if sensed.size == 0 or sensed.shape[1] == 0:
+        return None
+    idxs = [w - 1 for w in get_indices.get_walls(trial=trial)]      # wall number -> row index
+    any_vis = sensed[idxs, :].any(axis=0)
+    ever = bool(any_vis.any())
+
+    # put each frame on the clock the trial was logged on, as the wedge version does
+    t = mc.window_times(trial, len(any_vis))
+    if t is None:
+        t = np.arange(len(any_vis)) / mc.FS
+    return dict(
+        player=player_id,
+        latency_to_wall_visible=float(t[int(np.argmax(any_vis))]) if ever else np.nan,
+        visible_at_onset=bool(any_vis[0]),
+        ever_visible=ever,
+        trial_s=float(t[-1]))
+
+
+def collect_agent_ray_visibility(sim_data_folder, models, players=mc.PLAYERS, verbose=True):
+    """Return one row per trial per agent with the ray-sensor visibility metrics.
+    Takes the batch's simulation folder, the model list and the agent ids.
+
+    Mirrors the visibility pass inside `collect_model_data`, including the trial convention, so the
+    ray and wedge tables cover the same trials."""
+
+    records = []
+    for model in models:
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                df, trial_list = prepare_sim_data.prepare_single_model_data(
+                    model, sim_data_folder=sim_data_folder)
+            if len(trial_list) == 0:
+                raise ValueError("no completed trials")
+        except Exception as e:
+            if verbose:
+                print(f"model {model:2d} SKIPPED ({type(e).__name__})", end='  ')
+            continue
+
+        trial_list = trial_list[1:]                 # drop the session's first trial, as the batch does
+        for trial in trial_list:
+            for pid in players:
+                try:
+                    r = ray_visibility_metrics(trial, pid)
+                except (IndexError, ValueError, TypeError):
+                    r = None
+                if r is not None:
+                    r.update(model=model,
+                             trial_num=float(trial[globals.TRIAL_NUM].dropna().iloc[0]))
+                    records.append(r)
+        del df, trial_list
+        if verbose:
+            print(f"model {model:2d} done", end='  ')
+
+    if verbose:
+        print()
+    return pd.DataFrame(records)
+
+
+def load_agent_ray_visibility(sim_data_folder, models, cache_name=AGENT_RAY_CACHE,
+                              recompute=False, **kwargs):
+    """Return the ray-sensor visibility table, from cache when possible.
+    Takes the simulation folder, the model list, a cache name and a recompute flag."""
+
+    stamp = dict(schema='agent-ray-visibility', folder=sim_data_folder,
+                 models=tuple(sorted(models)), rays=tuple(agent_raycast.RAY_OFFSETS_DEG))
+    return data_saving.cached(
+        cache_name, lambda: collect_agent_ray_visibility(sim_data_folder, models, **kwargs),
+        recompute=recompute, stamp=stamp)
+
+
+def visibility_by_model(vis, slow_trial_s=mc.SLOW_TRIAL_S):
+    """Return the per-model visibility summary from a trial-level visibility table.
+    Takes the table and the slow-trial cutoff.
+
+    The same four summaries `build_fingerprint` makes, so a ray table and a wedge table reduce the
+    same way. `late_latency` averages over trials with no wall sensed at onset but one sensed
+    later; `all_latency` averages over every trial a wall was ever sensed, scoring onset as 0."""
+
+    out = []
+    for model, g in vis.groupby('model'):
+        late = g[~g['visible_at_onset'] & g['ever_visible']]['latency_to_wall_visible']
+        allv = g[g['ever_visible']]['latency_to_wall_visible'].fillna(0.0)
+        out.append(dict(
+            model=model,
+            frac_visible_at_onset=float(g['visible_at_onset'].mean()),
+            frac_never_visible=float(1 - g['ever_visible'].mean()),
+            late_latency_to_wall_visible=float(late.mean()) if len(late) else np.nan,
+            all_latency_to_wall_visible=float(allv.mean()) if len(allv) else np.nan,
+            n_late=int(len(late))))
+    return pd.DataFrame(out)
+
+
+def load_solo_native_iti(cache_name='solo_iti_native', recompute=False):
+    """Return the solo ITI metrics measured on the logged frames, from cache when possible.
+    Takes a cache name and a recompute flag.
+
+    Solo players never touched the network, so there is nothing to recover and no reason to coarsen
+    them. `load_iti_table` puts them on the 30 Hz grid only so their movement is measured over the
+    same step as a social player's, which is needed when solo and social are compared and not
+    otherwise. Use this for any question that stays inside the solo sessions.
+
+    Trials follow the same rules as the tick table: the first solo drops its first trials, and the
+    run before a session's first trial is not an ITI."""
+
+    path = os.path.join(data_strings.DATAFRAME_PATH, data_strings.FILENAME_SOLO + '.pkl')
+    stamp = dict(schema='solo-native-frames', cutoffs=(mc.STATIONARY_SPEED, mc.STATIONARY_ROT),
+                 first_solo_cut=hc.FIRST_SOLO_CUT, pickle=os.path.getmtime(path))
+
+    def compute():
+        # take the trials the onset table keeps, so the first-solo cut and the dropped runs match
+        onset = hc.load_tables()['onset']
+        keep_map = {k: set(g['trial_num'].dropna().astype(float))
+                    for k, g in onset[onset['session_type'].isin(hc.SOLO_TYPES)].groupby(list(hc.KEYS))}
+        trial_lists = data_saving.load_data(data_strings.FILENAME_SOLO)
+        out = human_native_iti(trial_lists, kind='solo', players=(0,), keep_map=keep_map)
         del trial_lists
         return out
 
