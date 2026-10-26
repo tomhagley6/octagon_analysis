@@ -1,10 +1,13 @@
 # Geometric race model: assumptions and decisions
 
 Covers the current model in `analysis/analytical_race.py` (tests in `tests/test_analytical_race.py`).
+`demos/analytical_modelling/geometric_model_assembly.ipynb` (built by `build_geometric_model_assembly.py`)
+walks through the model step by step for understanding; `nearer_wall_choice.ipynb` is the working record.
 The notebook `demos/analytical_modelling/nearer_wall_choice.ipynb` (built by
-`build_nearer_wall_choice.py` beside it) shows the model without the central field of view in
-sections 3-6. Section 7 shows the logged central turning behaviour that sets the field-of-view
-inputs. Model figures with the field of view are still to be added.
+`build_nearer_wall_choice.py` beside it) shows the first model (both walls known at onset) in
+sections 3-6. Section 7 shows the logged central turning behaviour that sets the ray-sensing
+inputs. Sections 8-9 show the ray-sensing model: the peripheral agent's design, and the three
+peripheral rules compared with tables and figures.
 
 Each entry is tagged by who made it:
 - **[user]**: decided or agreed by Tom.
@@ -19,6 +22,19 @@ when the peripheral agent follows each of three rules:
 1. always move to the High wall;
 2. always move to the closest lit wall;
 3. move to High, unless High takes more than Δ seconds longer than Low, then move to the closest wall.
+
+The aim is to find how well a peripheral strategy **can** be played within the limits of the game, not to
+copy how the trained agents play **[user]**. Where a more efficient behaviour is allowed by the game,
+the model uses it, and differences from logged agents are recorded rather than copied.
+
+**Key assumption: the central agent always goes High [user].** This copies the stereotyped play of
+trained central agents (High on 0.998 of 260929 central won trials). It is not necessarily the best
+central play against a peripheral opponent, for example when a peripheral agent is near High and
+Low is close to the centre's path. All central scores in this model depend on it.
+
+**Information rule [user]:** a model agent's behaviour may depend only on what it could know: what its
+rays have sensed, its own position and heading, and the fixed arena layout. It must never depend on
+where an unseen wall is.
 
 Gameplay components are added one at a time. Wall visibility is now in for the central agent only.
 Peripheral wall visibility and opponent visibility come next.
@@ -48,6 +64,67 @@ Applies to humans, agents and this model **[user]**.
   in-view turn it is 9.46 units/s.
 - The peripheral agent's travel is not yet constrained by the control scheme. That comes with its
   field of view and facing **[user]**.
+
+## Audit of the model (2026-10-22)
+
+Every step of `analysis/analytical_race.py` was re-read for logic errors, especially decisions that use
+information the agent does not have, and inference or rules applied to one wall but not the other.
+Numeric checks were run on the cached results.
+
+### Problems found and fixed
+
+1. **First-sense times used a position the agent was not at (information leak).** In the build, the time
+   at which each wall is first sensed (`high_tsense`, `low_tsense`) was set to 0 ("sensed at onset") when
+   the wall was in view at the onset heading from the *stepped-out* position left over from the earlier
+   step-then-search version, rather than from the agent's start position. It affected 450 of 190,080
+   races (0.24%), through the inferred search direction of "High, always", "nearest" and the High-only Δ
+   rule, the "Low, if seen first" rule, and reported search times. Effect at most 0.0005 per second (e.g.
+   "Low, if seen first" margin -0.0559 -> -0.0564; mean search for a hidden High 0.252 -> 0.254 s). The
+   two-wall Δ rule (`delta2`, the headline result) does its own sensing and was not affected. Fixed in
+   `_position_arrays` (uses onset sensing `S0`), test `TestAuditFixes`, cache patched (stamp `v8`).
+   After the fix, `delta2` at large Δ matches "High, always" with inferred direction in every race (489
+   races differed before).
+2. **Exact ties at Δ = 0 were decided by rounding.** When High and Low are equally far (e.g. both
+   adjacent to an alcove back), the gap is about 1e-13 s and its sign set the choice. A mirror-image check
+   (layout reflected, search direction reversed) failed in 8 of 160 pairs, all at Δ = 0. Fixed with a
+   tolerance (`GAP_TIE` = 1e-6 s; ties go High); the mirror check now passes (test). Δ > 0 was unaffected.
+
+### Checks that passed
+
+- Probabilities sum to 1 per model and per position-layout.
+- No infinite, negative or physically impossible times (no peripheral time below its shortest path at
+  10 units/s; no central time below 1.8247 s, straight travel from the centre).
+- Central times are symmetric in Low's side (Low at ±1 and ±2 walls give equal means).
+- `delta_outcome` and `delta2_outcome` (stored decision tables) match direct simulations (tests).
+- Choosing Δ in-sample costs nothing measurable: chosen on five models and scored on the sixth, the
+  held-out loss is at most 0.0003 per second (model 20) and zero for the other five.
+
+### Remaining soundness concerns (not bugs; to keep in mind when reading results)
+
+3. **The two agents are not optimised equally.** The peripheral agent's Δ is tuned, and it re-decides at
+   every new wall. The central agent always goes High (key assumption), chooses its search direction once
+   at onset, and stands still while High is unseen. The near-equal score rates compare a tuned peripheral
+   player with a stereotyped central one, not two equally good players.
+4. **The choice uses expected distance, leaving out search time** (user's deliberate choice). Searching
+   for an unseen wall takes about 0.15-0.27 s, so adding it would be like shifting Δ by that much for
+   some decisions, over a range of Δ (0.30-1.15 s) where the score barely changes. Not a concern.
+5. **Decisions are revisited only when a new wall is sensed**, not continuously, and while searching for
+   an unseen wall the agent keeps its search direction even if new unlit walls make the other way more
+   likely.
+6. **The search moves straight out of the alcove.** Moving out is there so that walls not yet seen can
+   come into view; it goes along the alcove's axis. Moving out at an angle toward the side where the
+   wanted wall probably is might reveal it slightly sooner. A possible refinement, not an error.
+7. **Start positions.** The model is one rule set. The peripheral agent's start positions are logged
+   self-play positions from six 260929 peripheral models (results "by model" mean by these position
+   sets). Positions from model 20 sit nearer the alcove mouth (median depth 18.56 vs about 19.67, adjacent
+   wall seen at onset 0.52 vs 0.03-0.34) and do best; why positions from models 3 and 15 do worse than the
+   similar positions from model 23 is not established. The central agent is at the exact centre.
+8. **Reporting:** `summarise`'s `p_go_low` counts instant Low wins only for `delta2`, so "share heading
+   Low" is not comparable across rules. The new notebook reports "ends at Low" consistently.
+9. **Documentation brought up to date (2026-10-23):** the module docstring, and sections 11-13 and the
+   interpretation of `nearer_wall_choice.ipynb` (now show the Δ rule with inference about both walls, and
+   the numbers after fix 1). Entries D1-D5 below describe the superseded High-only Δ rule and are kept as
+   a record.
 
 ## Arena and layouts
 
@@ -86,7 +163,7 @@ Applies to humans, agents and this model **[user]**.
 | 21 | If High is out of view, the agent does not know which way to turn. It turns either way with equal chance and keeps turning until High is centred (φ or 360 − φ degrees) | [user] | See the observation below |
 | 22 | Rotation speed = 331 deg/s, the central agents' own turning rate. Kept as the model's turning rate because it reflects how fast agents turn while turning [user]. For each agent-trial, take the total heading change from slice onset until it faces High (within ±10 deg), over that time. Use the median over the 1,799 agent-trials that faced High after onset and before the trigger (central models 1, 2, 4, 5, 6) | [user] (turning rate, independent of direction) + [claude] (±10 deg tolerance, median) | Consistent: in view 347, out of view 328, by model 309-349, by angle to High 325-360 deg/s (IQR overall 279-360). Code maximum is 360 deg/s. A pooled total over total time gives 272 deg/s, pulled down by a few trials with long pauses (model 5: 207 pooled, 309 median) |
 | 22a | Closing speed while turning with High in view = 7.57 units/s, moving along the straight line to High by zig-zagging (Control scheme). For each agent-trial, take the reduction in straight-line distance to High's trigger line over frames with High in view before facing it, over the time in those frames. Use the median over the 1,799 agent-trials with such frames | [user] (rule: same period and behaviour as the turning rate) + [claude] (median, straight-line distance) | Consistent: IQR 6.16-8.70, by model 6.36-8.39, in view at onset 8.53, out of view at onset 7.17, pooled 7.62 units/s. Full speed is 10 |
-| 22b | **Assumption:** the empirical closing speed (7.57 units/s) is below the best the control scheme allows (9.24-10 units/s, mean 9.46 over a 77.5 deg in-view turn; 7.57 is 0.80 of that). The model keeps the empirical value, so its central agent closes on High as slowly as logged agents do, not as fast as the controls would permit | [user] | Logged agents lose speed by moving at an angle to High (median 23 deg off the line, observation 7), not by moving slowly |
+| 22b | **Assumption:** the empirical closing speed (7.57 units/s) is below the best the control scheme allows (9.24-10 units/s, mean 9.46 over a 77.5 deg in-view turn; 7.57 is 0.80 of that). The model keeps the empirical value, so both agents close on a sensed wall as slowly as logged agents do | [user] (2026-10-21: keep agent-derived turning and movement unless clearly too inefficient; humans are likely less efficient still, and human play is the endpoint the model will be applied to) | Logged agents lose speed by moving at an angle to High (median 23 deg off the line, observation 7): at full speed their angle alone predicts 7.74 units/s. The measured 7.57 is a per-agent-trial median of distance closed over time, which also counts frames below full speed |
 | 23 | Central time is a distribution over 3,600 headings × 2 turn directions, each equally likely. Each race is scored exactly against all of it | [claude] | Checked against a direct loop over headings in the tests |
 | 24 | Peripheral agent has no field of view yet (knows both lit walls at onset) | [user] | Its own visibility method (facing at onset, alcove walls blocking view) is the next step |
 
@@ -156,14 +233,16 @@ seen first, else High" (`sweep_angle`, `low_sensed_first`, policy `'low_first'`)
 | P2 | Sensing uses the same 7 rays (`agent_raycast.cast_rays`), recast at the agent's current position and heading. Alcove walls block the rays. Rays pass through the opponent | [user] | From the alcove back no heading reaches the adjacent walls |
 | P3 | Same turning rate (331 deg/s), closing speed while turning with the target sensed (7.57 units/s, zig-zag) and control scheme as the central agent | [user] | |
 | P4 | Search: if the target wall is not sensed, turn in place in a random direction (one direction per trial, either with equal chance) until a ray hits it | [user] | Logged peripheral agents mostly search by turning in place (see observations below) |
-| P5 | If no heading from the current position senses the target, first step toward the arena centre (along the alcove axis) at 10 units/s, by the shortest distance after which some heading senses it, then search | [user] (step toward the mouth) + [claude] (direction, speed, shortest step found by bisection to 0.01 units) | Needed mainly for adjacent walls from the alcove back |
+| P5 | If the target wall is not sensed at onset, an agent starting in an alcove moves toward the arena centre at 10 units/s **while** turning in its search direction at 331 deg/s, until a ray hits the target (`step_search_trace`, `move_out=True`). It then turns the short way to centre the first leg of its path. An agent not starting in an alcove turns in place | [user] (2026-10-20: turn and move at once; search the most efficient way; use only information the agent has) + [claude] (toward the centre; turn in place outside an alcove, where no direction helps before a wall is seen) | Replaces two earlier versions that decided whether to step out from whether some heading could sense the wall, i.e. from where the unseen wall is (`move_out=False`; with `merge_step` False or True). Moving out is the wrong way only for a target in the agent's own alcove that it does not sense at onset (0.017 of trials, still won) |
 | P6 | Once the target is sensed, keep turning to centre the first straight leg of the shortest path (e.g. toward the alcove mouth corner), not the direct bearing to the wall. If the search turned past that leg before sensing, turn back the short way | [user] (first leg) + [claude] (turning back) | The direct line from an alcove often crosses walls |
 | P7 | After centring, follow the shortest path at 10 units/s with no extra time at bends | [user] | The control scheme allows moving in 8 directions without turning |
 | P8 | Headings are searched on a 0.5 deg grid | [claude] | 0.5 deg at 331 deg/s is 1.5 ms |
 | P9 | An agent overlapping a lit trigger at onset still wins it at once | [data] | As #13 |
 | P10 | "Low, if Low seen first": both lit walls sensed at onset is a tie and goes High. Otherwise the first wall a ray hits during the search decides. A wall hit at the same heading as the other is a tie and goes High | [user] | |
-| P11 | Under "Low, if Low seen first", the agent steps out only if no heading from where it stands senses either lit wall. It steps the shortest distance after which one becomes sensable, so the wall needing the shorter step is chosen (equal steps go High) | [user] (agreed 2026-10-20) | Consequence: from the alcove back an adjacent High is hidden, while a Low further away often is not. The agent then turns, finds Low and goes there without stepping out to look for High |
+| P11 | Under "Low, if Low seen first", if neither lit wall is sensed at onset the agent moves out while turning (as P5), and the lit wall its rays hit first is chosen (ties go High). A wall sensed at onset counts as first | [user] | Consequence: from the alcove back an adjacent High is hidden, while a Low further away often is not, so the agent often takes a far Low |
 | P12 | When High is the first wall sensed, the time to High is identical to "High, always" | [claude] | Checked in tests |
+| P12b | Earlier search versions are kept for comparison as cache copies `periph_ray_races_260929_step_then_search` and `periph_ray_races_260929_step_with_search` (notebook section 10, third table) | [claude] | |
+| P12a | `build_races_rays` splits positions across worker processes (`n_jobs`, default `N_JOBS` = 12 of 16 cores, leaving 4 for training). Results are identical to a serial build (`n_jobs=1`) | [user] (default on) + [claude] (12 workers, spawned processes) | Checked in tests. Speeds up the ~35 min single-core build |
 | P13 | "Nearest": the agent's route under "High, always" is traced every 0.005 s (step out, search turn, turn to the first leg while closing, then the path). The rays are cast at every step to find when Low is first sensed | [claude] (0.005 s step: at most 1.7 deg of turn or 0.05 units of travel per step) | The route does not depend on Low, so one trace per position, High wall and search direction serves every Low |
 | P14 | Turning and moving are uncoupled (Control scheme). At each bend of the path the agent keeps moving at 10 units/s and turns the short way at 331 deg/s to face the new stretch. The rays follow that heading | [user] | Bends still cost no time; only what the agent senses changes |
 | P15 | Both walls are known at the later of High's and Low's first sensing. At that moment the agent compares the remaining shortest paths from where it is and goes to the nearer (equal paths go High). It decides once | [user] (nearest by path length) | Turning is fast, so path length rather than time with turning |
@@ -199,6 +278,39 @@ Destination is the wall reached (winners) or the `agent_loser_choice` call (lose
   moving within the alcove (0.38) or leaving the alcove first (0.07).
 - Caveats: self-play, so the opponent is also peripheral. Many losers have no destination call.
 
+## Inference of High's position (implemented 2026-10-21, notebook section 11)
+
+| # | Decision | Tag | Basis / note |
+|---|---|---|---|
+| I1 | At onset the agent knows every wall its rays hit and whether it is High, Low or unlit (an unlit wall returns a distance with no tag) | [data] | `agent_raycast` notes |
+| I2 | It works out where High could be: the layout prior conditioned on what was sensed (`high_posterior_given`, matching `agent_raycast.high_posterior`). Walls hit and unlit cannot be High or Low; a sensed Low fixes Low | [user] | |
+| I3 | If High is not sensed at onset, it turns in the direction with the lower expected time until a ray first hits High, weighting each candidate wall by its probability. A tie is 50/50. The times come from the known arena map for each candidate, so no hidden information is used | [user] (decided once, at onset; all rules search toward the likely High) | Peripheral: reweights the two search directions of each race row (`infer_direction`). Central: one time distribution per Low offset (`central_times_inferred`), which `evaluate` and `central_reference` accept |
+| I4 | The opponent's position is not used | [user] | To add later, with opponent sensing |
+
+## Peripheral Δ rule with inference (implemented 2026-10-21, notebook section 12)
+
+| # | Decision | Tag | Basis / note |
+|---|---|---|---|
+| D1 | The agent follows "High, always" and decides at onset and whenever a ray first hits a new wall. Once Low is known, it goes to Low if (path to High - path to Low) / 10 units/s > Δ, otherwise it keeps on to High | [user] (version b) | Δ = 0 is close to "nearest"; large Δ is "High, always" |
+| D2 | While High is still unseen, it uses its expected path to High: the paths to the candidate walls weighted by where High could be, given every wall sensed so far (`high_posterior_given`) | [user] | Lets it give up on a probably distant High without finding it first |
+| D3 | The decision is rechecked at every new wall. After switching to Low, if High comes into view, it rechecks with the actual paths and switches back to High if the gap is at most Δ | [user] | |
+| D4 | While heading to Low with High unseen, new unlit walls do not make it turn back to search | [claude] | Searching mid-arena would mean turning in place there |
+| D5 | Each race stores up to 9 decision points (`ev_*` columns: time, gap, arrival at Low, switch-back time, gap and arrival at High), so any Δ is evaluated instantly (`delta_outcome`); checked against a direct simulation (`delta_direct`) | [claude] | Cache v6, 409 s on 12 workers |
+
+## Peripheral Δ rule with inference about both walls ('delta2', implemented 2026-10-22)
+
+Replaces the Δ rule above (D1-D5), which inferred only where High was and always steered by High. That
+narrowing was mine, not the user's, and it lost the races where High is far and in view and an adjacent
+Low is hidden by the alcove.
+
+| # | Decision | Tag | Basis / note |
+|---|---|---|---|
+| D6 | At onset and whenever a ray first hits a new wall, the agent works out where both walls could be (`joint_posterior`: the layout prior, conditioned on every wall sensed; unlit walls rule out both; a sensed wall is fixed) | [user] | Inference applies to Low as well as High |
+| D7 | It goes for Low if (distance to High - distance to Low) / 10 units/s > Δ, otherwise High. A sensed wall's distance is its actual path; an unsensed wall's is its expected path, averaged over where it could be (`_gap_both`) | [user] | Δ swept to maximise score per second, so the agent picks walls it is more likely to win |
+| D8 | If the chosen wall is sensed it goes to it (turn onto the path while closing, then the path). If not, it searches for it: moves out of an alcove while turning (turns in place elsewhere), in the direction that should sense that wall sooner given where it could be; a tie uses the race's random direction (`_motion_to`) | [user] (search for the chosen wall) + [claude] (direction by expected first-sense time) | |
+| D9 | The choice is rechecked at every new wall and can change either way. A motion is kept while its target and the agent's knowledge of it are unchanged | [user] | |
+| D10 | Because the route depends on Δ, each race stores its outcome as pieces over Δ (up to 12 ranges, each with a time and a wall; `d2_*` columns, `delta2_outcome`). Checked against a direct simulation at fixed Δ (`delta2_direct`) | [claude] | |
+
 ## Scoring
 
 | # | Decision | Tag | Basis / note |
@@ -219,12 +331,12 @@ Destination is the wall reached (winners) or the `agent_loser_choice` call (lose
 
 ## Outputs and validation
 
-Notebook output is figures only **[user]**. Validation against hand-counted answers lives in the
+Notebook output was figures only **[user]**; section 9 adds tables at the user's request (2026-10-20). Validation against hand-counted answers lives in the
 unit tests and is described in the notebook text **[user]**.
 
 ## Open points
 
-- Central turn direction from Low: use the Low wall's position (when in view) to infer which way to turn to High. Logged agents turn the short way more often than chance (observation under #21).
+- Inference re-decided during the search (e.g. reversing when Low appears), and from the opponent's position.
 - Opponent visibility.
 - Overhead: is the agent ITI fixed by design or variable? If it depends on outcome, #26 needs revisiting.
 - Human version: human onset positions and measured human speed.

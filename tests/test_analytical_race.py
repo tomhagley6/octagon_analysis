@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 import globals
+import analysis.agent_raycast as agent_raycast
 import analysis.analytical_race as ar
 import trajectory_analysis.visibility_occlusion as vo
 
@@ -300,9 +301,16 @@ class TestLowFirst(unittest.TestCase):
         r = self.row(self.back, 2, 1, 1)
         self.assertFalse(r['low_first'])
 
-    def test_equal_steps_tie_to_high(self):
-        # both adjacent walls need the same step, by symmetry
-        r = self.row(self.back, 1, 7, 1)
+    def test_both_hidden_takes_the_first_found_while_stepping(self):
+        # both adjacent walls hidden: the agent steps out while turning, and finds the side it turns toward first
+        r_cw, r_acw = self.row(self.back, 1, 7, 1), self.row(self.back, 1, 7, -1)
+        self.assertGreater(r_cw['high_step'], 0.0)
+        self.assertNotEqual(bool(r_cw['low_first']), bool(r_acw['low_first']))
+
+    def test_equal_steps_tie_to_high_when_stepping_first(self):
+        # the earlier version (step, then search) compares the steps, and equal steps go High
+        back = ar.build_races_rays(ar.alcove_back_positions()[:1], [180.0], 331.0, 7.57, merge_step=False, move_out=False)
+        r = self.row(back, 1, 7, 1)
         self.assertAlmostEqual(r['high_step'], r['low_step'], places=6)
         self.assertFalse(r['low_first'])
 
@@ -379,6 +387,298 @@ class TestNearest(unittest.TestCase):
         # turning anticlockwise finds High without passing Low, and Low stays out of view
         r = races[(races.high == 4) & (races.low == 2) & (races.direction == -1)].iloc[0]
         self.assertFalse(r['nearest_low'])
+
+
+class TestSearchWhileStepping(unittest.TestCase):
+
+    W_, C_ = 331.0, 7.57
+
+    def test_wall_is_sensed_when_the_combined_search_stops(self):
+        back = ar.alcove_back_positions()[0]
+        ms = ar.step_search_trace(back, 180.0, 1, self.W_)
+        t_s = ms['first'][1]
+        self.assertTrue(np.isfinite(t_s) and t_s > 0)
+        q, h = ms['state'](t_s)
+        self.assertTrue(ar.high_sensed(q[None], h, 1)[0])
+        # it moved toward the centre and turned clockwise at the given rates
+        self.assertAlmostEqual(np.linalg.norm(q - back), min(t_s * ar.SPEED, ar.MAX_STEP), places=6)
+        self.assertAlmostEqual(h, 180.0 + self.W_ * t_s, places=6)
+
+    def test_search_while_stepping_is_no_slower(self):
+        back = ar.alcove_back_positions()[0]
+        for d in (1, -1):
+            merged = ar.target_time(back, 180.0, 1, d, self.W_, self.C_, move_out=False)
+            separate = ar.target_time(back, 180.0, 1, d, self.W_, self.C_, merge_step=False, move_out=False)
+            self.assertLessEqual(merged, separate + 1e-9)
+            tr = ar.high_trace(back, 180.0, 1, d, self.W_, self.C_, move_out=False)
+            self.assertAlmostEqual(tr['arrive'], merged, places=6)
+
+    def test_no_step_needed_is_unchanged(self):
+        back = ar.alcove_back_positions()[0]
+        self.assertAlmostEqual(ar.target_time(back, 180.0, 3, 1, self.W_, self.C_, move_out=False),
+                               ar.target_time(back, 180.0, 3, 1, self.W_, self.C_, merge_step=False, move_out=False), places=9)
+
+    def test_known_wall_times(self):
+        back = ar.alcove_back_positions()[0]
+        D, TK = ar.known_wall_times(back[None], [180.0], self.W_, self.C_)
+        np.testing.assert_allclose(D[0], ar.path_lengths(back[None])[0])
+        for w in (1, 4):
+            self.assertAlmostEqual(TK[0, w], ar.time_from_sensed(back, 180.0, w, self.W_, self.C_), places=9)
+
+
+class TestParallelBuild(unittest.TestCase):
+
+    def test_parallel_matches_serial(self):
+        pos = np.vstack([ar.alcove_back_positions()[[0, 3]], [[2.0, -1.0]]])
+        heads = [180.0, 20.0, 300.0]
+        a = ar.build_races_rays(pos, heads, 331.0, 7.57, n_jobs=1)
+        b = ar.build_races_rays(pos, heads, 331.0, 7.57, n_jobs=2)
+        pd.testing.assert_frame_equal(a, b)
+
+    def test_default_leaves_cores_free(self):
+        self.assertGreaterEqual(ar.N_JOBS, 1)
+        self.assertLessEqual(ar.N_JOBS, 12)
+
+
+class TestMoveOut(unittest.TestCase):
+    ''' The default search: move out while turning whenever the target is not sensed at onset. '''
+
+    W_, C_ = 331.0, 7.57
+
+    def setUp(self):
+        self.back = ar.alcove_back_positions()[0]
+
+    def test_wall_sensable_from_the_spot_is_searched_while_moving_out(self):
+        # facing 250 deg, the wall three away (bearing ~157) is out of view but a turn in place would find it
+        h = 250.0
+        self.assertFalse(ar.high_sensed(self.back[None], h, 3)[0])
+        self.assertEqual(ar.step_to_sense(self.back, 3)[0], 0.0)
+        for d in (1, -1):
+            ms = ar.step_search_trace(self.back, h, d, self.W_)
+            q, hh = ms['state'](ms['first'][3])
+            expect = ms['first'][3] + ar.time_from_sensed(q, hh, 3, self.W_, self.C_)
+            t = ar.target_time(self.back, h, 3, d, self.W_, self.C_)
+            self.assertAlmostEqual(t, expect, places=9)
+            # moving out while searching is no slower than searching in place
+            self.assertLessEqual(t, ar.target_time(self.back, h, 3, d, self.W_, self.C_, move_out=False) + 1e-9)
+            self.assertAlmostEqual(ar.high_trace(self.back, h, 3, d, self.W_, self.C_)['arrive'], t, places=6)
+
+    def test_behaviour_uses_only_what_was_sensed(self):
+        # two walls not sensed at onset follow the same motion until each is first sensed,
+        # whether or not a turn in place could have found them
+        h = 250.0
+        for d in (1, -1):
+            ms = ar.step_search_trace(self.back, h, d, self.W_)
+            for w in (1, 3):
+                self.assertFalse(ar.high_sensed(self.back[None], h, w)[0])
+                tr = ar.high_trace(self.back, h, w, d, self.W_, self.C_)
+                t_s = tr['sensed']
+                self.assertAlmostEqual(t_s, ms['first'][w], places=9)
+                for t in np.linspace(0, t_s, 5):
+                    np.testing.assert_allclose(tr['state'](t)[0], ms['state'](t)[0])
+
+    def test_outside_an_alcove_the_search_turns_in_place(self):
+        pos = np.array([2.0, 0.0])
+        self.assertFalse(ar.in_alcove(pos))
+        self.assertTrue(ar.in_alcove(self.back))
+        ms = ar.step_search_trace(pos, 0.0, 1, self.W_, move=ar.search_moves(pos, True))
+        np.testing.assert_allclose(ms['state'](0.5)[0], pos)
+
+    def test_sensed_at_onset_is_unchanged(self):
+        self.assertAlmostEqual(ar.target_time(self.back, 180.0, 4, 1, self.W_, self.C_),
+                               ar.target_time(self.back, 180.0, 4, 1, self.W_, self.C_, move_out=False), places=9)
+
+
+class TestInference(unittest.TestCase):
+
+    W_, C_ = 331.0, 7.57
+
+    def test_posterior_matches_agent_raycast(self):
+        # nothing seen but walls 3, 4, 5 unlit; and Low seen at wall 2 with walls 3, 4 unlit
+        S = np.zeros(8, bool); S[[3, 4, 5]] = True
+        post = ar.high_posterior_given(S, None)
+        ref = agent_raycast.high_posterior(seen_unlit=(4, 5, 6))
+        np.testing.assert_allclose(post, [ref.get(w + 1, 0.0) for w in range(8)])
+        S = np.zeros(8, bool); S[[2, 3, 4]] = True
+        post = ar.high_posterior_given(S, 2)
+        ref = agent_raycast.high_posterior(seen_low=3, seen_unlit=(4, 5))
+        np.testing.assert_allclose(post, [ref.get(w + 1, 0.0) for w in range(8)])
+
+    def test_central_nothing_informative_is_unchanged(self):
+        # High dead behind, Low behind too: the walls in view are unlit and placed symmetrically, so both directions tie
+        inf = ar.central_times_inferred(self.W_, self.C_, n=720)
+        plain = ar.central_times(self.W_, close_speed=self.C_, n=360)
+        self.assertEqual(set(inf), {1, 2, 4, 6, 7})
+        for k, v in inf.items():
+            self.assertEqual(len(v), 2 * 720)
+        # without Low information the inferred central agent is never slower on average
+        w = ar.low_offset_weights()
+        mean_inf = sum(w[k] * inf[k].mean() for k in inf)
+        self.assertLessEqual(mean_inf, plain.mean() + 1e-3)
+
+    def test_central_turns_toward_the_side_low_points_to(self):
+        # High at wall 0; Low one wall clockwise (wall 1) and in view; heading 100 deg so High is out of view.
+        # Walls 1-3 are in view (Low and two unlit), so High is at wall 0 (p 0.4), 5 (0.4) or 7 (0.2).
+        # Expected search: anticlockwise 85.5 deg, clockwise 119.5 deg, so it turns anticlockwise, which is
+        # the short way to the true High (100 deg, sensed after 22.5)
+        t, d = ar.central_time_one(100.0, 1, self.W_, self.C_)
+        self.assertEqual(d, -1)
+        expect = 100.0 / self.W_ + (ar.TRIGGER_REACH - self.C_ * ar.central_visible_half_angle() / self.W_) / ar.SPEED
+        self.assertAlmostEqual(t, expect, places=6)
+
+    def test_evaluate_accepts_central_times_by_layout(self):
+        races = ar.build_races(ar.alcove_back_positions())
+        flat = ar.central_times(self.W_, close_speed=self.C_)
+        same = {k: flat for k in (1, 2, 4, 6, 7)}
+        a = ar.summarise(races, 7.0, 'high', central_t=flat).iloc[0]
+        b = ar.summarise(races, 7.0, 'high', central_t=same).iloc[0]
+        self.assertAlmostEqual(a['periph_score_s'], b['periph_score_s'], places=12)
+
+    def test_peripheral_direction_weights(self):
+        races = ar.build_races_rays(ar.alcove_back_positions()[:2], [180.0, 200.0], self.W_, self.C_, n_jobs=1)
+        sensed = ar.onset_sensed(ar.alcove_back_positions()[:2], [180.0, 200.0])
+        inf = ar.infer_direction(races, sensed)
+        # each position and layout keeps its total probability
+        tot = lambda r: r.groupby(['pos', 'high', 'low'])['prob'].sum()
+        pd.testing.assert_series_equal(tot(inf), tot(races))
+        # inference never makes the expected search for High longer than a random direction
+        w0, w1 = races['prob'].to_numpy(), inf['prob'].to_numpy()
+        hidden = ~races['high_sensed0'].to_numpy()
+        self.assertLessEqual((w1 * races['high_tsense'])[hidden].sum(), (w0 * races['high_tsense'])[hidden].sum() + 1e-9)
+
+
+class TestDeltaRule(unittest.TestCase):
+
+    W_, C_ = 331.0, 7.57
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pos = np.vstack([ar.alcove_back_positions()[[0, 3]], [[0.0, 0.0], [2.0, 0.0]]])
+        cls.heads = [180.0, 20.0, 0.0, 0.0]
+        cls.races = ar.build_races_rays(cls.pos, cls.heads, cls.W_, cls.C_, n_jobs=1)
+
+    def test_large_delta_is_always_high(self):
+        a = ar.evaluate(self.races, 'delta', delta=10.0)
+        b = ar.evaluate(self.races, 'high')
+        np.testing.assert_allclose(a['race_s'], b['race_s'])
+        np.testing.assert_allclose(a['periph_score'], b['periph_score'])
+
+    def test_centre_never_switches(self):
+        # from the exact centre every wall is equally far, so no gap exceeds 0
+        r = self.races[self.races['pos'] == 2]
+        go_low, t = ar.delta_outcome(r, 0.0)
+        self.assertFalse(go_low.any())
+        np.testing.assert_allclose(t, r['t_high'])
+
+    def test_table_matches_direct_simulation(self):
+        rows = self.races[(self.races['t_high'] > 0) & (self.races['t_low'] > 0)].sample(25, random_state=1)
+        for _, r in rows.iterrows():
+            for delta in (0.0, 0.3, 1.0):
+                go_low, t = ar.delta_outcome(r.to_frame().T.infer_objects(), delta)
+                gl, tt = ar.delta_direct(self.pos[int(r['pos'])], self.heads[int(r['pos'])], int(r['high']), int(r['low']),
+                                         int(r['direction']), delta, self.W_, self.C_)
+                self.assertEqual(bool(go_low[0]), gl)
+                self.assertAlmostEqual(float(t[0]), tt, places=6)
+
+    def test_outcomes_are_finite(self):
+        for delta in (0.0, 0.5, 2.0):
+            go_low, t = ar.delta_outcome(self.races, delta)
+            self.assertTrue(np.all(np.isfinite(t)) and np.all(t >= 0))
+
+
+class TestDeltaBoth(unittest.TestCase):
+    ''' The delta rule with inference about both walls ('delta2'). '''
+
+    W_, C_ = 331.0, 7.57
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pos = np.vstack([ar.alcove_back_positions()[[0, 3]], [[0.0, 0.0], [2.0, 0.0]]])
+        cls.heads = [180.0, 20.0, 0.0, 0.0]
+        cls.races = ar.build_races_rays(cls.pos, cls.heads, cls.W_, cls.C_, n_jobs=1)
+
+    def test_joint_posterior(self):
+        S = np.zeros(8, bool); S[[2, 3, 4]] = True
+        J = ar.joint_posterior(S, None, 2)
+        # Low seen at wall 2 matches the High posterior used before
+        np.testing.assert_allclose(J.sum(axis=1), ar.high_posterior_given(S, 2))
+        self.assertAlmostEqual(J.sum(), 1.0)
+        # High seen at wall 6: Low can be at 5, 7, 0 (not seen) but not at 4 (seen unlit) or 2 (seen unlit)
+        S = np.zeros(8, bool); S[[6, 4, 2]] = True
+        J = ar.joint_posterior(S, 6, None)
+        self.assertTrue(np.all(J[np.arange(8) != 6] == 0))
+        self.assertEqual(J[6, 4], 0.0); self.assertEqual(J[6, 2], 0.0)
+        self.assertGreater(J[6, 5], 0.0); self.assertGreater(J[6, 0], 0.0)
+
+    def test_table_matches_direct_simulation(self):
+        rows = self.races[(self.races['t_high'] > 0) & (self.races['t_low'] > 0)].sample(30, random_state=2)
+        for _, r in rows.iterrows():
+            for delta in (0.0, 0.4, 1.0, 2.5):
+                go_low, t = ar.delta2_outcome(r.to_frame().T.infer_objects(), delta)
+                gl, tt = ar.delta2_direct(self.pos[int(r['pos'])], self.heads[int(r['pos'])], int(r['high']), int(r['low']),
+                                          int(r['direction']), delta, self.W_, self.C_)
+                self.assertEqual(bool(go_low[0]), gl)
+                self.assertAlmostEqual(float(t[0]), tt, places=6)
+
+    def test_centre_never_takes_low(self):
+        r = self.races[self.races['pos'] == 2]
+        go_low, _ = ar.delta2_outcome(r, 0.0)
+        self.assertFalse(go_low.any())
+
+    def test_far_high_seen_adjacent_low_inferred(self):
+        # alcove back facing out: High three walls away in view, Low adjacent and hidden.
+        # With a small delta the agent infers Low is probably near, searches for it and goes there, faster than to High
+        r = self.races[(self.races['pos'] == 0) & (self.races['high'] == 3) & (self.races['low'] == 1)]
+        self.assertTrue(r['high_sensed0'].all() and not r['low_sensed0'].any())
+        go_low, t = ar.delta2_outcome(r, 1.0)
+        self.assertTrue(go_low.all())
+        self.assertTrue(np.all(t < r['t_high'].to_numpy()))
+
+    def test_outcomes_are_finite(self):
+        for delta in (0.0, 0.7, 3.0):
+            _, t = ar.delta2_outcome(self.races, delta)
+            self.assertTrue(np.all(np.isfinite(t)) and np.all(t >= 0))
+
+
+class TestAuditFixes(unittest.TestCase):
+    ''' Fixes from the 2026-10-22 audit. '''
+
+    W_, C_ = 331.0, 7.57
+
+    def test_first_sense_time_uses_the_start_position(self):
+        # from the alcove back facing out, an adjacent wall cannot be sensed at onset, so its first-sense
+        # time must come from the search, never 0 (it was 0 when a stepped-out position could see it)
+        back = ar.alcove_back_positions()[:1]
+        races = ar.build_races_rays(back, [180.0], self.W_, self.C_, n_jobs=1)
+        for d in (1, -1):
+            r = races[(races.high == 1) & (races.direction == d)].iloc[0]
+            ms = ar.step_search_trace(back[0], 180.0, d, self.W_, move=True)
+            self.assertFalse(r['high_sensed0'])
+            self.assertGreater(r['high_tsense'], 0.0)
+            self.assertAlmostEqual(r['high_tsense'], ms['first'][1], places=9)
+
+    def test_delta2_route_matches_direct(self):
+        back = ar.alcove_back_positions()[0]
+        for h, l, d, delta in ((3, 1, 1, 1.0), (1, 3, -1, 1.0), (2, 1, 1, 0.0), (4, 3, 1, 2.0)):
+            r = ar.delta2_route(back, 180.0, h, l, d, delta, self.W_, self.C_)
+            gl, t = ar.delta2_direct(back, 180.0, h, l, d, delta, self.W_, self.C_)
+            self.assertEqual(r['go_low'], gl)
+            self.assertAlmostEqual(r['time'], t, places=9)
+            # segments join up in time
+            ends = [t0 + (e - s0) for _, s0, e, t0, _ in r['segments']]
+            self.assertAlmostEqual(ends[-1], t, places=9)
+
+    def test_mirror_symmetry_of_delta2(self):
+        # an alcove back facing straight out is symmetric: a mirrored layout with the opposite search
+        # direction gives the same wall and time, including exact ties at delta = 0
+        back = ar.alcove_back_positions()[0]
+        for h, l in ((1, 7), (2, 6), (3, 1), (1, 3), (2, 1)):
+            for d in (1, -1):
+                for delta in (0.0, 1.0):
+                    a = ar.delta2_direct(back, 180.0, h, l, d, delta, self.W_, self.C_)
+                    b = ar.delta2_direct(back, 180.0, (-h) % 8, (-l) % 8, -d, delta, self.W_, self.C_)
+                    self.assertEqual(a[0], b[0])
+                    self.assertAlmostEqual(a[1], b[1], places=2)
 
 
 class TestLayouts(unittest.TestCase):

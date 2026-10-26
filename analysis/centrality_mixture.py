@@ -8,7 +8,7 @@
 # gets their own weight on each shape, fitted by maximum likelihood, and a soft position within each
 # shape. A trial between the shapes counts partly to each, rather than all to one side of a boundary.
 #
-# The notebook demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb holds the
+# The notebook demos/strategy_characterisation/humans/intermediate_strategy_characterisation.ipynb holds the
 # plots and the written-up results. Everything that computes a number lives here.
 
 import numpy as np

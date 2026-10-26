@@ -1,39 +1,36 @@
-''' Model a peripheral agent racing a central agent from arena geometry alone.
+''' Model a peripheral agent racing a central agent from arena geometry and the agents' ray sensor.
 
-The central agent waits at the arena centre and always goes High (260929 central models take High
-on 0.998 of won trials, even when Low is much nearer). The peripheral agent starts from a logged
-slice-onset position and follows a fixed wall-choice rule. Each agent's time to a wall is the
-shortest path to that wall's trigger divided by the speed. The faster agent wins and scores 1.0 at
-High or 0.4 at Low. Every High and Low layout is listed with its exact probability, so results are
-expectations, not samples.
+The central agent waits at the arena centre with a random heading and always goes High (260929
+central models take High on 0.998 of won trials). It senses walls with the agents' 7 rays
+(analysis/agent_raycast.py), turns to find and face High (331 deg/s), closing on High at 7.57 units/s
+once High is in view, then travels straight at 10 units/s. Its search direction can use inference.
 
-Method:
-  1. Build the space an agent's centre can reach (octagon with eight alcoves, from globals).
-  2. Take the shortest path from a start point to each wall's trigger. A path may bend only at
-     the alcove mouth corners, so these 16 corners are the only turning points.
-  3. List the 40 layouts (High on any of 8 walls, Low 1, 2 or 4 walls away with weights
-     0.5/0.25/0.25 and a random side), as drawn in OctagonArenaSettings.cs.
-  4. For every peripheral position and layout, score the race under a wall-choice rule.
-  5. Optionally, give the central agent its ray sensor (analysis/agent_raycast.py: 7 rays at 0,
-     +-18.3, +-36.7 and +-55 deg from the heading, first hit only; any part of a lit wall or its
-     trigger box tells the agent that wall's identity). Its heading at slice onset is uniform at
-     random. It does not move until High is centred in front of it (along the middle ray). If any part of High
-     is already in view, it turns the short way to centre it. If not, it turns in a random
-     direction (half clockwise, half anticlockwise) until High is centred. It then travels as
-     before. The central time is a distribution over headings and turn directions, and every race
-     is scored against all of it.
+The peripheral agent starts from a logged slice-onset position and heading of a peripheral model. It
+senses with the same rays, from its current position and heading. If the wall it wants is not sensed
+it moves out of its alcove while turning until a ray hits it, then turns onto the shortest path
+(closing at 7.57 units/s) and follows it at 10 units/s. Its wall choice follows a rule; the main rule
+('delta2') infers where unseen walls probably are and goes for Low when High is more than delta
+seconds further (expected distance for unseen walls), rechecking whenever a ray hits a new wall.
 
-Assumptions:
-  - Both agents move at the same fixed speed from slice onset. No start-up delay, no timing noise.
-  - Without the field of view, both agents know both lit walls at slice onset. With it, only the
-    central agent's view is modelled; the peripheral agent still knows both walls.
-  - Neither agent blocks the other.
+The faster agent wins and scores 1.0 at High or 0.4 at Low. Every High and Low layout is listed
+with its exact probability, so results are expectations, not samples. Score per second is total
+expected score over total expected trial time (race plus a fixed overhead).
+
+Assumptions (full list in READMEs/analytical_modelling_notes.md):
+  - Both agents move at 10 units/s, turn at 331 deg/s and close at 7.57 units/s; no start-up delay,
+    no timing noise.
+  - An agent's behaviour depends only on what its rays have sensed, its own position and heading,
+    and the arena layout.
+  - Neither agent blocks the other or uses the other's position.
   - An agent whose body overlaps a lit trigger at slice onset wins that wall at once.
 '''
 
+import concurrent.futures
 import contextlib
 import io
 import math
+import multiprocessing
+import os
 
 import numpy as np
 import pandas as pd
@@ -48,12 +45,16 @@ HIGH_SCORE, LOW_SCORE = 1.0, 0.4
 NUM_WALLS = globals.NUM_WALLS
 SEPARATIONS = {1: 0.5, 2: 0.25, 4: 0.25}     # wall separation weights, GeneralGlobals.cs
 SPEED = 10.0                                   # units per second (moveSpeed, OctagonAgent.cs)
-POLICIES = ('high', 'closest', 'threshold', 'low_first', 'nearest')
+POLICIES = ('high', 'closest', 'threshold', 'low_first', 'nearest', 'delta', 'delta2')
 ALIGN_TOL = 10.0                               # degrees within which an agent counts as facing High
 N_HEADINGS = 3600                              # heading grid for the central agent (0.05 deg steps)
 HEAD_STEP = 0.5                                # heading grid for the peripheral agent's ray search (deg)
 MAX_STEP = 8.0                                 # furthest the peripheral agent steps out to sense a wall (units)
 TRACE_DT = 0.005                               # time step for tracing the peripheral agent's route (s)
+N_JOBS = max(1, min(12, (os.cpu_count() or 1) - 4))   # worker processes for build_races_rays (leaves cores free)
+MAX_EV = 9                                     # decision points stored per race for the delta rule
+EV_FIELDS = ('t', 'g', 'tl', 'tb', 'gb', 'Tb')     # per decision point: time, gap, Low arrival, switch-back time, gap, High arrival
+MAX_PIECES = 12                                # delta2 outcome pieces stored per race (ranges of delta)
 
 W = globals.OCTAGON_WALLFACE_RADIUS
 H = globals.ALCOVE_HALF_WIDTH
@@ -62,6 +63,7 @@ BACK = globals.OCTAGON_ALCOVE_RADIUS
 TRIGGER_REACH = BACK + globals.PLAYER_RADIUS - agent_raycast.TRIGGER_DEPTH - globals.PLAYER_RADIUS
 EPS = 0.05                                     # tolerance for points on or just past the boundary
 TIE = 1e-9                                     # times closer than this count as equal
+GAP_TIE = 1e-6                                 # delta2 gaps within this of delta count as ties (go High)
 
 
 # geometry
@@ -432,17 +434,75 @@ def sweep_angle(sens, heading, direction):
     return float(np.argmax(hit) * HEAD_STEP) if hit.any() else np.inf
 
 
+def in_alcove(pos):
+    ''' Return whether a position lies inside its nearest alcove (past the wall face line).
+        Takes one position. The agent knows its own position, so this uses no hidden information. '''
+
+    pos = np.asarray(pos, float)
+    p, q = vo.arena_to_wall_frame(pos, int(nearest_wall(pos[None])[0]))
+    return bool(p > W + 1e-9 and abs(q) <= H + EPS)
+
+
+def search_moves(pos, move_out):
+    ''' Return whether the search motion moves toward the centre: always in the earlier merged step,
+        and with move_out only when the agent starts inside an alcove. Takes one position and move_out. '''
+
+    return in_alcove(pos) if move_out else True
+
+
+def step_search_trace(pos, heading, direction, rot_speed, speed=SPEED, max_step=MAX_STEP, dt=TRACE_DT, move=True):
+    ''' Return the motion of an agent that steps toward the centre while turning in its search
+        direction, and the first time its rays hit each wall. Takes one position, its heading
+        (degrees), the search direction, the rotation speed, the speed, the longest step and the
+        time step.
+
+        Turning and moving are uncoupled (Control scheme), so the agent moves toward the centre at
+        speed (stopping after max_step) and turns at rot_speed at the same time, from slice onset.
+        With move=False it only turns (in place).
+        Returns a dict: first (8, first time each wall is hit, inf if not within one full turn plus
+        the step) and state (a function of time giving position and heading). '''
+
+    pos = np.asarray(pos, float)
+    h0 = float(heading)
+    r = np.linalg.norm(pos)
+    u = -pos / r if (r > 0 and move) else np.zeros(2)
+    t_stop = max_step / speed
+
+    def state(t):
+        return pos + u * speed * min(t, t_stop), h0 + direction * rot_speed * t
+
+    times = np.arange(0.0, 360.0 / rot_speed + t_stop + dt, dt)
+    eyes = pos + u[None] * speed * np.minimum(times, t_stop)[:, None]
+    ids, _, _ = agent_raycast.cast_rays(eyes, np.radians(h0 + direction * rot_speed * times))
+    sensed = (ids[..., None] == np.arange(1, NUM_WALLS + 1)).any(axis=1)
+    first = np.full(NUM_WALLS, np.inf)
+    hit = sensed.any(axis=0)
+    first[hit] = times[sensed.argmax(axis=0)[hit]]
+    return dict(first=first, state=state)
+
+
 def target_time(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEED, sensing=None, step_out=None,
-                legs=None, lengths=None):
+                legs=None, lengths=None, merge_step=True, search=None, move_out=True):
     ''' Return the peripheral agent's time from slice onset to a wall's trigger.
         Takes one position, its heading (degrees), the wall row index, the search turn direction
         (1 = clockwise, -1 = anticlockwise), the rotation speed (deg/s), the closing speed while
         turning with the wall sensed (units/s), the speed, and optionally the precomputed
-        heading_sensing at pos, step_to_sense result, and first_leg_bearing and path_lengths at pos.
+        heading_sensing at pos, step_to_sense result, and first_leg_bearing and path_lengths at pos,
+        whether the step and search happen together (merge_step), a precomputed step_search_trace, and
+        whether the agent searches by moving out while turning whenever the wall is not sensed (move_out).
+
+        With move_out (default) the agent's behaviour depends only on whether its rays sense the wall
+        at onset: if they do, it turns onto the path while moving along it; if not, it moves toward the
+        centre while turning in the search direction until a ray hits the wall (step_search_trace),
+        then turns the short way onto the path. Without move_out, the earlier versions apply (below),
+        which use whether a heading from pos could sense the wall, information the agent does not have.
 
         Steps:
           1. An agent overlapping the wall's trigger is there at time 0.
-          2. If no heading senses the wall from pos, step toward the centre until one does (at speed).
+          2. If no heading senses the wall from pos, step toward the centre. With merge_step, the agent
+             steps and turns in the search direction at the same time until a ray hits the wall, then
+             turns the short way to centre the first leg (time_from_sensed). Without it, it steps the
+             shortest distance after which a heading would sense the wall, then searches.
           3. If the rays already sense the wall, turn the short way to centre the first leg of the
              path. Otherwise turn in the search direction until a ray hits the wall, then turn on (or
              back, the short way) to centre the first leg.
@@ -455,7 +515,22 @@ def target_time(pos, heading, wall, direction, rot_speed, close_speed, speed=SPE
     heads = heading_grid()
     n = len(heads)
     sens = (heading_sensing(pos) if sensing is None else sensing)[:, wall]
+    if move_out and sweep_angle(sens, heading, direction) > 0:
+        # not sensed at onset: move out while turning until a ray hits the wall, then go to it
+        ms = (step_search_trace(pos, heading, direction, rot_speed, speed, move=search_moves(pos, True))
+              if search is None else search)
+        t_s = ms['first'][wall]
+        q, h = ms['state'](t_s)
+        return t_s + time_from_sensed(q, h, wall, rot_speed, close_speed, speed)
+    if move_out:
+        step_out = (0.0, pos)
     step, p = (step_to_sense(pos, wall, sensing=sensing) if step_out is None else step_out)
+    if step > 0 and merge_step:
+        # step out and search together until a ray hits the wall, then go to it
+        ms = step_search_trace(pos, heading, direction, rot_speed, speed) if search is None else search
+        t_s = ms['first'][wall]
+        q, h = ms['state'](t_s)
+        return t_s + time_from_sensed(q, h, wall, rot_speed, close_speed, speed)
     if step > 0:
         sens = heading_sensing(p)[:, wall]
     leg = (first_leg_bearing(p) if (step > 0 or legs is None) else legs)[wall]
@@ -489,7 +564,8 @@ def _along(pts, arc):
     return pts[k] + f * (pts[k + 1] - pts[k]), k
 
 
-def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEED, sensing=None, step_out=None):
+def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEED, sensing=None, step_out=None,
+               merge_step=True, search=None, move_out=True):
     ''' Return the peripheral agent's route to a wall under "High, always", as a function of time.
         Takes one position, its heading (degrees), the wall row index, the search direction, the
         rotation and closing speeds, the speed, and optionally the precomputed heading_sensing at pos
@@ -501,7 +577,10 @@ def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEE
         starts).
 
         Phases: step out (heading fixed), search turn in place, turn to centre the first leg while
-        closing along the path, then follow the path. Turning and moving are uncoupled, so at each
+        closing along the path, then follow the path. With merge_step, the step out and the search
+        happen together (step_search_trace), and the turn to the first leg goes the short way. With
+        move_out (default) the agent moves out while turning whenever the wall is not sensed at onset,
+        as in target_time. Turning and moving are uncoupled, so at each
         bend the agent keeps moving at full speed and turns the short way to face the new stretch
         at the rotation speed. '''
 
@@ -510,9 +589,21 @@ def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEE
     if _in_trigger(pos, wall):
         return dict(arrive=0.0, sensed=0.0, state=lambda t: (pos, h0), path=pos[None], bend_times=[])
     S = heading_sensing(pos) if sensing is None else sensing
-    step, p1 = step_to_sense(pos, wall, sensing=S) if step_out is None else step_out
+    if move_out:
+        # decide only on whether the rays sense the wall at onset
+        step, p1 = (1.0, pos) if sweep_angle(S[:, wall], h0, direction) > 0 else (0.0, pos)
+        merged = step > 0
+    else:
+        step, p1 = step_to_sense(pos, wall, sensing=S) if step_out is None else step_out
+        merged = step > 0 and merge_step
+    if merged:
+        # step out and search together, then start the path from where the wall is first sensed
+        ms = (step_search_trace(pos, h0, direction, rot_speed, speed, move=search_moves(pos, move_out))
+              if search is None else search)
+        t_s = ms['first'][wall]
+        p1, h_s = ms['state'](t_s)
     u = -pos / np.linalg.norm(pos) if step > 0 else np.zeros(2)
-    sens1 = (S if step == 0 else heading_sensing(p1))[:, wall]
+    sens1 = (S if step == 0 else heading_sensing(p1))[:, wall] if not merged else None
     pts = path_points(p1, wall)
     seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
     L = float(seg.sum())
@@ -521,8 +612,11 @@ def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEE
 
     # time the step, the search turn and the turn to the first leg (as in target_time)
     t_a = step / speed
-    theta_s = sweep_angle(sens1, h0, direction)
-    if theta_s == 0:
+    theta_s = sweep_angle(sens1, h0, direction) if not merged else None
+    if merged:
+        rel = float(_wrap(leg - h_s))
+        h_b, t_b, view, dir_c = h_s, t_s, abs(rel), (1.0 if rel >= 0 else -1.0)
+    elif theta_s == 0:
         rel = float(_wrap(leg - h0))
         h_b, t_b, view, dir_c = h0, t_a, abs(rel), (1.0 if rel >= 0 else -1.0)
     else:
@@ -552,6 +646,8 @@ def high_trace(pos, heading, wall, direction, rot_speed, close_speed, speed=SPEE
         pieces.append((tk, _turn_toward(hs, tgt, rot_speed * (tk - t0)), bear[k]))
 
     def state(t):
+        if merged and t <= t_b:
+            return ms['state'](t)
         if t <= t_a and step > 0:
             return pos + u * speed * t, h0
         if t <= t_b:
@@ -592,6 +688,26 @@ def time_from_sensed(pos, heading, wall, rot_speed, close_speed, speed=SPEED):
     return L / close_speed if closed >= L else t_view + (L - closed) / speed
 
 
+def known_wall_times(positions, headings, rot_speed, close_speed, speed=SPEED):
+    ''' Return the shortest path to every wall and the time to it for an agent that knows where all
+        walls are at onset (turn the short way to the first leg, closing meanwhile, then the path).
+        Takes positions (n x 2), headings (degrees), the rotation and closing speeds and the speed.
+        Returns path lengths (n x 8) and times (n x 8). '''
+
+    positions = np.atleast_2d(np.asarray(positions, float))
+    D = path_lengths(positions)
+    TK = np.zeros_like(D)
+    for i, (p, h) in enumerate(zip(positions, headings)):
+        legs = first_leg_bearing(p)
+        for w in range(NUM_WALLS):
+            if D[i, w] == 0 or np.isnan(legs[w]):
+                continue
+            t_view = abs(float(_wrap(legs[w] - h))) / rot_speed
+            closed = close_speed * t_view
+            TK[i, w] = D[i, w] / close_speed if closed >= D[i, w] else t_view + (D[i, w] - closed) / speed
+    return D, TK
+
+
 def trace_first_sensed(trace, dt=TRACE_DT):
     ''' Return the first time each wall is hit by a ray along a traced route (8, inf if never
         before arrival). Takes a high_trace result and the time step. '''
@@ -608,48 +724,414 @@ def trace_first_sensed(trace, dt=TRACE_DT):
     return first
 
 
-def build_races_rays(periph_pos, periph_heading, rot_speed, close_speed, groups=None, speed=SPEED, verbose=False):
+def known_trace(pos, heading, wall, rot_speed, close_speed, speed=SPEED):
+    ''' Return the route to a wall whose position the agent knows, as a high_trace result: turn the
+        short way onto the first leg while closing along the path, then follow the path, turning at
+        bends. Takes one position, its heading (degrees), the wall row index, the rotation and closing
+        speeds and the speed. '''
+
+    known = np.ones((len(heading_grid()), NUM_WALLS), bool)
+    return high_trace(pos, heading, wall, 1, rot_speed, close_speed, speed, sensing=known, move_out=True)
+
+
+def _delta_events(trace, first, high, low, rot_speed, close_speed, speed=SPEED):
+    ''' Return the delta rule's decision points along the "High, always" route (MAX_EV x 6, fields as
+        EV_FIELDS). Takes the High trace, the first time each wall is sensed along it, the High and Low
+        row indices, the rotation and closing speeds and the speed.
+
+        A decision point is onset or the first sensing of any wall, before the agent reaches High. If Low
+        is known there, the gap is (path to High - path to Low) / speed from the agent's position, using
+        the actual path to High if High is known and its expected path (high_posterior_given, from the
+        walls sensed so far) if not. For a positive gap the route to Low from there is traced: its arrival
+        time, and, if High was unknown, when High is first sensed on the way, the gap then and the time to
+        High after switching back. Points with no Low knowledge have gap -inf. '''
+
+    out = np.full((MAX_EV, len(EV_FIELDS)), np.nan)
+    out[:, 1] = -np.inf
+    t_known = trace['sensed']
+    times = np.unique(np.concatenate([first[np.isfinite(first) & (first < trace['arrive'])],
+                                      [t_known] if t_known < trace['arrive'] else []]))
+    for k, t in enumerate(times[:MAX_EV]):
+        out[k, 0] = t
+        seen = first <= t + 1e-12
+        high_known = t >= t_known - 1e-9
+        if not seen[low]:
+            continue
+        q, hd = trace['state'](t)
+        D = path_lengths(q[None])[0]
+        if high_known:
+            d_high = D[high]
+        else:
+            mask = seen.copy()
+            mask[high] = False
+            post = high_posterior_given(mask, low)
+            d_high = float((post * D).sum())
+        g = (d_high - D[low]) / speed
+        out[k, 1] = g
+        if g <= 0:
+            continue
+        # trace the switch to Low, and whether High comes into view on the way
+        lt = known_trace(q, hd, low, rot_speed, close_speed, speed)
+        out[k, 2] = t + lt['arrive']
+        if not high_known:
+            fh = trace_first_sensed(lt)[high]
+            if fh < lt['arrive']:
+                q2, hd2 = lt['state'](fh)
+                D2 = path_lengths(q2[None])[0]
+                out[k, 3] = t + fh
+                out[k, 4] = (D2[high] - D2[low]) / speed
+                out[k, 5] = t + fh + time_from_sensed(q2, hd2, high, rot_speed, close_speed, speed)
+    return out
+
+
+def delta_outcome(races, delta):
+    ''' Return whether the delta rule ends at Low, and the time to the wall reached, for each race row.
+        Takes rows from build_races_rays and the threshold delta (s).
+
+        At the first decision point whose gap exceeds delta, the agent switches to Low. If High then comes
+        into view on the way and its gap there is at most delta, it switches back to High. With no such
+        point it reaches High on the "High, always" route. '''
+
+    G = np.column_stack([races[f'ev_g_{k}'].to_numpy(float) for k in range(MAX_EV)])
+    hit = G > delta
+    any_hit = hit.any(axis=1)
+    k = hit.argmax(axis=1)
+    pick = lambda f: np.column_stack([races[f'ev_{f}_{j}'].to_numpy(float) for j in range(MAX_EV)])[np.arange(len(races)), k]
+    tl, tb, gb, Tb = pick('tl'), pick('tb'), pick('gb'), pick('Tb')
+    back = any_hit & np.isfinite(tb) & (gb <= delta)
+    go_low = any_hit & ~back
+    t = np.where(go_low, tl, np.where(back, Tb, races['t_high'].to_numpy(float)))
+    return go_low, t
+
+
+def delta_direct(pos, heading, high, low, direction, delta, rot_speed, close_speed, speed=SPEED):
+    ''' Return whether the delta rule ends at Low and the time to the wall reached, simulated directly for
+        one agent and layout (for checking delta_outcome). Takes the position, heading, High and Low row
+        indices, search direction, delta, the rotation and closing speeds and the speed. '''
+
+    pos = np.asarray(pos, float)
+    tr = high_trace(pos, heading, high, direction, rot_speed, close_speed, speed)
+    first = trace_first_sensed(tr)
+    times = sorted({float(x) for x in first if np.isfinite(x) and x < tr['arrive']}
+                   | ({tr['sensed']} if tr['sensed'] < tr['arrive'] else set()))
+    for t in times:
+        seen = first <= t + 1e-12
+        if not seen[low]:
+            continue
+        q, hd = tr['state'](t)
+        D = path_lengths(q[None])[0]
+        known = t >= tr['sensed'] - 1e-9
+        if known:
+            d_high = D[high]
+        else:
+            mask = seen.copy()
+            mask[high] = False
+            d_high = float((high_posterior_given(mask, low) * D).sum())
+        if (d_high - D[low]) / speed > delta:
+            lt = known_trace(q, hd, low, rot_speed, close_speed, speed)
+            if not known:
+                fh = trace_first_sensed(lt)[high]
+                if fh < lt['arrive']:
+                    q2, hd2 = lt['state'](fh)
+                    D2 = path_lengths(q2[None])[0]
+                    if (D2[high] - D2[low]) / speed <= delta:
+                        return False, t + fh + time_from_sensed(q2, hd2, high, rot_speed, close_speed, speed)
+            return True, t + lt['arrive']
+    return False, tr['arrive']
+
+
+def joint_posterior(sensed, high_seen, low_seen):
+    ''' Return the probability of each (High, Low) layout (8 x 8, High rows) given what the rays have
+        sensed. Takes which walls have been hit (8 bools), and the High and Low row indices if they have
+        been hit, else None.
+
+        A wall hit that is neither High nor Low is unlit, so neither wall can be there. A sensed wall is
+        fixed where it was seen; an unsensed one can only be at a wall not yet hit. '''
+
+    sensed = np.asarray(sensed, bool)
+    h_ok = np.zeros(NUM_WALLS, bool)
+    l_ok = np.zeros(NUM_WALLS, bool)
+    if high_seen is None:
+        h_ok = ~sensed
+    else:
+        h_ok[high_seen] = True
+    if low_seen is None:
+        l_ok = ~sensed
+    else:
+        l_ok[low_seen] = True
+    J = pair_prior() * h_ok[:, None] * l_ok[None, :]
+    return J / J.sum()
+
+
+def _gap_both(q, sensed, high, low, speed=SPEED):
+    ''' Return (distance to High - distance to Low) / speed for an agent at q, using actual paths for
+        sensed walls and expected paths (joint_posterior) for unsensed ones. Takes the position, the
+        sensed walls, the true High and Low row indices (used only to read whether each is sensed) and
+        the speed. '''
+
+    D = path_lengths(np.asarray(q, float)[None])[0]
+    hs, ls = bool(sensed[high]), bool(sensed[low])
+    J = joint_posterior(sensed, high if hs else None, low if ls else None)
+    d_high = D[high] if hs else float((J.sum(axis=1) * D).sum())
+    d_low = D[low] if ls else float((J.sum(axis=0) * D).sum())
+    return (d_high - d_low) / speed
+
+
+def _motion_to(q, hd, target, sensed, high, low, d_tie, rot_speed, close_speed, speed=SPEED):
+    ''' Return the agent's motion toward a target wall from its current position and heading: a route
+        if the wall is sensed, otherwise a search (move out of an alcove while turning, or turn in place)
+        in the direction that should sense it sooner given where it could be. Takes the position,
+        heading, target row index, sensed walls, true High and Low row indices, the tie-break direction,
+        the rotation and closing speeds and the speed. Returns a dict with state, first (relative first
+        sensing time of each wall) and arrive (inf for a search). '''
+
+    if sensed[target]:
+        tr = known_trace(q, hd, target, rot_speed, close_speed, speed)
+        return dict(state=tr['state'], first=trace_first_sensed(tr), arrive=tr['arrive'])
+    hs, ls = bool(sensed[high]), bool(sensed[low])
+    J = joint_posterior(sensed, high if hs else None, low if ls else None)
+    p_t = J.sum(axis=1) if target == high else J.sum(axis=0)
+    move = in_alcove(q)
+    searches = {d: step_search_trace(q, hd, d, rot_speed, speed, move=move) for d in (1, -1)}
+    keep = p_t > 0
+    e = {d: float((p_t[keep] * searches[d]['first'][keep]).sum()) for d in (1, -1)}
+    d = d_tie if abs(e[1] - e[-1]) <= 1e-9 else (1 if e[1] < e[-1] else -1)
+    return dict(state=searches[d]['state'], first=searches[d]['first'], arrive=np.inf)
+
+
+def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, speed=SPEED):
+    ''' Return the delta2 outcome over every delta >= 0, as pieces (upper delta bound, time, ends at Low),
+        sorted. Takes the start position and heading, the High and Low row indices, the tie-break search
+        direction, the walls sensed at onset, the rotation and closing speeds and the speed.
+
+        At onset and at every new wall sensed, the agent goes for Low when the gap (_gap_both) exceeds delta,
+        otherwise High; this splits the delta range at the gap. Each part then follows its own motion
+        (_motion_to), keeping its motion if the target and its knowledge of it are unchanged. '''
+
+    p0 = np.asarray(p0, float)
+    if _in_trigger(p0, high):
+        return [(np.inf, 0.0, False)]
+    if _in_trigger(p0, low):
+        return [(np.inf, 0.0, True)]
+    pieces = []
+    g = _gap_both(p0, sensed0, high, low, speed)
+    stack = []
+    for lo, hi, tgt in ((0.0, g, low), (max(0.0, g), np.inf, high)):
+        if lo < hi:
+            m = _motion_to(p0, h0, tgt, sensed0, high, low, d_tie, rot_speed, close_speed, speed)
+            stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=0.0, rel=0.0, sensed=np.asarray(sensed0, bool).copy(),
+                              known=bool(sensed0[tgt])))
+    while stack:
+        b = stack.pop()
+        m, sensed = b['m'], b['sensed']
+        f = m['first']
+        cand = [f[w] for w in range(NUM_WALLS) if not sensed[w] and np.isfinite(f[w]) and f[w] >= b['rel'] - 1e-12]
+        nxt = min(cand) if cand else np.inf
+        if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
+            pieces.append((b['lo'], b['hi'], b['t0'] + m['arrive'], b['tgt'] == low))
+            continue
+        if not np.isfinite(nxt):
+            raise RuntimeError('search never senses its target')
+        # take the new walls sensed at this moment, and decide again
+        new = np.array([not sensed[w] and np.isfinite(f[w]) and f[w] <= nxt + 1e-12 for w in range(NUM_WALLS)])
+        s2 = sensed | new
+        q, hd = m['state'](nxt)
+        te = b['t0'] + nxt
+        g = _gap_both(q, s2, high, low, speed)
+        for lo, hi, tgt in ((b['lo'], min(b['hi'], g), low), (max(b['lo'], g), b['hi'], high)):
+            if lo >= hi:
+                continue
+            if tgt == b['tgt'] and (b['known'] or not s2[tgt]):
+                # keep the same motion
+                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=b['t0'], rel=nxt, sensed=s2.copy(), known=bool(s2[tgt])))
+            else:
+                m2 = _motion_to(q, hd, tgt, s2, high, low, d_tie, rot_speed, close_speed, speed)
+                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m2, t0=te, rel=0.0, sensed=s2.copy(), known=bool(s2[tgt])))
+    pieces.sort()
+    return [(hi, t, lw) for lo, hi, t, lw in pieces]
+
+
+def delta2_direct(pos, heading, high, low, direction, delta, rot_speed, close_speed, speed=SPEED):
+    ''' Return whether delta2 ends at Low and the time to the wall reached, simulated at one delta (for
+        checking delta2_outcome). Takes the position, heading, High and Low row indices, tie-break search
+        direction, delta, the rotation and closing speeds and the speed. '''
+
+    pos = np.asarray(pos, float)
+    if _in_trigger(pos, high):
+        return False, 0.0
+    if _in_trigger(pos, low):
+        return True, 0.0
+    sensed = onset_sensed(pos[None], [heading])[0]
+    tgt = low if _gap_both(pos, sensed, high, low, speed) > delta + GAP_TIE else high
+    m = _motion_to(pos, heading, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
+    t0, rel, known = 0.0, 0.0, bool(sensed[tgt])
+    while True:
+        f = m['first']
+        cand = [f[w] for w in range(NUM_WALLS) if not sensed[w] and np.isfinite(f[w]) and f[w] >= rel - 1e-12]
+        nxt = min(cand) if cand else np.inf
+        if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
+            return tgt == low, t0 + m['arrive']
+        sensed = sensed | np.array([not sensed[w] and np.isfinite(f[w]) and f[w] <= nxt + 1e-12 for w in range(NUM_WALLS)])
+        q, hd = m['state'](nxt)
+        new_tgt = low if _gap_both(q, sensed, high, low, speed) > delta + GAP_TIE else high
+        if new_tgt == tgt and (known or not sensed[tgt]):
+            rel = nxt
+        else:
+            tgt = new_tgt
+            t0 = t0 + nxt
+            m = _motion_to(q, hd, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
+            rel = 0.0
+        known = bool(sensed[tgt])
+
+
+def delta2_route(pos, heading, high, low, direction, delta, rot_speed, close_speed, speed=SPEED):
+    ''' Return the delta2 route at one delta, for drawing. Takes the same inputs as delta2_direct.
+
+        Returns a dict: go_low, time (as delta2_direct), segments (list of (state function, start time,
+        end time) in the motion's own clock, with the segment's start time on the trial clock and whether
+        it is a search) and decisions (list of (trial time, position, target is Low)). '''
+
+    pos = np.asarray(pos, float)
+    if _in_trigger(pos, high) or _in_trigger(pos, low):
+        return dict(go_low=_in_trigger(pos, low) and not _in_trigger(pos, high), time=0.0, segments=[],
+                    decisions=[(0.0, pos, _in_trigger(pos, low) and not _in_trigger(pos, high))])
+    sensed = onset_sensed(pos[None], [heading])[0]
+    tgt = low if _gap_both(pos, sensed, high, low, speed) > delta + GAP_TIE else high
+    m = _motion_to(pos, heading, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
+    t0, rel, known = 0.0, 0.0, bool(sensed[tgt])
+    segs, decisions = [], [(0.0, pos, tgt == low)]
+    seg_start = 0.0
+    while True:
+        f = m['first']
+        cand = [f[w] for w in range(NUM_WALLS) if not sensed[w] and np.isfinite(f[w]) and f[w] >= rel - 1e-12]
+        nxt = min(cand) if cand else np.inf
+        if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
+            segs.append((m['state'], seg_start, m['arrive'], t0, False))
+            return dict(go_low=tgt == low, time=t0 + m['arrive'], segments=segs, decisions=decisions)
+        sensed = sensed | np.array([not sensed[w] and np.isfinite(f[w]) and f[w] <= nxt + 1e-12 for w in range(NUM_WALLS)])
+        q, hd = m['state'](nxt)
+        new_tgt = low if _gap_both(q, sensed, high, low, speed) > delta + GAP_TIE else high
+        if new_tgt == tgt and (known or not sensed[tgt]):
+            rel = nxt
+        else:
+            segs.append((m['state'], seg_start, nxt, t0, not np.isfinite(m['arrive'])))
+            decisions.append((t0 + nxt, q, new_tgt == low))
+            tgt, t0 = new_tgt, t0 + nxt
+            m = _motion_to(q, hd, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
+            rel, seg_start = 0.0, 0.0
+        known = bool(sensed[tgt])
+
+
+def delta2_outcome(races, delta):
+    ''' Return whether delta2 ends at Low, and the time to the wall reached, for each race row.
+        Takes rows from build_races_rays and delta (s). Reads the stored pieces (d2_* columns). '''
+
+    HI = np.column_stack([races[f'd2_hi_{k}'].to_numpy(float) for k in range(MAX_PIECES)])
+    T = np.column_stack([races[f'd2_t_{k}'].to_numpy(float) for k in range(MAX_PIECES)])
+    L = np.column_stack([races[f'd2_low_{k}'].to_numpy(float) for k in range(MAX_PIECES)])
+    # treat a gap within GAP_TIE of delta as a tie, which goes High (equal distances differ only by rounding)
+    k = (delta + GAP_TIE < np.nan_to_num(HI, nan=-np.inf)).argmax(axis=1)
+    idx = np.arange(len(races))
+    return L[idx, k] > 0.5, T[idx, k]
+
+
+def _position_arrays(args):
+    ''' Return one peripheral position's times, sensing and "nearest" decisions for every wall,
+        layout and search direction. Takes a tuple (position, heading, rotation speed, closing speed,
+        speed, merge_step). Runs in a worker process when build_races_rays is parallel.
+
+        Returns T (8 x 2), STEP (8), THETA (8 x 2), TSENSE (8 x 2), S0 (8), NEAR_LOW (40 x 2),
+        T_NEAR (40 x 2) and EV (40 x 2 x MAX_EV x 6, the delta rule's decision points), as described in
+        build_races_rays. '''
+
+    p, h, rot_speed, close_speed, speed, merge_step, move_out = args
+    lay = layout_table()
+    T, THETA, TSENSE = np.zeros((NUM_WALLS, 2)), np.zeros((NUM_WALLS, 2)), np.zeros((NUM_WALLS, 2))
+    STEP = np.zeros(NUM_WALLS)
+    NEAR_LOW, T_NEAR = np.zeros((len(lay), 2), bool), np.zeros((len(lay), 2))
+    EV = np.full((len(lay), 2, MAX_EV, len(EV_FIELDS)), np.nan)
+    PIECES = np.full((len(lay), 2, MAX_PIECES, 3), np.nan)
+    S = heading_sensing(p)
+    S0 = S[int(round((h % 360) / HEAD_STEP)) % len(S)]
+    legs, lengths = first_leg_bearing(p), path_lengths(p[None])[0]
+    # trace the combined step-and-search motion once per direction (it does not depend on the wall)
+    searches = ([step_search_trace(p, h, d, rot_speed, speed, move=search_moves(p, move_out)) for d in (1, -1)]
+                if (merge_step or move_out) else [None, None])
+    for w in range(NUM_WALLS):
+        st = step_to_sense(p, w, sensing=S) if not _in_trigger(p, w) else (0.0, p)
+        # keep the step and the search angle at which the wall is first sensed
+        STEP[w] = st[0]
+        sens_w = (S if st[0] == 0 else heading_sensing(st[1]))[:, w]
+        for j, d in enumerate((1, -1)):
+            THETA[w, j] = sweep_angle(sens_w, h, d)
+            # take when the wall is first sensed: at onset (from the start position, not a stepped one),
+            # during the move out (move_out), or as before
+            if move_out:
+                TSENSE[w, j] = 0.0 if S0[w] else searches[j]['first'][w]
+            else:
+                TSENSE[w, j] = (THETA[w, j] / rot_speed if st[0] == 0
+                                else searches[j]['first'][w] if merge_step
+                                else st[0] / speed + THETA[w, j] / rot_speed)
+            T[w, j] = target_time(p, h, w, d, rot_speed, close_speed, speed, sensing=S, step_out=st,
+                                  legs=legs, lengths=lengths, merge_step=merge_step, search=searches[j],
+                                  move_out=move_out)
+        # trace this wall as High under "High, always", then decide "nearest" for every Low
+        for j, d in enumerate((1, -1)):
+            tr = high_trace(p, h, w, d, rot_speed, close_speed, speed, sensing=S, step_out=st,
+                            merge_step=merge_step, search=searches[j], move_out=move_out)
+            first = trace_first_sensed(tr)
+            for li in np.flatnonzero(lay['high'].to_numpy() == w):
+                NEAR_LOW[li, j], T_NEAR[li, j] = _decide_nearest(tr, first, w, lay['low'].iat[li], T[w, j],
+                                                                 rot_speed, close_speed, speed)
+                EV[li, j] = _delta_events(tr, first, w, lay['low'].iat[li], rot_speed, close_speed, speed)
+                # get the delta2 outcome over every delta (inference about both walls)
+                pcs = _delta2_pieces(p, h, w, lay['low'].iat[li], d, S0, rot_speed, close_speed, speed)
+                if len(pcs) > MAX_PIECES:
+                    raise RuntimeError(f'{len(pcs)} delta2 pieces, more than MAX_PIECES')
+                PIECES[li, j, :len(pcs)] = pcs
+    return T, STEP, THETA, TSENSE, S0, NEAR_LOW, T_NEAR, EV, PIECES
+
+
+def build_races_rays(periph_pos, periph_heading, rot_speed, close_speed, groups=None, speed=SPEED, verbose=False,
+                     merge_step=True, n_jobs=N_JOBS, move_out=True):
     ''' Return one row per peripheral position x layout x search direction, with the peripheral
         agent's ray-based times to High and Low (target_time) and whether its rays sense each at onset.
         Takes peripheral start points (n x 2), their onset headings (degrees), the rotation and
-        closing speeds, an optional group label per point, the speed and a progress flag.
+        closing speeds, an optional group label per point, the speed, a progress flag, whether a step
+        out happens with the search, and the number of worker processes.
 
-        Each search direction carries half the row's probability. prob sums to 1 within each group. '''
+        Each search direction carries half the row's probability. prob sums to 1 within each group.
+        merge_step chooses whether a needed step out happens together with the search (default, as
+        turning and moving are separate controls), or before it (the earlier version). move_out
+        (default) makes the agent move out while turning whenever its target is not sensed at onset,
+        so its behaviour depends only on what it has sensed; with move_out=False the earlier versions
+        apply. Positions are
+        independent, so with n_jobs > 1 they are split across worker processes (spawned, so the
+        workers import this module afresh); n_jobs = 1 runs in this process. Results are the same
+        either way. '''
 
     periph_pos = np.atleast_2d(np.asarray(periph_pos, float))
     heading = np.asarray(periph_heading, float)
     groups = np.zeros(len(periph_pos), int) if groups is None else np.asarray(groups)
-    T = np.zeros((len(periph_pos), NUM_WALLS, 2))
-    STEP = np.zeros((len(periph_pos), NUM_WALLS))
-    THETA = np.zeros((len(periph_pos), NUM_WALLS, 2))
-    S0 = np.zeros((len(periph_pos), NUM_WALLS), bool)
+    args = [(p, float(h), rot_speed, close_speed, speed, merge_step, move_out) for p, h in zip(periph_pos, heading)]
+    out = []
+    if n_jobs > 1 and len(args) > 1:
+        # split the positions across worker processes, keeping their order
+        chunk = max(1, len(args) // (n_jobs * 8))
+        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs,
+                                                    mp_context=multiprocessing.get_context('spawn')) as ex:
+            for k, res in enumerate(ex.map(_position_arrays, args, chunksize=chunk)):
+                out.append(res)
+                if verbose and k % 200 == 0:
+                    print(k, end=' ', flush=True)
+    else:
+        for k, a in enumerate(args):
+            out.append(_position_arrays(a))
+            if verbose and k % 200 == 0:
+                print(k, end=' ', flush=True)
+    T, STEP, THETA, TSENSE, S0, NEAR_LOW, T_NEAR, EV, PIECES = (np.array(x) for x in zip(*out))
+
     lay = layout_table()
-    NEAR_LOW = np.zeros((len(periph_pos), len(lay), 2), bool)
-    T_NEAR = np.zeros((len(periph_pos), len(lay), 2))
-    for i, (p, h) in enumerate(zip(periph_pos, heading)):
-        S = heading_sensing(p)
-        S0[i] = S[int(round((h % 360) / HEAD_STEP)) % len(S)]
-        legs, lengths = first_leg_bearing(p), path_lengths(p[None])[0]
-        for w in range(NUM_WALLS):
-            st = step_to_sense(p, w, sensing=S) if not _in_trigger(p, w) else (0.0, p)
-            # keep the step and the search angle at which the wall is first sensed
-            STEP[i, w] = st[0]
-            sens_w = (S if st[0] == 0 else heading_sensing(st[1]))[:, w]
-            for j, d in enumerate((1, -1)):
-                THETA[i, w, j] = sweep_angle(sens_w, h, d)
-                T[i, w, j] = target_time(p, h, w, d, rot_speed, close_speed, speed, sensing=S, step_out=st,
-                                         legs=legs, lengths=lengths)
-        # trace each High and direction under "High, always", then decide "nearest" for every Low
-        for w in range(NUM_WALLS):
-            st = step_to_sense(p, w, sensing=S) if not _in_trigger(p, w) else (0.0, p)
-            for j, d in enumerate((1, -1)):
-                tr = high_trace(p, h, w, d, rot_speed, close_speed, speed, sensing=S, step_out=st)
-                first = trace_first_sensed(tr)
-                for li in np.flatnonzero(lay['high'].to_numpy() == w):
-                    NEAR_LOW[i, li, j], T_NEAR[i, li, j] = _decide_nearest(tr, first, w, lay['low'].iat[li], T[i, w, j],
-                                                                           rot_speed, close_speed, speed)
-        if verbose and i % 200 == 0:
-            print(i, end=' ')
     pi, li, di = np.meshgrid(np.arange(len(periph_pos)), np.arange(len(lay)), np.arange(2), indexing='ij')
     pi, li, di = pi.ravel(), li.ravel(), di.ravel()
     high, low = lay['high'].to_numpy()[li], lay['low'].to_numpy()[li]
@@ -662,9 +1144,17 @@ def build_races_rays(periph_pos, periph_heading, rot_speed, close_speed, groups=
         high_sensed0=S0[pi, high], low_sensed0=S0[pi, low],
         high_step=STEP[pi, high], low_step=STEP[pi, low],
         high_theta=THETA[pi, high, di], low_theta=THETA[pi, low, di],
+        high_tsense=TSENSE[pi, high, di], low_tsense=TSENSE[pi, low, di],
         nearest_low=NEAR_LOW[pi, li, di], t_nearest=T_NEAR[pi, li, di],
         t_central=TRIGGER_REACH / speed, prob=lay['prob'].to_numpy()[li] / n_in_group / 2))
-    races['low_first'] = low_sensed_first(races)
+    races['low_first'] = low_sensed_first(races, merge_step, move_out)
+    # add the delta rule's decision points, one column per point and field
+    ev = EV[pi, li, di]
+    pc = PIECES[pi, li, di]
+    races = pd.concat([races, pd.DataFrame({f'ev_{f}_{k}': ev[:, k, m] for k in range(MAX_EV)
+                                            for m, f in enumerate(EV_FIELDS)}, index=races.index),
+                       pd.DataFrame({f'd2_{f}_{k}': pc[:, k, m] for k in range(MAX_PIECES)
+                                     for m, f in enumerate(('hi', 't', 'low'))}, index=races.index)], axis=1)
     return races
 
 
@@ -687,22 +1177,183 @@ def _decide_nearest(trace, first, high, low, t_high, rot_speed, close_speed, spe
     return False, t_high
 
 
-def low_sensed_first(races):
+def low_sensed_first(races, merge_step=True, move_out=True):
     ''' Return whether the peripheral agent's rays hit Low strictly before High on each race row.
-        Takes rows from build_races_rays.
+        Takes rows from build_races_rays, whether the step out happens together with the search, and
+        whether the agent moves out while searching (move_out, default).
+
+        With move_out: both sensed at onset is a tie (High). Otherwise the agent moves out while
+        turning, and the lit wall its rays hit first wins (a wall sensed at onset counts as time 0).
+        Ties go to High. The description below is for move_out=False.
 
         Both sensed at onset counts as a tie (High). Otherwise the agent searches without stepping if
         any heading from where it stands senses either lit wall, and the first wall its search finds
-        wins. Only if neither can be sensed from there does it step out, and the wall that needs the
-        shorter step is the one it then senses. Ties go to High. '''
+        wins. Only if neither can be sensed from there does it step out. With merge_step it steps and
+        turns together, and the wall its rays hit first along that motion wins. Otherwise the wall that
+        needs the shorter step wins. Ties go to High. '''
 
+    both0 = races['high_sensed0'].to_numpy() & races['low_sensed0'].to_numpy()
+    if move_out:
+        return (races['low_tsense'].to_numpy() < races['high_tsense'].to_numpy()) & ~both0
     hs, ls = races['high_step'].to_numpy(), races['low_step'].to_numpy()
     ht, lt = races['high_theta'].to_numpy(), races['low_theta'].to_numpy()
     no_step = (hs == 0) | (ls == 0)
     # without a step, a wall that would need one cannot be found by the search
     ht_ns, lt_ns = np.where(hs == 0, ht, np.inf), np.where(ls == 0, lt, np.inf)
-    first = np.where(no_step, lt_ns < ht_ns, ls < hs)
+    both_step = (races['low_tsense'].to_numpy() < races['high_tsense'].to_numpy()) if merge_step else (ls < hs)
+    first = np.where(no_step, lt_ns < ht_ns, both_step)
     return first & ~(races['high_sensed0'].to_numpy() & races['low_sensed0'].to_numpy())
+
+
+# inference of where High is
+
+def pair_prior():
+    ''' Return the layout prior as a matrix (High row x Low column, 8 x 8), from layout_table.
+        Takes no inputs. '''
+
+    pr = np.zeros((NUM_WALLS, NUM_WALLS))
+    lay = layout_table()
+    np.add.at(pr, (lay['high'].to_numpy(), lay['low'].to_numpy()), lay['prob'].to_numpy())
+    return pr
+
+
+def low_offset_weights():
+    ''' Return the probability of each Low offset from High ((low - high) mod 8). Takes no inputs. '''
+
+    lay = layout_table()
+    return lay.groupby((lay['low'] - lay['high']) % NUM_WALLS)['prob'].sum().to_dict()
+
+
+def high_posterior_given(sensed, low_seen):
+    ''' Return the probability that High is at each wall (8), given what the rays sensed at onset.
+        Takes which walls were hit by a ray (8 bools, High not among them) and the Low wall's row index
+        if Low was hit, else None.
+
+        Every wall hit and not Low is unlit, so neither High nor Low can be there. If Low was hit, it is
+        at that wall; if not, it is at a wall not hit. Matches agent_raycast.high_posterior. '''
+
+    sensed = np.asarray(sensed, bool)
+    pr = pair_prior()
+    if low_seen is None:
+        post = (pr * ~sensed[None, :]).sum(axis=1) * ~sensed
+    else:
+        post = pr[:, low_seen] * ~sensed
+    return post / post.sum()
+
+
+def _choose_direction(post, t_dir):
+    ''' Return the search direction (1, -1, or 0 for a tie) with the lower expected time to sense High.
+        Takes the posterior over walls (8) and the time to first sense each wall in each direction (8 x 2). '''
+
+    keep = post > 0
+    e = [(post[keep] * t_dir[keep, j]).sum() for j in (0, 1)]
+    if abs(e[0] - e[1]) <= 1e-9:
+        return 0
+    return 1 if e[0] < e[1] else -1
+
+
+def central_time_one(heading, low_rel, rot_speed, close_speed, speed=SPEED):
+    ''' Return the inferring central agent's time to High and its chosen search direction (1, -1, or 0
+        for a tie, when the time is the mean of both directions). Takes its heading (degrees, with High
+        at bearing 0), Low's offset from High in walls, the rotation and closing speeds and the speed.
+
+        From the centre a wall is sensed when its bearing is within central_visible_half_angle of the
+        heading. If High is sensed the agent turns the short way to it. Otherwise it infers where High
+        could be from the walls in view, turns in the direction with the lower expected search time
+        (a tie is 50/50), and once High is sensed keeps turning to centre it, closing at close_speed. '''
+
+    V = central_visible_half_angle()
+    bearings = 45.0 * np.arange(NUM_WALLS)
+    rel = _wrap(bearings - heading)
+    sensed = np.abs(rel) <= V
+
+    def time_for(turn):
+        return turn / rot_speed + (TRIGGER_REACH - close_speed * min(turn, V) / rot_speed) / speed
+
+    if sensed[0]:
+        return time_for(abs(float(rel[0]))), 0
+    low = low_rel % NUM_WALLS
+    post = high_posterior_given(sensed, low if sensed[low] else None)
+    # angle to turn in each direction before each wall is sensed
+    t_dir = np.stack([np.maximum((d * rel) % 360 - V, 0.0) for d in (1, -1)], axis=1)
+    d = _choose_direction(post, t_dir)
+    turns = {1: float(rel[0] % 360), -1: float((-rel[0]) % 360)}
+    if d == 0:
+        return 0.5 * (time_for(turns[1]) + time_for(turns[-1])), 0
+    return time_for(turns[d]), d
+
+
+def central_times_inferred(rot_speed, close_speed, speed=SPEED, n=N_HEADINGS):
+    ''' Return the inferring central agent's times to High for each Low offset from High (dict offset ->
+        2n equally likely times), over a uniform grid of n headings. Takes the rotation and closing speeds,
+        the speed and the grid size.
+
+        Each heading appears twice: once per search direction when the directions tie, otherwise twice
+        with the chosen direction. Use with evaluate, which matches each race row to its Low offset. '''
+
+    heads = (np.arange(n) + 0.5) * 360.0 / n
+    V = central_visible_half_angle()
+
+    def time_for(turn):
+        return turn / rot_speed + (TRIGGER_REACH - close_speed * min(turn, V) / rot_speed) / speed
+
+    out = {}
+    for k in low_offset_weights():
+        times = []
+        for h in heads:
+            _, d = central_time_one(h, k, rot_speed, close_speed, speed)
+            rel0 = float(_wrap(-h))
+            if abs(rel0) <= V:
+                times += [time_for(abs(rel0))] * 2
+            elif d == 0:
+                times += [time_for(rel0 % 360), time_for((-rel0) % 360)]
+            else:
+                times += [time_for((d * rel0) % 360)] * 2
+        out[k] = np.array(times)
+    return out
+
+
+def onset_sensed(positions, headings):
+    ''' Return which walls the rays hit at onset for each peripheral agent (n x 8), at the heading
+        rounded to the search grid as in build_races_rays. Takes positions (n x 2) and headings (degrees). '''
+
+    positions = np.atleast_2d(np.asarray(positions, float))
+    h = np.round(np.asarray(headings, float) % 360 / HEAD_STEP) * HEAD_STEP
+    ids, _, _ = agent_raycast.cast_rays(positions, np.radians(h))
+    return (ids[..., None] == np.arange(1, NUM_WALLS + 1)).any(axis=1)
+
+
+def infer_direction(races, sensed):
+    ''' Return the race rows with each search direction's probability set by inference.
+        Takes rows from build_races_rays and onset_sensed for its positions.
+
+        For each position and layout where High is not sensed at onset, the agent works out where High
+        could be (high_posterior_given) and takes the direction with the lower expected time until a ray
+        first hits High (high_tsense, the first-sense time along that direction's search, for every
+        candidate wall). That direction gets the row's whole probability (a tie keeps 50/50). Rows where
+        High is sensed at onset keep 50/50, as the direction does not matter. '''
+
+    races = races.copy()
+    # take every wall's first-sense time per position and direction from the rows where it is High
+    first = races.pivot_table(index=['pos', 'high'], columns='direction', values='high_tsense', aggfunc='first')
+    n_pos = int(races['pos'].max()) + 1
+    T = np.full((n_pos, NUM_WALLS, 2), np.inf)
+    for (i, w), row in first.iterrows():
+        T[i, w] = [row[1], row[-1]]
+    keys = races[['pos', 'high', 'low']].drop_duplicates()
+    choice = {}
+    for i, hgh, lw in keys.itertuples(index=False):
+        S = np.asarray(sensed[i], bool)
+        if S[hgh]:
+            choice[(i, hgh, lw)] = 0
+            continue
+        post = high_posterior_given(S, lw if S[lw] else None)
+        choice[(i, hgh, lw)] = _choose_direction(post, T[i])
+    d = np.array([choice[k] for k in zip(races['pos'], races['high'], races['low'])])
+    w = np.where(d == 0, 0.5, (races['direction'].to_numpy() == d).astype(float))
+    races['prob'] = races['prob'] * 2 * w
+    races['direction_chosen'] = d
+    return races
 
 
 # layouts and races
@@ -757,7 +1408,9 @@ def choose_low(races, policy='high', delta=None):
         than Low, and then heads for the closer wall (Low). delta = 0 matches 'closest'.
         'low_first' heads for Low if the rays sense Low strictly before High (build_races_rays rows
         only), and High otherwise. 'nearest' heads High until both walls are sensed, then for the
-        nearer (build_races_rays rows only). '''
+        nearer (build_races_rays rows only). 'delta' is the threshold rule with inference (delta_outcome;
+        build_races_rays rows only). 'delta2' is the threshold rule with inference about both walls,
+        which can also search for a probably near, unseen Low (delta2_outcome; build_races_rays rows only). '''
 
     gap = (races['t_high'] - races['t_low']).to_numpy()
     if policy == 'high':
@@ -768,6 +1421,10 @@ def choose_low(races, policy='high', delta=None):
         return races['low_first'].to_numpy(bool)
     if policy == 'nearest':
         return races['nearest_low'].to_numpy(bool)
+    if policy == 'delta':
+        return delta_outcome(races, delta)[0]
+    if policy == 'delta2':
+        return delta2_outcome(races, delta)[0]
     if policy == 'threshold':
         if delta is None:
             raise ValueError("threshold needs delta")
@@ -775,11 +1432,25 @@ def choose_low(races, policy='high', delta=None):
     raise ValueError(f"policy must be one of {POLICIES}")
 
 
+def _against_central(t_p, central_t):
+    ''' Return the peripheral win probability and expected race time against a set of equally likely
+        central times. Takes the peripheral times and the central times. '''
+
+    # score each row against every central time, using the sorted times and their running sums
+    ct = np.sort(np.asarray(central_t, float))
+    n = len(ct)
+    csum = np.concatenate([[0.0], np.cumsum(ct)])
+    lo, hi = np.searchsorted(ct, t_p - TIE, 'left'), np.searchsorted(ct, t_p + TIE, 'right')
+    win = ((n - hi) + 0.5 * (hi - lo)) / n
+    race = (csum[lo] + t_p * (n - lo)) / n
+    return win, race
+
+
 def evaluate(races, policy='high', delta=None, central_t=None):
     ''' Return each race row's outcome under a peripheral wall-choice policy.
         Takes the race rows, the policy, its delta and the central agent's times (an array from
-        central_times, each equally likely). Without central_t, the central agent takes its travel
-        time to High.
+        central_times, each equally likely, or a dict by Low offset from central_times_inferred).
+        Without central_t, the central agent takes its travel time to High.
 
         A peripheral agent already overlapping a lit trigger wins that wall at time 0, whatever
         the policy. Otherwise the faster agent wins, and equal times split the win. '''
@@ -791,20 +1462,25 @@ def evaluate(races, policy='high', delta=None, central_t=None):
     if policy == 'nearest':
         # take the time to the wall reached after the switch decision
         t_p = races['t_nearest'].to_numpy()
+    if policy == 'delta':
+        t_p = delta_outcome(races, delta)[1]
+    if policy == 'delta2':
+        t_p = delta2_outcome(races, delta)[1]
     val = np.where(go_low, LOW_SCORE, HIGH_SCORE)
     t_p = np.where(tH == 0, 0.0, np.where(tL == 0, 0.0, t_p))
     val = np.where(tH == 0, HIGH_SCORE, np.where(tL == 0, LOW_SCORE, val))
     if central_t is None:
         win = np.where(np.abs(t_p - tC) <= TIE, 0.5, (t_p < tC).astype(float))
         race = np.minimum(t_p, tC)
+    elif isinstance(central_t, dict):
+        # match each row to the central times for its Low offset from High
+        off = ((races['low'] - races['high']) % NUM_WALLS).to_numpy()
+        win, race = np.zeros(len(races)), np.zeros(len(races))
+        for k, ct in central_t.items():
+            m = off == k
+            win[m], race[m] = _against_central(t_p[m], ct)
     else:
-        # score each row against every central time, using the sorted times and their running sums
-        ct = np.sort(np.asarray(central_t, float))
-        n = len(ct)
-        csum = np.concatenate([[0.0], np.cumsum(ct)])
-        lo, hi = np.searchsorted(ct, t_p - TIE, 'left'), np.searchsorted(ct, t_p + TIE, 'right')
-        win = ((n - hi) + 0.5 * (hi - lo)) / n
-        race = (csum[lo] + t_p * (n - lo)) / n
+        win, race = _against_central(t_p, central_t)
     res = races.copy()
     res['go_low'] = go_low
     res['periph_win'] = win
@@ -845,6 +1521,10 @@ def central_reference(overhead, speed=SPEED, central_t=None):
 
     if central_t is None:
         race_s = TRIGGER_REACH / speed
+    elif isinstance(central_t, dict):
+        # average the race time over Low offsets, both agents drawing from the same layout's times
+        w = low_offset_weights()
+        race_s = sum(w[k] * central_reference(overhead, speed, central_t[k])['race_s'] for k in central_t)
     else:
         # take E[min] of two independent draws: the i-th smallest of n is the minimum in 2(n-i)-1 of n^2 pairs
         ct = np.sort(np.asarray(central_t, float))

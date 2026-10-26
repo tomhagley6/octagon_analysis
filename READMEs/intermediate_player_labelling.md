@@ -5,7 +5,7 @@ waiting position changes over a session. Covers the simulated players used to te
 behavioural measures, the labelling rules, how they were checked, and the main results.
 
 The analysis lives in section 5 of
-[`demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb`](../demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb).
+[`demos/strategy_characterisation/humans/intermediate_strategy_characterisation.ipynb`](../demos/strategy_characterisation/humans/intermediate_strategy_characterisation.ipynb).
 Every number below comes from that notebook's tables unless marked as a scratch check. The wider human
 strategy work (fixed-cut labels, drift, partner influence) is described in
 [`human_strategy_characterisation.md`](human_strategy_characterisation.md).
@@ -17,7 +17,7 @@ strategy work (fixed-cut labels, drift, partner influence) is described in
 | [`analysis/mixed_labels.py`](../analysis/mixed_labels.py) | every measure, the shuffle tests, the simulated players and the labelling rules |
 | [`analysis/human_characterisation.py`](../analysis/human_characterisation.py) | the onset table, the trial boundary, the fixed-cut labels, and the gap-to-spread ratio with its intervals |
 | [`tests/test_mixed_labels.py`](../tests/test_mixed_labels.py) | tests for each measure and rule against synthetic sessions with a known answer |
-| `mixed_strategy_characterisation.ipynb` | sections 1 to 4 are the earlier routes (spread, own positions, soft shapes). Section 5 is the labelling. A sandbox at the end plots every social one-switch, long-runs, weak-trend, short-runs and unclear player trial by trial, for checking labels by eye |
+| `intermediate_strategy_characterisation.ipynb` | sections 1 to 4 are the earlier routes (spread, own positions, soft shapes). Section 5 is the labelling. A sandbox at the end plots every social one-switch, long-runs, weak-trend, short-runs and unclear player trial by trial, for checking labels by eye |
 
 Run the tests with
 `/home/tom/miniconda3/envs/octagon_analysis/bin/python -m unittest tests.test_mixed_labels -v`.

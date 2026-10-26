@@ -9,7 +9,7 @@
 # largest change between the trials just before and just after any point. Each is tested against the
 # player's own trials in shuffled order.
 #
-# The notebook demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb (section 5)
+# The notebook demos/strategy_characterisation/humans/intermediate_strategy_characterisation.ipynb (section 5)
 # holds the plots and the written-up results. Everything that computes a number lives here.
 
 import numpy as np

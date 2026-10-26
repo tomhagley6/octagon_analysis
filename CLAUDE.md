@@ -87,7 +87,7 @@ low-jargon writing. When in doubt, cut words.
 
 Use this markdown structure in every analysis notebook, including ones with only
 tables. The worked example is
-`demos/strategy_characterisation/humans/mixed_strategy_characterisation.ipynb`
+`demos/strategy_characterisation/humans/intermediate_strategy_characterisation.ipynb`
 (sections 4 and 5).
 
 - **Notebook top.** The question, a numbered plan of sections, the choices and
