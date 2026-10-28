@@ -107,10 +107,12 @@ Numeric checks were run on the cached results.
    player with a stereotyped central one, not two equally good players.
 4. **The choice uses expected distance, leaving out search time** (user's deliberate choice). Searching
    for an unseen wall takes about 0.15-0.27 s, so adding it would be like shifting Δ by that much for
-   some decisions, over a range of Δ (0.30-1.15 s) where the score barely changes. Not a concern.
-5. **Decisions are revisited only when a new wall is sensed**, not continuously, and while searching for
+   some decisions, over a range of Δ (0.25-1.15 s with D11-D12 on; 0.30-1.15 s before) where the score barely changes. Not a concern.
+5. **Decisions are revisited only when a new wall is sensed**, not continuously. While searching for
    an unseen wall the agent keeps its search direction even if new unlit walls make the other way more
-   likely.
+   likely (no reversing). **Decision (user, 2026-10-23): keep no reversing.** Humans may reverse when the
+   likely side turns out empty, but the effect is likely small and it adds complexity. The agent does
+   remember every wall sensed in the trial; the user confirms this is correct.
 6. **The search moves straight out of the alcove.** Moving out is there so that walls not yet seen can
    come into view; it goes along the alcove's axis. Moving out at an angle toward the side where the
    wanted wall probably is might reveal it slightly sooner. A possible refinement, not an error.
@@ -164,6 +166,7 @@ Numeric checks were run on the cached results.
 | 22 | Rotation speed = 331 deg/s, the central agents' own turning rate. Kept as the model's turning rate because it reflects how fast agents turn while turning [user]. For each agent-trial, take the total heading change from slice onset until it faces High (within ±10 deg), over that time. Use the median over the 1,799 agent-trials that faced High after onset and before the trigger (central models 1, 2, 4, 5, 6) | [user] (turning rate, independent of direction) + [claude] (±10 deg tolerance, median) | Consistent: in view 347, out of view 328, by model 309-349, by angle to High 325-360 deg/s (IQR overall 279-360). Code maximum is 360 deg/s. A pooled total over total time gives 272 deg/s, pulled down by a few trials with long pauses (model 5: 207 pooled, 309 median) |
 | 22a | Closing speed while turning with High in view = 7.57 units/s, moving along the straight line to High by zig-zagging (Control scheme). For each agent-trial, take the reduction in straight-line distance to High's trigger line over frames with High in view before facing it, over the time in those frames. Use the median over the 1,799 agent-trials with such frames | [user] (rule: same period and behaviour as the turning rate) + [claude] (median, straight-line distance) | Consistent: IQR 6.16-8.70, by model 6.36-8.39, in view at onset 8.53, out of view at onset 7.17, pooled 7.62 units/s. Full speed is 10 |
 | 22b | **Assumption:** the empirical closing speed (7.57 units/s) is below the best the control scheme allows (9.24-10 units/s, mean 9.46 over a 77.5 deg in-view turn; 7.57 is 0.80 of that). The model keeps the empirical value, so both agents close on a sensed wall as slowly as logged agents do | [user] (2026-10-21: keep agent-derived turning and movement unless clearly too inefficient; humans are likely less efficient still, and human play is the endpoint the model will be applied to) | Logged agents lose speed by moving at an angle to High (median 23 deg off the line, observation 7): at full speed their angle alone predicts 7.74 units/s. The measured 7.57 is a per-agent-trial median of distance closed over time, which also counts frames below full speed |
+| 22c | **Check (2026-10-23): which wall the measured agent-trials were going for.** `collect_central_alignment` measures turning to face High on every agent-trial, without checking the chosen wall. Matched to the wall each agent reached (winners) or was heading for (losers, `agent_loser_choice.infer_choice`): 990 winners all reached High; of 990 losers, 649 were heading for High, 341 were unclear, 0 for Low. So no Low-going trials are in the measure. Using only agent-trials heading for High gives 333.7 deg/s (vs 331.0) and 7.71 units/s (vs 7.57); winners heading for High alone give 331.0 and 8.13 | [claude] (check) | Unclear losers close more slowly (median 6.78 units/s). Whether to restrict the measure to agent-trials known to head for High is open for the user. Script: scratchpad `align_choice.py`; cache `agent_trajectories_260929_central5` |
 | 23 | Central time is a distribution over 3,600 headings × 2 turn directions, each equally likely. Each race is scored exactly against all of it | [claude] | Checked against a direct loop over headings in the tests |
 | 24 | Peripheral agent has no field of view yet (knows both lit walls at onset) | [user] | Its own visibility method (facing at onset, alcove walls blocking view) is the next step |
 
@@ -310,16 +313,51 @@ Low is hidden by the alcove.
 | D8 | If the chosen wall is sensed it goes to it (turn onto the path while closing, then the path). If not, it searches for it: moves out of an alcove while turning (turns in place elsewhere), in the direction that should sense that wall sooner given where it could be; a tie uses the race's random direction (`_motion_to`) | [user] (search for the chosen wall) + [claude] (direction by expected first-sense time) | |
 | D9 | The choice is rechecked at every new wall and can change either way. A motion is kept while its target and the agent's knowledge of it are unchanged | [user] | |
 | D10 | Because the route depends on Δ, each race stores its outcome as pieces over Δ (up to 12 ranges, each with a time and a wall; `d2_*` columns, `delta2_outcome`). Checked against a direct simulation at fixed Δ (`delta2_direct`) | [claude] | |
+| D11 | **ON from 2026-10-27 (`BACKPEDAL = True`, cache stamp v10; paused 2026-10-26). Backpedal into the own trigger.** If the agent is in its own alcove but not on its trigger, and the probability (from `joint_posterior`, given every wall sensed) that its current target (High or Low, as chosen by the Δ rule) is its own wall is at least **0.8**, it moves straight back into the trigger at 10 units/s without turning (`_motion_kind`, `blind_trace`). It need not see the wall. If the own wall holds the other lit wall, entering the trigger claims that wall. If the own wall is unlit (the 20% gamble lost), the agent learns this on reaching the trigger and the rule decides again from there. Nothing else moves without turning | [user] (backpedal when the wall behind can easily be inferred; **0.8 is an arbitrary value picked for now**, to be revisited) + [claude] (probability that the *target* is the own wall; strictly inside the own alcove, as the user specified; the motion is re-chosen whenever its kind changes) | `BACKPEDAL_P` in analytical_race.py. Logged agents nearly all start on their trigger, so it rarely applies to them; it matters for designed start positions further out in the alcove. Cache stamp v10 |
+| D12 | **ON with D11 from 2026-10-27 (`OWN_TRIGGER_KNOWN = True`).** The agent knows walls only from experience (ray hits) or inference. Standing on its own trigger at onset without the trial ending is also experience: it shows the own wall is unlit. So that wall is treated as sensed, whether or not a ray hits it (`onset_known`) | [claude] (information the agent has; found while adding D11, 2026-10-26) | Before, it was known only if a ray hit it (0.934 of logged starts). Without this, an agent moving out of its trigger could infer its own wall was probably lit and backpedal into the trigger it had just left |
+| D11 (withdrawn) | A broader version, implemented on 2026-10-26 by mistake: any target located with certainty, from anywhere, was driven to at full speed without turning. It went beyond the user's request (a hidden adjacent wall placed by inference from the alcove back was driven to without a search) and moved the logged-position margin from -0.0004 to +0.0027. Withdrawn the same day | [claude] (error) | Cache kept as `periph_ray_races_260929_v9_broad` for the record. Most of its gain came from skipping the search, not from the full speed (turning like a seen wall changed the margin by 0.0001 on 300 sampled starts) |
 
 ## Scoring
 
 | # | Decision | Tag | Basis / note |
 |---|---|---|---|
 | 25 | Score 1.0 for a High win, 0.4 for a Low win, 0 for a loss | [data] | Task rules |
-| 26 | Overhead per trial = whole trial − onset-to-trigger time, mean 7.09 s (sd 0.91), from 5 central 260929 models, used for every trial | [data] + [claude] | Covers trial start → onset, trigger → end, and the ITI. These delays match the human task [user]. Not checked whether overhead depends on who won |
+| 26 | Time outside the race per trial = **human social mean, 6.545 s** (`ar.human_overhead`; 13,140 trials; start delay + end delay + ITI from `ar.trial_delays`). Switched 2026-10-23 from the agent mean (7.09 s). The delays are not treated as fixed; only the mean enters score per second (total score / total time), provided it does not depend on the race | [user] (2026-10-23: human play is the endpoint) + [data] | Game settings (`GeneralGlobals.cs`): start delay uniform 0.5-1.5 s, end delay fixed 2 s, ITI uniform 2-5 s, so mean 6.5 s, sd 0.91. Humans match: uniform start delay and ITI, social 6.545 s, solo 6.484 s. Agent logs give 7.09 s because each wait ends on the next frame, 1/3 s of game time apart (`Maximum Allowed Timestep` 0.333 s in TimeManager.asset; timed waits resume only on frames, so a sped-up simulation hits the cap every frame); start delay only 0.67/1.00/1.33/1.67 s, end delay 2.00-2.33 s. Physics runs at 0.02 s, so races are unaffected. Effect of the switch: every score per second rises about 7%; best Δ unchanged (1.05 s); delta2 margin -0.0003 -> -0.0004; final rule 0.0527 vs 0.0530, central vs central 0.0591. Not checked whether the time outside the race depends on who won |
 | 27 | Primary measure = score per second = total expected score / total expected (race + overhead). Secondary = score per trial | [user] | Players are told to maximise score over time |
 | 28 | Relative score = peripheral minus central score per second. A central player against the same opponent ties (margin 0) | [user] | Human players may try to beat the other player as well as maximise their own score |
-| 29 | Central-vs-central reference = both agents at the centre going High, each with an independent random heading and the same turning rule. Each wins half the races; a race lasts the faster arrival | [user] | Reference race 1.93 s, score per second 0.0554 |
+| 29 | Central-vs-central reference = both agents at the centre going High, each with an independent random heading and the same turning rule. Each wins half the races; a race lasts the faster arrival | [user] | Reference race 1.93 s, score per second 0.0590 (0.0554 before the 2026-10-23 switch to the human time outside the race) |
+
+### How random headings and search directions enter the score (2026-10-26)
+
+Nothing is sampled. Every random element is enumerated over a fine grid, or over both of its cases, and
+averaged exactly. A race whose winner depends on the central agent's heading counts as a fractional win.
+
+- **Central heading.** The central agent's time to High is computed for 3,600 evenly spaced headings
+  (every 0.1°), each equally likely. This is done once for each Low position relative to High, because
+  the inferred search depends on where Low is (`central_times_inferred`). Where the inferred direction
+  is a tie, both directions are kept at half weight.
+- **Peripheral start.** The position and heading are the logged slice-onset values, so the peripheral
+  agent has a single time per race row (heading rounded to the 0.5° search grid).
+- **Peripheral search direction.** Each race row is one start position × one layout × one search
+  direction (two rows per position and layout). A row's weight is the layout probability, shared
+  equally over start positions and the two directions. When inference picks a direction, that row takes
+  the whole weight. When the two directions tie, both keep half.
+- **Win and race time** (`_against_central`). Each peripheral row is compared with every central time for
+  its layout. The peripheral win is the share of central times later than the peripheral time (an exact
+  tie counts half). The race time is the mean of the earlier arrival over all central times.
+- **Score.** A row's expected score is win share × wall value for the peripheral agent, and
+  (1 − win share) × 1.0 for the central agent. Score per second is the weighted total score over the
+  weighted total of (race time + 6.545 s).
+
+Example (central times with inference, Low one wall from High): a peripheral arrival at 2.0 s is later
+than the central agent for 39.8% of headings, so it counts 0.398 of a win. At 2.2 s it is 0.203, at
+2.4 s 0.035. The central agent never arrives before 1.82 s, so a peripheral time under that always wins.
+
+How much the central heading decides (final Δ rule, Δ 1.05 s): the peripheral agent always wins 0.564
+of trials and always loses 0.395. The remaining 0.041 depend on the central heading; there it wins
+0.418 on average. These contested trials give 0.014 of the peripheral agent's 0.416 score per trial and
+0.024 of the central agent's 0.419. Most races are decided by geometry alone, mainly whether the lit wall
+is next to the peripheral agent's alcove. Shown in `geometric_model_assembly.ipynb`, section 8.
 
 ## Rules
 
@@ -334,9 +372,48 @@ Low is hidden by the alcove.
 Notebook output was figures only **[user]**; section 9 adds tables at the user's request (2026-10-20). Validation against hand-counted answers lives in the
 unit tests and is described in the notebook text **[user]**.
 
+## Peripheral start positions and headings (designed; 2026-10-26)
+
+The logged agents waited almost all at the back corner of an alcove, facing roughly out (median 13.5°
+from facing the centre). Neither is a considered choice. Here the start is designed: a grid of positions,
+each with the onset heading that gives the highest expected score per second. Notebook
+`demos/analytical_modelling/peripheral_start_positions.ipynb`; code `analysis/start_positions.py`
+(tests `tests/test_start_positions.py`); cache `start_position_map_260929`.
+
+| # | Decision | Tag | Basis / note |
+|---|---|---|---|
+| S1 | **Rays, not human vision.** Both agents keep the RL agents' 7 rays for this analysis | [user] (consistency with the rest of the model, and comparison with the RL agents) | Humans see a continuous field of view, so a few degrees of heading matter far less to them. With 7 rays some views exist only over a few degrees (e.g. one adjacent wall from the back corner, through a window of about 5°). **Rerun with a human field of view (e.g. `get_wall_visible`) before applying this to human players** |
+| S2 | Positions: a grid over the clockwise half of alcove 0's sector (147 positions): 7 × 5 inside the alcove (17.0-19.7 units from the centre, lateral 0-1.85), rows 13.0-16.5 units in front of the wall face 0.5 units apart out to the line shared with wall 1, the wall face line (16.70), and the wall corner (just inside the point where walls 0 and 1 meet) | [user] (in front of the alcove, the lip, wall corners) + [claude] (grid, 0.5-unit spacing, 13-unit inner limit) | The arena is the same at every alcove and mirror-symmetric about each alcove's centre line, and layouts are uniform over High's wall, so this half-sector stands for every position. Mirror check in the notebook |
+| S3 | Heading: every heading on the 0.5° grid (720) is scored at every position; the one with the highest expected score per second is kept | [user] | Chosen before onset from own position and the arena layout only (information rule). The notebook also shows which walls, and how many, are seen at every position and heading |
+| S4 | Δ is chosen per position together with the heading (grid 0-3.8 s, 0.05 s steps) | [claude] (the agent knows where it stands) | Results at the fixed Δ of 1.05 s are shown beside them |
+| S5 | The central agent is unchanged (centre, random heading, always High) | [user] | From the centre every heading is equally good before onset (the arena is the same in every direction), so a random heading is already its best. The backpedal (D11) applies only inside an alcove, so it never applies to the central agent |
+| S7 | The rule is the final Δ rule (D6-D10) with the backpedal (D11, threshold 0.8) and own-trigger experience (D12) | [user] | Map cache stamp ('v2', 0.8, ...) |
+| S6 | Run time: about 1.4 s per position and heading on one core (80 races, motion traces cached across layouts); 147 × 720 on 12 workers took 6.8 hours (2026-10-27) | [claude] | `_TRACE_CACHE` in analytical_race.py |
+
+**Status (2026-10-27): run.** D11 and D12 are on. The logged races are rebuilt with them (cache stamp v10) and the position map is built. With D11 and D12 off, the model reproduces the v8 race cache exactly (2,400 sampled races, 0 differences); the v8 cache is kept as `periph_ray_races_260929_v8`.
+
+**Effect of D11-D12 on the logged positions** (Δ 1.05 s; `nearer_wall_choice.ipynb` section 12, third table). Races change in 0.0100 of trials. In 0.0099 the own wall is lit (High 0.0051, Low 0.0048) and the agent backs into it, so race time falls by 0.0019 s per trial. In 0.00026 of trials (own wall Low) it backs into Low where before it turned, saw High and won it, so peripheral score per trial falls by 0.00016. No backpedal at a logged position lost the gamble. D12 alone changes almost nothing (0.00005 of trials). Net, peripheral score/s 0.05268 -> 0.05267, central 0.05304 -> 0.05305, margin -0.0004 unchanged; best Δ still 1.05 s (within 0.5%: 0.25-1.15 s, was 0.30-1.15 s).
+
+**Results** (`peripheral_start_positions.ipynb`; each position at its best heading and Δ, time outside the race 6.545 s).
+
+| Region | Peripheral score/s | Margin over central | Headings within 0.5% of best (median) |
+|---|---|---|---|
+| Alcove, in trigger (20) | 0.0540-0.0547 | +0.0024 to +0.0037 | 119° |
+| Alcove, not in trigger (15) | 0.0558-0.0592 | +0.0035 to +0.0099 | 13° |
+| In front of the wall (111) | 0.0538-0.0686 | +0.0017 to +0.0368 | 14° |
+| Wall corner (1) | 0.0534 | +0.0010 | 41.5° |
+| Logged positions (reference) | 0.0527 | -0.0004 | |
+| Central vs central (reference) | 0.0591 | 0 | |
+
+- Every designed position out-scores its central opponent. Trigger positions beat the logged positions mainly through instant wins (0.250 of trials against 0.233; 0.934 of logged starts are on the trigger).
+- In front of the wall, the score rises toward the centre. The best per row goes from 0.0603 at the wall face to 0.0686 at 13 units. The best position (13 units out, 4.5 across) scores 0.0686 against 0.0324. **It is on the grid's inner edge, so the overall best position lies further in and was not found.** Moving out of the alcove gives up instant wins but wins every adjacent-High and own-wall-High layout and more far Lows.
+- The wall corner is the weakest position outside the alcove (far from both neighbouring triggers).
+- Both adjacent walls are seen together only from 12 of 147 positions (13-14.5 units out, 3.5-5.5 across), and at most 0.036 of headings. From the alcove back, rays reach an adjacent wall (the far one) only off the centre line, and over few headings (share 0 to 0.124 at 19.5-19.7 units).
+- Limits: rays not human vision (S1); central opponent fixed (always High, from the exact centre, ignores and cannot block the peripheral agent); grid inner limit at 13 units.
+
 ## Open points
 
 - Inference re-decided during the search (e.g. reversing when Low appears), and from the opponent's position.
 - Opponent visibility.
-- Overhead: is the agent ITI fixed by design or variable? If it depends on outcome, #26 needs revisiting.
+- Overhead: agent delays overran by up to 1/3 s per wait (frame-timed waits in sped-up runs; 7.09 s per trial against 6.5 s set). Fixed in Octagon `OctagonArenaSettings.ITI()` (physics-clock waits, applied 2026-10-27; in builds/261027). Human sessions use separate waits in `TrialHandler.cs`, unaffected. Check the first 261027 logs: mean about 6.5 s, no 1/3 s bunching.
 - Human version: human onset positions and measured human speed.

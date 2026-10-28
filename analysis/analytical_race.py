@@ -47,7 +47,7 @@ SEPARATIONS = {1: 0.5, 2: 0.25, 4: 0.25}     # wall separation weights, GeneralG
 SPEED = 10.0                                   # units per second (moveSpeed, OctagonAgent.cs)
 POLICIES = ('high', 'closest', 'threshold', 'low_first', 'nearest', 'delta', 'delta2')
 ALIGN_TOL = 10.0                               # degrees within which an agent counts as facing High
-N_HEADINGS = 3600                              # heading grid for the central agent (0.05 deg steps)
+N_HEADINGS = 3600                              # heading grid for the central agent (0.1 deg steps)
 HEAD_STEP = 0.5                                # heading grid for the peripheral agent's ray search (deg)
 MAX_STEP = 8.0                                 # furthest the peripheral agent steps out to sense a wall (units)
 TRACE_DT = 0.005                               # time step for tracing the peripheral agent's route (s)
@@ -64,6 +64,9 @@ TRIGGER_REACH = BACK + globals.PLAYER_RADIUS - agent_raycast.TRIGGER_DEPTH - glo
 EPS = 0.05                                     # tolerance for points on or just past the boundary
 TIE = 1e-9                                     # times closer than this count as equal
 GAP_TIE = 1e-6                                 # delta2 gaps within this of delta count as ties (go High)
+BACKPEDAL_P = 0.8                              # least probability of the target being the own wall to backpedal (arbitrary, user 2026-10-26)
+BACKPEDAL = True                               # backpedal into the own trigger (on from cache v10; caches up to v8 have it off)
+OWN_TRIGGER_KNOWN = True                       # standing on the own trigger at onset counts as sensing that wall unlit (on with BACKPEDAL)
 
 
 # geometry
@@ -708,6 +711,24 @@ def known_wall_times(positions, headings, rot_speed, close_speed, speed=SPEED):
     return D, TK
 
 
+def blind_trace(pos, heading, wall, speed=SPEED):
+    ''' Return the route to a wall followed at full speed without turning, as a high_trace result. Used
+        for backpedalling into the agent's own trigger (Control scheme: 10 units/s in every direction).
+        Takes one position, its heading (degrees), the wall row index and the speed. '''
+
+    pos = np.asarray(pos, float)
+    h0 = float(heading)
+    if _in_trigger(pos, wall):
+        return dict(arrive=0.0, sensed=0.0, state=lambda t: (pos, h0), path=pos[None], bend_times=[])
+    pts = path_points(pos, wall)
+    L = float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum())
+
+    def state(t):
+        return _along(pts, speed * t)[0], h0
+
+    return dict(arrive=L / speed, sensed=0.0, state=state, path=pts, bend_times=[])
+
+
 def trace_first_sensed(trace, dt=TRACE_DT):
     ''' Return the first time each wall is hit by a ray along a traced route (8, inf if never
         before arrival). Takes a high_trace result and the time step. '''
@@ -863,6 +884,52 @@ def joint_posterior(sensed, high_seen, low_seen):
     return J / J.sum()
 
 
+def _own_wall_p(q, sensed, target, high, low):
+    ''' Return the agent's own wall (the alcove it stands in, or None outside an alcove or on its own
+        trigger) and the probability, from what has been sensed, that its target is that wall. Takes the
+        position, the sensed walls, the target row index and the true High and Low row indices (used only
+        to read whether each is sensed). '''
+
+    q = np.asarray(q, float)
+    if not in_alcove(q):
+        return None, 0.0
+    own = int(nearest_wall(q[None])[0])
+    if _in_trigger(q, own):
+        return None, 0.0
+    if sensed[target]:
+        return own, float(target == own)
+    hs, ls = bool(sensed[high]), bool(sensed[low])
+    J = joint_posterior(sensed, high if hs else None, low if ls else None)
+    p_t = J.sum(axis=1) if target == high else J.sum(axis=0)
+    return own, float(p_t[own])
+
+
+def onset_known(pos, sensed):
+    ''' Return the walls known at onset: those the rays hit, plus the agent's own wall if it stands on that
+        wall's trigger (the trial did not end at once, so that wall is unlit). Takes the position and the
+        walls hit at onset (8 bools). '''
+
+    known = np.asarray(sensed, bool).copy()
+    if not OWN_TRIGGER_KNOWN:
+        return known
+    pos = np.asarray(pos, float)
+    own = int(nearest_wall(pos[None])[0])
+    if _in_trigger(pos, own):
+        known[own] = True
+    return known
+
+
+def _motion_kind(q, sensed, target, high, low):
+    ''' Return the kind of motion toward a target: 'backpedal' (in its own alcove, off its trigger, and
+        the target is its own wall with probability >= BACKPEDAL_P), 'route' (target sensed) or 'search'.
+        Takes the position, the sensed walls, the target row index and the true High and Low row indices. '''
+
+    own, p_own = _own_wall_p(q, sensed, target, high, low) if BACKPEDAL else (None, 0.0)
+    if own is not None and p_own >= BACKPEDAL_P - 1e-12:
+        return 'backpedal'
+    return 'route' if sensed[target] else 'search'
+
+
 def _gap_both(q, sensed, high, low, speed=SPEED):
     ''' Return (distance to High - distance to Low) / speed for an agent at q, using actual paths for
         sensed walls and expected paths (joint_posterior) for unsensed ones. Takes the position, the
@@ -877,26 +944,69 @@ def _gap_both(q, sensed, high, low, speed=SPEED):
     return (d_high - d_low) / speed
 
 
-def _motion_to(q, hd, target, sensed, high, low, d_tie, rot_speed, close_speed, speed=SPEED):
-    ''' Return the agent's motion toward a target wall from its current position and heading: a route
-        if the wall is sensed, otherwise a search (move out of an alcove while turning, or turn in place)
-        in the direction that should sense it sooner given where it could be. Takes the position,
-        heading, target row index, sensed walls, true High and Low row indices, the tie-break direction,
-        the rotation and closing speeds and the speed. Returns a dict with state, first (relative first
-        sensing time of each wall) and arrive (inf for a search). '''
+_TRACE_CACHE = {}
+TRACE_CACHE_MAX = 20000                        # traces kept before the cache is cleared
 
-    if sensed[target]:
-        tr = known_trace(q, hd, target, rot_speed, close_speed, speed)
-        return dict(state=tr['state'], first=trace_first_sensed(tr), arrive=tr['arrive'])
+
+def _cached_trace(kind, q, hd, arg, rot_speed, close_speed, speed, fn):
+    ''' Return a trace (dict with state, first and arrive) from the cache, computing it with fn if new.
+        Takes the trace kind, position, heading, its wall or direction, the speeds and the function.
+        The same motion recurs across layouts that share a start, so caching saves recasting rays. '''
+
+    key = (kind, round(float(q[0]), 9), round(float(q[1]), 9), round(float(hd), 9), arg, rot_speed, close_speed, speed)
+    if key not in _TRACE_CACHE:
+        if len(_TRACE_CACHE) >= TRACE_CACHE_MAX:
+            _TRACE_CACHE.clear()
+        _TRACE_CACHE[key] = fn()
+    return _TRACE_CACHE[key]
+
+
+def _motion_to(q, hd, target, sensed, high, low, d_tie, rot_speed, close_speed, speed=SPEED):
+    ''' Return the agent's motion toward a target wall from its current position and heading (_motion_kind):
+        a backpedal into its own trigger without turning, a route if the target is sensed, otherwise a search
+        (move out of an alcove while turning, or turn in place) in the direction that should sense it sooner
+        given where it could be. Takes the position, heading, target row index, sensed walls, true High and
+        Low row indices, the tie-break direction, the rotation and closing speeds and the speed. Returns a
+        dict with kind, state, first (relative first sensing time of each wall), arrive (inf if the motion
+        does not end at a lit wall) and wall (the wall reached on arrival, None if it does not).
+
+        A backpedal ends at the own trigger. If the own wall is lit (as the target, or as the other lit wall)
+        the trial ends there. If not, the agent has now experienced that its own wall is unlit, which is recorded as a first
+        sensing of it on arrival, so the rule decides again from there. '''
+
+    def route(tr, wall):
+        return dict(kind='route', state=tr['state'], first=trace_first_sensed(tr), arrive=tr['arrive'], wall=wall)
+
+    q = np.asarray(q, float)
+    kind = _motion_kind(q, sensed, target, high, low)
+    if kind == 'backpedal':
+        own = int(nearest_wall(q[None])[0])
+        lit = own in (high, low)
+
+        def back():
+            tr = blind_trace(q, hd, own, speed)
+            first = trace_first_sensed(tr)
+            if lit:
+                return dict(kind='backpedal', state=tr['state'], first=first, arrive=tr['arrive'], wall=own)
+            # stop on the unlit trigger, which tells the agent its own wall is not lit
+            first[own] = min(first[own], tr['arrive'])
+            t_end = tr['arrive']
+            return dict(kind='backpedal', state=lambda t: tr['state'](min(t, t_end)), first=first, arrive=np.inf, wall=None)
+
+        return _cached_trace('back', q, hd, (own, lit), rot_speed, close_speed, speed, back)
+    if kind == 'route':
+        return _cached_trace('known', q, hd, int(target), rot_speed, close_speed, speed,
+                             lambda: route(known_trace(q, hd, target, rot_speed, close_speed, speed), int(target)))
     hs, ls = bool(sensed[high]), bool(sensed[low])
     J = joint_posterior(sensed, high if hs else None, low if ls else None)
     p_t = J.sum(axis=1) if target == high else J.sum(axis=0)
     move = in_alcove(q)
-    searches = {d: step_search_trace(q, hd, d, rot_speed, speed, move=move) for d in (1, -1)}
+    searches = {d: _cached_trace('search', q, hd, (d, move), rot_speed, close_speed, speed,
+                                 lambda d=d: step_search_trace(q, hd, d, rot_speed, speed, move=move)) for d in (1, -1)}
     keep = p_t > 0
     e = {d: float((p_t[keep] * searches[d]['first'][keep]).sum()) for d in (1, -1)}
     d = d_tie if abs(e[1] - e[-1]) <= 1e-9 else (1 if e[1] < e[-1] else -1)
-    return dict(state=searches[d]['state'], first=searches[d]['first'], arrive=np.inf)
+    return dict(kind='search', state=searches[d]['state'], first=searches[d]['first'], arrive=np.inf, wall=None)
 
 
 def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, speed=SPEED):
@@ -906,7 +1016,7 @@ def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, sp
 
         At onset and at every new wall sensed, the agent goes for Low when the gap (_gap_both) exceeds delta,
         otherwise High; this splits the delta range at the gap. Each part then follows its own motion
-        (_motion_to), keeping its motion if the target and its knowledge of it are unchanged. '''
+        (_motion_to), keeping it while the target and the kind of motion (_motion_kind) are unchanged. '''
 
     p0 = np.asarray(p0, float)
     if _in_trigger(p0, high):
@@ -914,13 +1024,13 @@ def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, sp
     if _in_trigger(p0, low):
         return [(np.inf, 0.0, True)]
     pieces = []
+    sensed0 = onset_known(p0, sensed0)
     g = _gap_both(p0, sensed0, high, low, speed)
     stack = []
     for lo, hi, tgt in ((0.0, g, low), (max(0.0, g), np.inf, high)):
         if lo < hi:
             m = _motion_to(p0, h0, tgt, sensed0, high, low, d_tie, rot_speed, close_speed, speed)
-            stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=0.0, rel=0.0, sensed=np.asarray(sensed0, bool).copy(),
-                              known=bool(sensed0[tgt])))
+            stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=0.0, rel=0.0, sensed=np.asarray(sensed0, bool).copy()))
     while stack:
         b = stack.pop()
         m, sensed = b['m'], b['sensed']
@@ -928,7 +1038,7 @@ def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, sp
         cand = [f[w] for w in range(NUM_WALLS) if not sensed[w] and np.isfinite(f[w]) and f[w] >= b['rel'] - 1e-12]
         nxt = min(cand) if cand else np.inf
         if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
-            pieces.append((b['lo'], b['hi'], b['t0'] + m['arrive'], b['tgt'] == low))
+            pieces.append((b['lo'], b['hi'], b['t0'] + m['arrive'], m['wall'] == low))
             continue
         if not np.isfinite(nxt):
             raise RuntimeError('search never senses its target')
@@ -941,12 +1051,12 @@ def _delta2_pieces(p0, h0, high, low, d_tie, sensed0, rot_speed, close_speed, sp
         for lo, hi, tgt in ((b['lo'], min(b['hi'], g), low), (max(b['lo'], g), b['hi'], high)):
             if lo >= hi:
                 continue
-            if tgt == b['tgt'] and (b['known'] or not s2[tgt]):
+            if tgt == b['tgt'] and _motion_kind(q, s2, tgt, high, low) == m['kind']:
                 # keep the same motion
-                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=b['t0'], rel=nxt, sensed=s2.copy(), known=bool(s2[tgt])))
+                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m, t0=b['t0'], rel=nxt, sensed=s2.copy()))
             else:
                 m2 = _motion_to(q, hd, tgt, s2, high, low, d_tie, rot_speed, close_speed, speed)
-                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m2, t0=te, rel=0.0, sensed=s2.copy(), known=bool(s2[tgt])))
+                stack.append(dict(lo=lo, hi=hi, tgt=tgt, m=m2, t0=te, rel=0.0, sensed=s2.copy()))
     pieces.sort()
     return [(hi, t, lw) for lo, hi, t, lw in pieces]
 
@@ -961,27 +1071,26 @@ def delta2_direct(pos, heading, high, low, direction, delta, rot_speed, close_sp
         return False, 0.0
     if _in_trigger(pos, low):
         return True, 0.0
-    sensed = onset_sensed(pos[None], [heading])[0]
+    sensed = onset_known(pos, onset_sensed(pos[None], [heading])[0])
     tgt = low if _gap_both(pos, sensed, high, low, speed) > delta + GAP_TIE else high
     m = _motion_to(pos, heading, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
-    t0, rel, known = 0.0, 0.0, bool(sensed[tgt])
+    t0, rel = 0.0, 0.0
     while True:
         f = m['first']
         cand = [f[w] for w in range(NUM_WALLS) if not sensed[w] and np.isfinite(f[w]) and f[w] >= rel - 1e-12]
         nxt = min(cand) if cand else np.inf
         if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
-            return tgt == low, t0 + m['arrive']
+            return m['wall'] == low, t0 + m['arrive']
         sensed = sensed | np.array([not sensed[w] and np.isfinite(f[w]) and f[w] <= nxt + 1e-12 for w in range(NUM_WALLS)])
         q, hd = m['state'](nxt)
         new_tgt = low if _gap_both(q, sensed, high, low, speed) > delta + GAP_TIE else high
-        if new_tgt == tgt and (known or not sensed[tgt]):
+        if new_tgt == tgt and _motion_kind(q, sensed, tgt, high, low) == m['kind']:
             rel = nxt
         else:
             tgt = new_tgt
             t0 = t0 + nxt
             m = _motion_to(q, hd, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
             rel = 0.0
-        known = bool(sensed[tgt])
 
 
 def delta2_route(pos, heading, high, low, direction, delta, rot_speed, close_speed, speed=SPEED):
@@ -989,17 +1098,18 @@ def delta2_route(pos, heading, high, low, direction, delta, rot_speed, close_spe
 
         Returns a dict: go_low, time (as delta2_direct), segments (list of (state function, start time,
         end time) in the motion's own clock, with the segment's start time on the trial clock and whether
-        it is a search) and decisions (list of (trial time, position, target is Low)). '''
+        it is a search), kinds (each segment's motion kind: 'route', 'search' or 'backpedal') and decisions
+        (list of (trial time, position, target is Low)). '''
 
     pos = np.asarray(pos, float)
     if _in_trigger(pos, high) or _in_trigger(pos, low):
         return dict(go_low=_in_trigger(pos, low) and not _in_trigger(pos, high), time=0.0, segments=[],
-                    decisions=[(0.0, pos, _in_trigger(pos, low) and not _in_trigger(pos, high))])
-    sensed = onset_sensed(pos[None], [heading])[0]
+                    decisions=[(0.0, pos, _in_trigger(pos, low) and not _in_trigger(pos, high))], kinds=[])
+    sensed = onset_known(pos, onset_sensed(pos[None], [heading])[0])
     tgt = low if _gap_both(pos, sensed, high, low, speed) > delta + GAP_TIE else high
     m = _motion_to(pos, heading, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
-    t0, rel, known = 0.0, 0.0, bool(sensed[tgt])
-    segs, decisions = [], [(0.0, pos, tgt == low)]
+    t0, rel = 0.0, 0.0
+    segs, decisions, kinds = [], [(0.0, pos, tgt == low)], []
     seg_start = 0.0
     while True:
         f = m['first']
@@ -1007,19 +1117,20 @@ def delta2_route(pos, heading, high, low, direction, delta, rot_speed, close_spe
         nxt = min(cand) if cand else np.inf
         if np.isfinite(m['arrive']) and m['arrive'] <= nxt:
             segs.append((m['state'], seg_start, m['arrive'], t0, False))
-            return dict(go_low=tgt == low, time=t0 + m['arrive'], segments=segs, decisions=decisions)
+            kinds.append(m['kind'])
+            return dict(go_low=m['wall'] == low, time=t0 + m['arrive'], segments=segs, decisions=decisions, kinds=kinds)
         sensed = sensed | np.array([not sensed[w] and np.isfinite(f[w]) and f[w] <= nxt + 1e-12 for w in range(NUM_WALLS)])
         q, hd = m['state'](nxt)
         new_tgt = low if _gap_both(q, sensed, high, low, speed) > delta + GAP_TIE else high
-        if new_tgt == tgt and (known or not sensed[tgt]):
+        if new_tgt == tgt and _motion_kind(q, sensed, tgt, high, low) == m['kind']:
             rel = nxt
         else:
-            segs.append((m['state'], seg_start, nxt, t0, not np.isfinite(m['arrive'])))
+            segs.append((m['state'], seg_start, nxt, t0, m['kind'] == 'search'))
+            kinds.append(m['kind'])
             decisions.append((t0 + nxt, q, new_tgt == low))
             tgt, t0 = new_tgt, t0 + nxt
             m = _motion_to(q, hd, tgt, sensed, high, low, direction, rot_speed, close_speed, speed)
             rel, seg_start = 0.0, 0.0
-        known = bool(sensed[tgt])
 
 
 def delta2_outcome(races, delta):
@@ -1574,6 +1685,61 @@ def collect_trial_timing(sim_data_folder, models, verbose=True):
     out = pd.DataFrame(rows)
     out['overhead_s'] = out['trial_s'] - out['rt_s']
     return out
+
+
+DELAY_PARTS = ('trial start to slice onset', 'trigger to trial end', 'trial end to next trial')
+HUMAN_DELAYS_CACHE = 'human_trial_delays'
+
+
+def trial_delays(trial):
+    ''' Return a trial's time outside the race in three parts (s), keyed by DELAY_PARTS, or None if the
+        trial has no slice onset, trigger or trial end. Takes a trial dataframe.
+
+        A trial's log runs from its trial start to just before the next trial start, so the ITI is at
+        its end (trial end to the last frame). '''
+
+    ev, tt = trial['eventDescription'], trial['timeApplication']
+    so, trig, te = (tt[ev == e] for e in (globals.SLICE_ONSET, globals.SELECTED_TRIGGER_ACTIVATION, globals.TRIAL_END))
+    if len(so) == 0 or len(trig) == 0 or len(te) == 0:
+        return None
+    return dict(zip(DELAY_PARTS, ((so.iloc[0] - tt.iloc[0]).total_seconds(), (te.iloc[0] - trig.iloc[0]).total_seconds(),
+                                  (tt.iloc[-1] - te.iloc[0]).total_seconds())))
+
+
+def human_trial_delays(recompute=False):
+    ''' Return one row per human trial with its session type and time outside the race in three parts
+        (trial_delays), from cache when possible. Takes a recompute flag. Drops each session's first
+        trial. Recomputing loads the social and solo trial pickles (several GB each). '''
+
+    import gc
+    import pickle
+    import data_strings
+    import data_extraction.data_saving as data_saving
+
+    def compute():
+        rows = []
+        for kind, name in (('social', data_strings.FILENAME_SOCIAL), ('solo', data_strings.FILENAME_SOLO)):
+            with open(os.path.join(data_strings.DATAFRAME_PATH, name + '.pkl'), 'rb') as f:
+                sessions = pickle.load(f)
+            for trial_list in sessions:
+                for trial in trial_list[1:]:
+                    d = trial_delays(trial)
+                    if d is not None:
+                        rows.append({'session type': kind, **d})
+            # free each pickle before loading the next
+            del sessions
+            gc.collect()
+        return pd.DataFrame(rows)
+
+    return data_saving.cached(HUMAN_DELAYS_CACHE, compute, recompute=recompute, stamp='v1')
+
+
+def human_overhead(session_type='social', recompute=False):
+    ''' Return the human mean time outside the race per trial (s), the sum of the three delay parts.
+        Takes the session type ('social' or 'solo') and a recompute flag. '''
+
+    d = human_trial_delays(recompute)
+    return float(d.loc[d['session type'] == session_type, list(DELAY_PARTS)].sum(axis=1).mean())
 
 
 def _dist_to_trigger(xy, wall):

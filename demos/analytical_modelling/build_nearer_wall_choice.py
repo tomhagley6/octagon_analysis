@@ -72,24 +72,52 @@ DELTAS = np.round(np.arange(0, 3.81, 0.05), 2)     # thresholds swept (s); 3.8 s
 # colours: peripheral agent and its rules in fixed order, central agent in grey
 C_HIGH, C_CLOSEST, C_THRESH, C_CENTRAL = '#2a78d6', '#eb6834', '#1baf7a', '#6b6b6b'
 C_PERIPH = C_HIGH
+
+# soft presentation style (as in geometric_model_assembly.ipynb), used for figures meant for slides
+SOFT = {'font.family': 'Liberation Sans', 'axes.edgecolor': '#a0a0a0', 'axes.linewidth': 1.3, 'text.color': '#3a3a3a',
+        'axes.labelcolor': '#444444', 'xtick.color': '#666666', 'ytick.color': '#666666', 'axes.spines.top': False,
+        'axes.spines.right': False, 'legend.frameon': False}
+SOFT_PERIPH, SOFT_WALL, SOFT_CENTRAL, SOFT_INK = '#5b8db8', '#c4c4c4', '#9a9a9a', '#3a3a3a'
+
+
+def presentation_text(fig, base=18, inner=None):
+    """ Set large text and heavier axes on a figure for slides: titles base+4, axis labels base+2,
+        everything else base. White text is set to inner (default base-4). Takes the figure, the base
+        size and the size for white text. """
+
+    inner = base - 4 if inner is None else inner
+    for ax in fig.axes:
+        ax.title.set_fontsize(base + 4)
+        ax.xaxis.label.set_size(base + 2); ax.yaxis.label.set_size(base + 2)
+        ax.tick_params(labelsize=base, width=2, length=7)
+        for sp_ in ax.spines.values():
+            sp_.set_linewidth(2)
+        for t in ax.texts:
+            t.set_fontsize(inner if t.get_color() in ('white', '#ffffff') else base)
+        leg = ax.get_legend()
+        if leg is not None:
+            for t in leg.get_texts():
+                t.set_fontsize(base)
 ''')
 
 md(r'''
 ## 1. Inputs from the logs
 
-**Motivation.** The model needs two numbers from the game: how fast an agent moves, and how much time each trial costs outside the race. Both are measured from 260929 self-play.
+**Motivation.** The model needs two numbers from the game: how fast an agent moves, and how much time each trial costs outside the race. The speed is measured from 260929 self-play, and the time outside the race from the human social sessions.
 
-**Method.** For five central models, take each trial's median moving speed (both agents, slice onset to trigger, frames moving faster than 0.5 units/s) and its overhead.
+**Method.** For five central models, take each trial's median moving speed (both agents, slice onset to trigger, frames moving faster than 0.5 units/s) and its overhead. For the human social sessions, take each trial's overhead as the sum of its start delay, end delay and ITI (`ar.human_trial_delays`).
 
 **Terms**
 - Moving speed in units/s. The code sets `moveSpeed` to 10.
-- `overhead_s` is the whole trial length less the slice-onset-to-trigger time, in seconds. It covers trial start to slice onset, trigger to trial end, and the ITI. These delays were set to match the human task.
+- Overhead is the time per trial outside the race, in seconds. It covers trial start to slice onset (uniform 0.5-1.5 s in the game settings), trigger to trial end (fixed 2 s) and the ITI (uniform 2-5 s), so its expected mean is 6.5 s. For agents, `overhead_s` is the whole trial length less the slice-onset-to-trigger time.
 
-**Choices.** The mean overhead is used for every trial, whatever the outcome (sd shown in the figure).
+**Choices.**
+- The human social mean overhead is used for every trial, whatever the outcome (user's choice, as human play is the endpoint). Only the mean enters score per second (total score over total time).
+- The agent overhead is not used. The agent simulation rounds each delay up to a 1/3 s frame, which adds about 0.6 s per trial (`geometric_model_assembly.ipynb`, section 1).
 
-**How to read the figure.** Left: one count per trial, the trial's median moving speed. Right: one count per trial, its overhead. The dashed line and its label give the value used in the model.
+**How to read the figure.** Left: one count per trial, the trial's median moving speed; the dashed line is the model speed. Right: the share of trials at each overhead, for human social trials (filled) and agent trials (outline). The dashed line is the human mean, used in the model; the dotted line is the agent mean.
 
-**Why it is plotted.** The speed should sit at 10 in every trial, so that path length converts directly to time. The overhead spread shows how far a single fixed value is from the real trials.
+**Why it is plotted.** The speed should sit at 10 in every trial, so that path length converts directly to time. The overhead panel shows the spread around the mean, and the shift of the agent trials above the human ones.
 ''')
 
 code(r'''
@@ -103,7 +131,11 @@ CENTRAL = sorted(centrality[centrality >= CUT].index)
 timing_df = data_saving.cached(f'trial_timing_{BATCH}_central5',
                                lambda: ar.collect_trial_timing(SIM_DATA_FOLDER, CENTRAL[:5], verbose=False),
                                recompute=RECOMPUTE, stamp=(tuple(CENTRAL[:5]), 'v2'))
-OVERHEAD = timing_df['overhead_s'].mean()
+AGENT_OVERHEAD = timing_df['overhead_s'].mean()
+# get the human social overhead per trial, whose mean is used in the model
+human_delays = ar.human_trial_delays(recompute=RECOMPUTE)
+human_over = human_delays.loc[human_delays['session type'] == 'social', list(ar.DELAY_PARTS)].sum(axis=1)
+OVERHEAD = ar.human_overhead('social')
 
 fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
 ax = axes[0]
@@ -114,12 +146,17 @@ ax.set_xlabel('median moving speed in the trial (units/s)')
 ax.set_ylabel('trials')
 ax.set_title('Speed')
 ax = axes[1]
-ax.hist(timing_df['overhead_s'], bins=30, color=C_CENTRAL)
+bins = np.linspace(4, 9.5, 45)
+ax.hist(human_over, bins=bins, density=True, color=C_CENTRAL, alpha=0.6, label=f'human social ({len(human_over)} trials)')
+ax.hist(timing_df['overhead_s'], bins=bins, density=True, histtype='step', color='black', lw=1.2,
+        label=f'agents ({len(timing_df)} trials)')
 ax.axvline(OVERHEAD, color='black', ls='--', lw=1)
-ax.text(OVERHEAD, ax.get_ylim()[1] * 0.95, f"  mean {OVERHEAD:.2f} s\n  sd {timing_df['overhead_s'].std():.2f} s",
-        va='top', fontsize=9)
-ax.set_xlabel('overhead: whole trial less slice onset to trigger (s)')
-ax.set_ylabel('trials')
+ax.axvline(AGENT_OVERHEAD, color='black', ls=':', lw=1)
+ax.text(OVERHEAD, ax.get_ylim()[1] * 0.98, f"human mean {OVERHEAD:.2f} s  ", ha='right', va='top', fontsize=8)
+ax.text(AGENT_OVERHEAD, ax.get_ylim()[1] * 0.88, f"  agent mean {AGENT_OVERHEAD:.2f} s", va='top', fontsize=8)
+ax.set_xlabel('overhead: start delay + end delay + ITI (s)')
+ax.set_ylabel('share of trials (density)')
+ax.legend(frameon=False, fontsize=8, loc='lower right')
 ax.set_title('Time per trial outside the race')
 for ax in axes:
     ax.spines[['top', 'right']].set_visible(False)
@@ -149,27 +186,31 @@ periph = race_df[race_df['model'].isin(PERIPHERAL)].reset_index(drop=True)
 pos = periph[['x', 'z']].to_numpy(float)
 radius = np.hypot(pos[:, 0], pos[:, 1])
 
-fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), gridspec_kw=dict(width_ratios=[1, 1.2]))
-ax = axes[0]
-poly = np.vstack([ar.reach_polygon(), ar.reach_polygon()[:1]])
-ax.plot(poly[:, 0], poly[:, 1], color='#999999', lw=1)
-ax.scatter(pos[:, 0], pos[:, 1], s=6, color=C_PERIPH, alpha=0.25, lw=0)
-ax.plot(0, 0, 'ko', ms=6)
-ax.text(0.8, 0.8, 'central agent', fontsize=9)
-ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([])
-ax.set_title(f'Onset positions ({len(pos)} agent-trials, models {PERIPHERAL})', fontsize=10)
-ax = axes[1]
-ax.hist(radius, bins=np.linspace(radius.min() - 0.1, 19.85, 50), color=C_PERIPH)
-for r, lab in ((ar.W, 'wall face'), (ar.TRIGGER_REACH, 'trigger line'), (ar.BACK, 'alcove back')):
-    ax.axvline(r, color='black', ls='--', lw=1)
-    ax.text(r, ax.get_ylim()[1] * 0.97, f' {lab} {r:.2f}', rotation=90, va='top', ha='right', fontsize=8)
-past = (radius >= ar.TRIGGER_REACH).mean()
-ax.text(0.03, 0.95, f"past the trigger line: {past:.3f}", transform=ax.transAxes, va='top', fontsize=9)
-ax.set_xlabel('onset distance from the arena centre (units)')
-ax.set_ylabel('agent-trials')
-ax.set_title('Onset radius')
-ax.spines[['top', 'right']].set_visible(False)
-plt.tight_layout(); plt.show()
+with plt.rc_context(SOFT):
+    fig, axes = plt.subplots(1, 2, figsize=(24, 11), gridspec_kw=dict(width_ratios=[1, 1.3]))
+    ax = axes[0]
+    poly = np.vstack([ar.reach_polygon(), ar.reach_polygon()[:1]])
+    ax.plot(poly[:, 0], poly[:, 1], color=SOFT_WALL, lw=3.5)
+    ax.scatter(pos[:, 0], pos[:, 1], s=20, color=SOFT_PERIPH, alpha=0.3, lw=0)
+    ax.plot(0, 0, 'o', color=SOFT_CENTRAL, ms=12)
+    ax.text(1.0, 1.0, 'central agent', fontsize=9)
+    ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([]); ax.axis('off')
+    ax.set_title(f'Onset positions\n({len(pos)} agent-trials, 6 models)', fontsize=10)
+    ax = axes[1]
+    ax.hist(radius, bins=np.linspace(radius.min() - 0.1, 19.85, 50), color=SOFT_PERIPH)
+    for r, lab, side in ((ar.W, 'wall face', 'right'), (ar.TRIGGER_REACH, 'trigger line', 'right'), (ar.BACK, 'alcove back', 'left')):
+        ax.axvline(r, color=SOFT_INK, ls='--', lw=2.5)
+        ax.text(r + (0.15 if side == 'left' else 0.0), ax.get_ylim()[1] * 0.97, f' {lab} {r:.2f} ', rotation=90, va='top', ha=side, fontsize=8)
+    ax.set_xlim(right=21.2)
+    past = (radius >= ar.TRIGGER_REACH).mean()
+    ax.text(0.03, 0.95, f"past the trigger line: {past:.3f}", transform=ax.transAxes, va='top', fontsize=9)
+    ax.set_xlabel('onset distance from the arena centre (units)')
+    ax.set_ylabel('agent-trials')
+    ax.set_title('Onset radius')
+    presentation_text(fig, base=28)
+    for ax_ in axes:
+        ax_.title.set_fontsize(28)
+    plt.tight_layout(); plt.show()
 ''')
 
 md(r'''
@@ -567,7 +608,7 @@ ray_races = data_saving.cached(f'periph_ray_races_{BATCH}',
                                lambda: ar.build_races_rays(pos_r, head_r, ROT, CLOSE, groups=onset['model'].to_numpy(),
                                                            merge_step=MERGE_STEP, move_out=MOVE_OUT),
                                recompute=RECOMPUTE,
-                               stamp=(tuple(PERIPHERAL), len(pos_r), round(ROT, 3), round(CLOSE, 3), ar.HEAD_STEP, ar.TRACE_DT, MERGE_STEP, MOVE_OUT, 'v8'))
+                               stamp=(tuple(PERIPHERAL), len(pos_r), round(ROT, 3), round(CLOSE, 3), ar.HEAD_STEP, ar.TRACE_DT, MERGE_STEP, MOVE_OUT, 'v10'))
 ray_pooled = ray_races.assign(group=0, prob=ray_races['prob'] / ray_races['prob'].sum())
 CENTRAL_T = ar.central_times(ROT, close_speed=CLOSE)
 REF_RAYS = ar.central_reference(OVERHEAD, central_t=CENTRAL_T)
@@ -948,7 +989,9 @@ md(r'''
 2. It goes for Low if (distance to High - distance to Low) / 10 units/s > Δ, otherwise High. A sensed wall's distance is its shortest path; an unseen wall's is its expected path over where it could be.
 3. If the chosen wall is sensed it goes to it. If not, it searches for it: moves out of its alcove while turning, in the direction that should find that wall sooner.
 4. It re-decides at every new wall and may switch either way.
-5. Δ is swept from 0 to 3.8 s. Each race stores its outcome as a function of Δ, so every Δ is scored exactly from one build.
+5. Backpedal. If the agent is in its own alcove but off its trigger, and the chance that its chosen wall is its own wall is at least 0.8, it backs straight into the trigger at full speed without turning. Inference is enough; it need not see the wall, so turning to look would only cost time. The 0.8 is an arbitrary value picked for now (user's choice).
+6. The agent knows a wall only from experience or inference. A ray hit is experience. So is standing on its own trigger at onset without the trial ending, which shows its own wall is unlit. This is treated like a ray hit on that wall, even when no ray reaches it.
+7. Δ is swept from 0 to 3.8 s. Each race stores its outcome as a function of Δ, so every Δ is scored exactly from one build.
 
 An earlier version inferred only where High was and always steered by High; it is shown dashed for comparison. It missed the layouts where High is far and in view and an adjacent Low is hidden by the alcove, because it never considered where an unseen Low was.
 
@@ -960,7 +1003,7 @@ An earlier version inferred only where High was and always steered by High; it i
 
 **Why it is plotted.** The sweep shows which Δ is best, how sharply the score depends on it, and what inferring Low adds.
 
-**How to read the tables.** First: each rule's scores, with each Δ rule at its own best Δ. "Ends at Low" counts instant Low wins for every rule. Second: Δ chosen on five sets of start positions (from five peripheral models) and scored on the sixth, beside that set's own best.
+**How to read the tables.** First: each rule's scores, with each Δ rule at its own best Δ. "Ends at Low" counts instant Low wins for every rule. Second: Δ chosen on five sets of start positions (from five peripheral models) and scored on the sixth, beside that set's own best. Third: the races changed by the backpedal and own-trigger experience (method steps 5-6), at the best Δ, against the saved version without them. Rows split by what is at the agent's own wall; values are summed over all trials, so they add to the change in the overall means.
 ''')
 
 code(r'''
@@ -1044,6 +1087,25 @@ for m_ in sorted(ray_races['group'].unique()):
                 'best score for this set': test['periph_score_s'].max(), 'its own best Δ': float(test['periph_score_s'].idxmax()),
                 'margin at chosen Δ': test.loc[d_tr, 'periph_score_s'] - test.loc[d_tr, 'central_score_s']})
 display(pd.DataFrame(loo).set_index('start positions from model').round(4))
+
+# compare with the rule before the backpedal and own-trigger experience were added (saved copy of its cache)
+pre = data_saving.load_data(f'periph_ray_races_{BATCH}_v8', data_saving.cache_dir)['result']
+e_pre = ar.evaluate(pre, 'delta2', D_BEST_RAYS, CENTRAL_T_INF)
+e_now = ar.evaluate(ray_races, 'delta2', D_BEST_RAYS, CENTRAL_T_INF)
+w_ = (ray_races['prob'] / ray_races['prob'].sum()).to_numpy()
+d_score = (e_now['periph_score'] - e_pre['periph_score']).to_numpy()
+d_race = (e_now['race_s'] - e_pre['race_s']).to_numpy()
+changed = (np.abs(d_score) > 1e-9) | (np.abs(d_race) > 1e-9)
+own_wall = np.where(ray_races['high_off'] == 0, 'High', np.where(ray_races['low_off'] == 0, 'Low', 'unlit'))
+bp = pd.DataFrame({'own wall': own_wall, 'share of trials': w_, 'race time change (s, per trial)': w_ * d_race,
+                   'peripheral score change (per trial)': w_ * d_score,
+                   'share where the peripheral score falls': w_ * (d_score < -1e-9)})[changed]
+bp = bp.groupby('own wall').sum()
+bp.loc['all changed races'] = bp.sum()
+display(bp.round(5))
+before = ar.summarise(pre.assign(group=0, prob=pre['prob'] / pre['prob'].sum()), OVERHEAD, 'delta2', D_BEST_RAYS, central_t=CENTRAL_T_INF).iloc[0]
+print(f"peripheral score/s {before['periph_score_s']:.5f} before, {rules_tab.iloc[3]['peripheral score/s']:.5f} with the backpedal; "
+      f"central {before['central_score_s']:.5f} before, {rules_tab.iloc[3]['central score/s']:.5f} with")
 ''')
 
 md(r'''
@@ -1192,7 +1254,7 @@ md(r'''
 
 **Inputs**
 - Every one of the 990 measured trials has a median moving speed of 10.0 units/s (section 1). Path length therefore converts directly to time.
-- The overhead is 7.09 s per trial (sd 0.91 s), against a race of at most 1.82 s. So score per second is driven mostly by score per trial.
+- The overhead is 6.55 s per trial (human social mean), against a race of at most 1.82 s. So score per second is driven mostly by score per trial. The agent trials average 7.09 s, because the simulation rounds each delay up to a 1/3 s frame.
 
 **Where the choice matters (section 3)**
 - 0.939 of peripheral onset positions are past the trigger line, mostly at the alcove back.
@@ -1201,19 +1263,19 @@ md(r'''
 - In the remaining 0.626 (only High winnable 0.219, neither 0.407), the rules can only differ by sending the agent to a losing Low.
 
 **The three rules (sections 4 and 5)**
-- **Always High.** Peripheral 0.0432 score/s against central 0.0675 (score per trial 0.363 vs 0.567).
-- **Closest.** Peripheral 0.0499 against central 0.0488 (+16% for the peripheral agent). The peripheral agent now out-scores its opponent.
-- **Threshold.** The best Δ is 1.00 s, and any Δ from 0.20 to 1.15 s comes within 0.5% of it. It gives peripheral 0.0510 against central 0.0488 (+18% over always High). Score per trial is 0.425 vs 0.407.
+- **Always High.** Peripheral 0.0462 score/s against central 0.0722 (score per trial 0.363 vs 0.567).
+- **Closest.** Peripheral 0.0534 against central 0.0523 (+16% for the peripheral agent). The peripheral agent now out-scores its opponent.
+- **Threshold.** The best Δ is 1.00 s, and any Δ from 0.20 to 1.15 s comes within 0.5% of it. It gives peripheral 0.0546 against central 0.0523 (+18% over always High). Score per trial is 0.425 vs 0.407.
 - Why the threshold rule beats "closest": below Δ = 0.2 s, the agent gives up winnable Highs that are only slightly further than Low.
 - Above Δ = 1.15 s, the agent stops taking the adjacent Low when High is two walls away (a 1.17 s gap). Its score drops to 0.048, and the central agent rises to 0.056.
-- Even the best rule leaves the peripheral agent below central-vs-central play (0.0510 vs 0.0561, 91%). Head to head, though, it scores slightly more than the central agent (0.0510 vs 0.0488).
+- Even the best rule leaves the peripheral agent below central-vs-central play (0.0546 vs 0.0597, 91%). Head to head, though, it scores slightly more than the central agent (0.0546 vs 0.0523).
 
 **Relative score (section 5, right panel)**
-- Against a central opponent, going central ties (margin 0). Going peripheral gives a margin of +0.0010 per second with "closest" and +0.0022 with the threshold rule. With "always High" the margin is −0.0243.
-- Peripheral play with a good wall rule costs the player some of its own score (0.0510 vs 0.0561). It costs the central opponent more (0.0488 vs 0.0561). A player trying to finish ahead of the other player therefore does better peripheral, while a player trying to maximise its own score does better central.
+- Against a central opponent, going central ties (margin 0). Going peripheral gives a margin of +0.0011 per second with "closest" and +0.0024 with the threshold rule. With "always High" the margin is −0.0260.
+- Peripheral play with a good wall rule costs the player some of its own score (0.0546 vs 0.0597). It costs the central opponent more (0.0523 vs 0.0597). A player trying to finish ahead of the other player therefore does better peripheral, while a player trying to maximise its own score does better central.
 - The margin is small and depends on the wall rule. It is also a geometric upper limit, so visibility may remove it.
 
-**By start positions (section 6).** The model is one rule set; only the peripheral agent's start positions differ, taken from each of the six peripheral models. All six sets give the same scores under each rule (always High 0.043, closest 0.050, threshold 0.051). With start positions from model 20 the central opponent scores more under "always High" (0.0695 vs 0.067 for the others). So in this first model the result depends on the general peripheral waiting position, not on any one set.
+**By start positions (section 6).** The model is one rule set; only the peripheral agent's start positions differ, taken from each of the six peripheral models. All six sets give the same scores under each rule (always High 0.046, closest 0.053, threshold 0.055). With start positions from model 20 the central opponent scores more under "always High" (0.0744 vs 0.072 for the others). So in this first model the result depends on the general peripheral waiting position, not on any one set.
 
 **Answer.** On geometry alone, a peripheral agent that keeps going High unless it is about 0.2-1.15 s further than Low scores 18% more per second than one that always goes High. It then out-scores a central opponent. Most of the gain is already captured by simply going to the closest wall (+16%).
 
@@ -1238,33 +1300,35 @@ md(r'''
 - In the example (b), the agent moves out 1.80 units while turning, senses the hidden adjacent High at 0.18 s and arrives at 1.41 s. In (c) the same agent, heading for a High two walls away, senses the adjacent Low as it leaves the alcove. Both are known at 0.20 s, Low is nearer, and it reaches Low at 1.41 s, against 2.58 s for High.
 
 **Three peripheral rules with rays (section 9)**
-- "Nearest, once both are sensed" scores best: 0.0469 per second, against 0.0416 for "High, always" and 0.0268 for "Low, if seen first". The central agent scores 0.0539, 0.0671 and 0.0791 against them. Central vs central is 0.0554.
-- Under "nearest" the peripheral agent wins 0.542 of races and heads for Low in 0.425 of trials, but many of its wins are at Low (worth 0.4). Its score per trial is 0.398 against the central agent's 0.458, so its margin is -0.0070 per second.
+- "Nearest, once both are sensed" scores best: 0.0502 per second, against 0.0444 for "High, always" and 0.0286 for "Low, if seen first". The central agent scores 0.0577, 0.0717 and 0.0844 against them. Central vs central is 0.0590.
+- Under "nearest" the peripheral agent wins 0.542 of races and heads for Low in 0.425 of trials, but many of its wins are at Low (worth 0.4). Its score per trial is 0.398 against the central agent's 0.458, so its margin is -0.0075 per second.
 - "Nearest" gains in two layouts: Low adjacent with High two walls away (+0.389 per trial in that layout, 0.024 overall) and with High three away (+0.214, 0.020 overall). There the agent leaves the alcove toward a High it cannot win, senses the adjacent Low and switches. It loses a little where it switches away from a winnable adjacent High (-0.035 and -0.028 per trial in those layouts).
 - "Low, if seen first" loses because, from the alcove, a far Low is often sensed before a hidden adjacent High. With High adjacent its expected score per trial falls from 0.95 to 0.15 (Low three away) and 0.29 (Low two away).
-- All six sets of start positions agree: "nearest" 0.0445-0.0483, "High, always" 0.0400-0.0426, "Low, if seen first" 0.0247-0.0285 per second.
-- Against the first model (sections 4-5), ray sensing turns a small lead into a deficit for these rules. There the best rule out-scored the central agent (0.0510 vs 0.0488). Here the best of these three reaches 85% of central-vs-central play (0.0469 vs 0.0554) and stays behind its opponent. Section 12 recovers most of this with inference about both walls.
+- All six sets of start positions agree: "nearest" 0.0476-0.0516, "High, always" 0.0428-0.0455, "Low, if seen first" 0.0264-0.0305 per second.
+- Against the first model (sections 4-5), ray sensing turns a small lead into a deficit for these rules. There the best rule out-scored the central agent (0.0546 vs 0.0523). Here the best of these three reaches 85% of central-vs-central play (0.0502 vs 0.0590) and stays behind its opponent. Section 12 recovers most of this with inference about both walls.
 
 **Why "closest" falls behind with rays (section 10)**
-- Against the same ray-sensing central agent, "closest" with walls known at onset is slightly ahead (step 0, margin +0.0017). Turning to face the path first changes almost nothing (step 1, -0.0001). Having to find the chosen wall with the rays costs 0.0015 per second and puts it slightly behind (step 2, margin -0.0014). Deciding only once both walls are sensed ("nearest", step 3) costs a further 0.0011 (margin -0.0070).
+- Against the same ray-sensing central agent, "closest" with walls known at onset is slightly ahead (step 0, margin +0.0018). Turning to face the path first changes almost nothing (step 1, -0.0001). Having to find the chosen wall with the rays costs 0.0016 per second and puts it slightly behind (step 2, margin -0.0015). Deciding only once both walls are sensed ("nearest", step 3) costs a further 0.0012 (margin -0.0075).
 - The cost of finding walls falls on adjacent walls (second table): the time to an adjacent chosen wall rises from 1.45 s to 1.58 s, and its win share falls from 0.999 to 0.956. Walls two or more away were lost anyway. A target in the agent's own alcove that it does not sense at onset is reached more slowly (0.18 s to 0.38 s), as moving out is the wrong way for it, but this is 0.017 of trials and they are still won.
 - The step 3 cost is the price of not knowing Low at onset. "Nearest" commits to High first and notices Low only on the way, so some Lows that "closest" would take from the start are reached later or not at all.
-- How the agent searches matters (third table). Stepping out before searching gave "nearest" 0.0418; stepping and turning together, only when needed, 0.0462; moving out while turning whenever the wall is not sensed at onset (the current model) 0.0469. The first two decided whether to step from where the unseen wall was, which the agent cannot know; the current rule uses only what it has sensed.
+- How the agent searches matters (third table). Stepping out before searching gave "nearest" 0.0447; stepping and turning together, only when needed, 0.0494; moving out while turning whenever the wall is not sensed at onset (the current model) 0.0502. The first two decided whether to step from where the unseen wall was, which the agent cannot know; the current rule uses only what it has sensed.
 - Inference (section 11) and the Δ rule with inference about both walls (section 12) come next. The central agent's turning is cleaner than logged agents' (section 7f).
 
 **Inference (section 11)**
 - Inference shortens searching: the peripheral agent finds a hidden High in 0.148 s instead of 0.254 s, and the central agent reaches High in 2.030 s instead of 2.046 s.
-- Used only to choose the search direction, it barely changes the scores. With both agents inferring, the "nearest" margin is -0.0072 against -0.0070 without, and "High, always" -0.0257 against -0.0255. The races the peripheral agent can win are against an adjacent High, which it finds by moving out of the alcove, and from there both adjacent walls come into view at about the same time whichever way it turns.
-- "Low, if seen first" gets worse when the peripheral agent infers (-0.0523 to -0.0562): turning toward the likely High often passes Low first, as Low lies next to High, and that rule then takes Low.
+- Used only to choose the search direction, it barely changes the scores. With both agents inferring, the "nearest" margin is -0.0077 against -0.0075 without, and "High, always" -0.0275 against -0.0272. The races the peripheral agent can win are against an adjacent High, which it finds by moving out of the alcove, and from there both adjacent walls come into view at about the same time whichever way it turns.
+- "Low, if seen first" gets worse when the peripheral agent infers (-0.0558 to -0.0600): turning toward the likely High often passes Low first, as Low lies next to High, and that rule then takes Low.
 
 **The Δ rule with inference about both walls (section 12)**
-- The best threshold is Δ = 1.05 s, and any Δ from 0.30 to 1.15 s comes within 0.5% of it. It gives the peripheral agent 0.0493 per second against the central agent's 0.0496, a margin of -0.0003 (0.6% behind). Central vs central is 0.0555.
-- The High-only version reaches only 0.0471 against 0.0544 (margin -0.0074, Δ 1.00 s), about the same as "nearest" (0.0469 against 0.0541). The difference is the inferred, unseen Low: with High seen far away, the agent can judge that Low is probably next to its own alcove and go and look for it.
+- The best threshold is Δ = 1.05 s, and any Δ from 0.25 to 1.15 s comes within 0.5% of it. It gives the peripheral agent 0.0527 per second against the central agent's 0.0531, a margin of -0.0004 (0.7% behind). Central vs central is 0.0591.
+- The High-only version reaches only 0.0503 against 0.0582 (margin -0.0079, Δ 1.00 s), about the same as "nearest" (0.0502 against 0.0579). The difference is the inferred, unseen Low: with High seen far away, the agent can judge that Low is probably next to its own alcove and go and look for it.
 - Past 1.15 s the score drops in steps, as in the first model, as the agent stops taking an adjacent Low when High is two walls away (a gap of about 1.2 s), and then other Lows.
-- Δ is not tuned to particular start positions: chosen on five sets and scored on the sixth, it loses at most 0.0003 (positions from model 20). At the chosen Δ, positions from models 20, 23, 32 and 34 out-score the central opponent (margin +0.0011 to +0.0029) and positions from models 3 and 15 trail (-0.0046 and -0.0052).
+- Δ is not tuned to particular start positions: chosen on five sets and scored on the sixth, it loses at most 0.0002 (positions from model 20). At the chosen Δ, positions from models 20, 23, 32 and 34 out-score the central opponent (margin +0.0012 to +0.0031) and positions from models 3 and 15 trail (-0.0049 and -0.0055).
+- The backpedal and own-trigger experience barely change these results (third table). Races change in 0.0100 of trials. In 0.0099 of trials the own wall is lit (High 0.0051, Low 0.0048) and the agent backs into it. These races end sooner, so race time falls by 0.0019 s per trial over all trials. In 0.00026 of trials (own wall Low) the agent backs into Low where before it turned, saw High and won it, so peripheral score per trial falls by 0.00016. No backpedal at a logged position lost the gamble (own wall unlit). The unlit row (0.00005) is own-trigger experience at the few starts whose rays miss the own wall.
+- Net, peripheral score per second goes from 0.05268 to 0.05267 and central from 0.05304 to 0.05305. Nearly all logged agents start on their trigger, so the backpedal rarely applies; it matters for the designed start positions (`peripheral_start_positions.ipynb`).
 
 **Where the score comes from (section 13)**
-- The peripheral agent wins more races (0.306 at High + 0.276 at Low = 0.582) than the central agent (0.419), but its Low wins are worth 0.4, so score per trial is close: 0.416 against 0.419.
+- The peripheral agent wins more races (0.305 at High + 0.276 at Low = 0.581) than the central agent (0.419), but its Low wins are worth 0.4, so score per trial is close: 0.416 against 0.419.
 - It wins nearly every instant layout (0.233 of trials, half at Low) and adjacent-High layout (0.179 of 0.192; example (b), 1.84 s against the central mean 2.02 s).
 - High is two or more walls from its alcove in 0.567 of trials. The central agent wins 0.409 of all trials there. The peripheral agent takes 0.156 at Low there, as in example (c), where it sees High far away, infers Low is near, finds it and reaches it in 1.84 s. When both walls are far it loses, as in (d) (3.80 s against 2.01 s).
 - A wrong search direction rarely loses the adjacent race: in (g) turning away takes 1.84 s instead of 1.47 s, still ahead of the central agent's mean 2.02 s.

@@ -681,6 +681,130 @@ class TestAuditFixes(unittest.TestCase):
                     self.assertAlmostEqual(a[1], b[1], places=2)
 
 
+class TestBackpedal(unittest.TestCase):
+    """ An agent in its own alcove, off its trigger, backpedals into the trigger without turning when its
+        target is its own wall with probability >= BACKPEDAL_P. Nothing else moves without turning. """
+
+    def setUp(self):
+        # make sure the rules are on for these tests
+        self._flags = (ar.BACKPEDAL, ar.OWN_TRIGGER_KNOWN)
+        ar.BACKPEDAL, ar.OWN_TRIGGER_KNOWN = True, True
+        ar._TRACE_CACHE.clear()
+        self.rot, self.close = 331.0, 7.57
+        self.mid = np.array(ar._pt(17.5, 0.0, 0), float)          # in alcove 0, off its trigger
+        self.back = np.array(ar._pt(19.6, 0.0, 0), float)         # on alcove 0's trigger
+        self.out = np.array(ar._pt(15.5, 0.0, 0), float)          # just outside the alcove
+
+    def tearDown(self):
+        ar.BACKPEDAL, ar.OWN_TRIGGER_KNOWN = self._flags
+        ar._TRACE_CACHE.clear()
+
+    def test_on_by_default(self):
+        # the rules are on in the module defaults
+        self.assertEqual(self._flags, (True, True))
+
+    def test_switched_off(self):
+        # with the rules off, the agent never backpedals and knows only what its rays hit
+        ar.BACKPEDAL, ar.OWN_TRIGGER_KNOWN = False, False
+        sensed = np.ones(8, bool)
+        sensed[0] = False
+        self.assertNotEqual(ar._motion_kind(self.mid, sensed, 0, 0, 4), 'backpedal')
+        self.assertFalse(ar.onset_known(self.back, np.zeros(8, bool)).any())
+
+    def test_blind_trace(self):
+        tr = ar.blind_trace(self.mid, 180.0, 0)
+        self.assertAlmostEqual(tr['arrive'], ar.path_lengths(self.mid[None])[0][0] / ar.SPEED, places=6)
+        for t in np.linspace(0, tr['arrive'], 7):
+            self.assertAlmostEqual(tr['state'](t)[1], 180.0)
+        self.assertTrue(ar._in_trigger(tr['state'](tr['arrive'])[0], 0))
+
+    def test_kind_threshold(self):
+        sensed = np.ones(8, bool)
+        sensed[0] = False
+        # High at the unseen own wall, Low seen at the opposite wall: High is certain there
+        self.assertEqual(ar._motion_kind(self.mid, sensed, 0, 0, 4), 'backpedal')
+        # a second possible wall for High: own wall 0.25 / (0.25 + 0.125) = 0.67 < 0.8, so search
+        sensed[2] = False
+        self.assertAlmostEqual(ar._own_wall_p(self.mid, sensed, 0, 0, 4)[1], 2 / 3)
+        self.assertEqual(ar._motion_kind(self.mid, sensed, 0, 0, 4), 'search')
+
+    def test_only_in_own_alcove_off_trigger(self):
+        sensed = np.ones(8, bool)
+        sensed[0] = False
+        self.assertNotEqual(ar._motion_kind(self.back, sensed, 0, 0, 4), 'backpedal')
+        self.assertNotEqual(ar._motion_kind(self.out, sensed, 0, 0, 4), 'backpedal')
+
+    def test_backpedal_route(self):
+        sensed = np.ones(8, bool)
+        sensed[0] = False
+        m = ar._motion_to(self.mid, 30.0, 0, sensed, 0, 4, 1, self.rot, self.close)
+        self.assertEqual(m['kind'], 'backpedal')
+        self.assertEqual(m['wall'], 0)
+        self.assertAlmostEqual(m['arrive'], (ar.TRIGGER_REACH - 17.5) / ar.SPEED, places=6)
+        self.assertAlmostEqual(m['state'](m['arrive'] / 2)[1], 30.0)
+
+    def test_onset_known(self):
+        # on its own trigger the agent knows its own wall is unlit, whatever the rays hit
+        known = ar.onset_known(self.back, np.zeros(8, bool))
+        self.assertTrue(known[0])
+        self.assertEqual(int(known.sum()), 1)
+        self.assertFalse(ar.onset_known(self.mid, np.zeros(8, bool)).any())
+
+    def test_no_backpedal_from_trigger(self):
+        # starting on the trigger, the agent never backpedals in any layout
+        lay = ar.layout_table()
+        for hi, lo in zip(lay['high'], lay['low']):
+            r = ar.delta2_route(self.back, 180.0, int(hi), int(lo), 1, 1.05, self.rot, self.close)
+            self.assertNotIn('backpedal', r['kinds'])
+
+    def test_adjacent_wall_not_driven_blind(self):
+        # a hidden adjacent High that inference places exactly is still searched for, not driven to blindly
+        sensed = ar.onset_known(self.back, ar.onset_sensed(self.back[None], [170.0])[0])
+        self.assertFalse(sensed[1])
+        self.assertEqual(ar._motion_kind(self.back, sensed, 1, 1, 2), 'search')
+
+    def test_pieces_match_direct(self):
+        # outcomes from the pieces match a direct simulation, including backpedals that turn out wrong
+        lay = ar.layout_table()
+        n_back = 0
+        for pos, h in ((self.mid, 180.0), (np.array(ar._pt(18.0, 1.2, 0), float), 150.0)):
+            S0 = ar.onset_sensed(pos[None], [h])[0]
+            for hi, lo in zip(lay['high'], lay['low']):
+                pcs = ar._delta2_pieces(pos, h, int(hi), int(lo), 1, S0, self.rot, self.close)
+                for d in (0.0, 1.05, 3.0):
+                    k = next(i for i, (ub, _, _) in enumerate(pcs) if d + ar.GAP_TIE < ub)
+                    go_low, t = ar.delta2_direct(pos, h, int(hi), int(lo), 1, d, self.rot, self.close)
+                    self.assertEqual(bool(pcs[k][2]), bool(go_low))
+                    self.assertAlmostEqual(pcs[k][1], t, places=6)
+                r = ar.delta2_route(pos, h, int(hi), int(lo), 1, 1.05, self.rot, self.close)
+                n_back += 'backpedal' in r['kinds']
+        self.assertGreater(n_back, 0)
+
+
+class TestTrialDelays(unittest.TestCase):
+    """ trial_delays splits a logged trial's time outside the race into its three parts. """
+
+    def _trial(self, events):
+        # build a trial log at 0.02 s frames, with events at the given times (s)
+        t = np.round(np.arange(0, 10.0, 0.02), 2)
+        ev = np.full(len(t), None, dtype=object)
+        for name, at in events.items():
+            ev[int(round(at / 0.02))] = name
+        return pd.DataFrame({'timeApplication': pd.to_timedelta(t, unit='s'), 'eventDescription': ev})
+
+    def test_parts(self):
+        trial = self._trial({globals.TRIAL_START: 0.0, globals.SLICE_ONSET: 1.2,
+                             globals.SELECTED_TRIGGER_ACTIVATION: 3.0, globals.TRIAL_END: 5.0})
+        d = ar.trial_delays(trial)
+        self.assertAlmostEqual(d['trial start to slice onset'], 1.2)
+        self.assertAlmostEqual(d['trigger to trial end'], 2.0)
+        self.assertAlmostEqual(d['trial end to next trial'], 9.98 - 5.0)
+
+    def test_missing_event(self):
+        trial = self._trial({globals.TRIAL_START: 0.0, globals.SLICE_ONSET: 1.2, globals.SELECTED_TRIGGER_ACTIVATION: 3.0})
+        self.assertIsNone(ar.trial_delays(trial))
+
+
 class TestLayouts(unittest.TestCase):
 
     def test_probabilities(self):
